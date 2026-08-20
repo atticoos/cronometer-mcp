@@ -6,6 +6,11 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { z } from "zod";
 import { authHandler } from "./auth";
+import {
+  CronometerExportError,
+  exportCronometerData,
+  type CronometerExportType,
+} from "./cronometer";
 
 type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 
@@ -18,7 +23,7 @@ const authPropsSchema = z.object({
 });
 
 function createServer(): McpServer {
-  const server = new McpServer({ name: "Chronometer MCP", version: "0.1.0" });
+  const server = new McpServer({ name: "Chronometer MCP", version: "0.2.0" });
 
   server.registerTool(
     "connection_status",
@@ -41,7 +46,94 @@ function createServer(): McpServer {
     },
   );
 
+  server.registerTool(
+    "get_cronometer_data",
+    {
+      annotations: {
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+        readOnlyHint: true,
+      },
+      description:
+        "Retrieve one read-only Cronometer CSV export for an inclusive date range of up to 31 days. " +
+        "Available datasets are daily nutrition summaries, food servings, exercises, biometrics, and notes. " +
+        "Each call uses one of Cronometer's limited daily exports, so request only the data and dates needed.",
+      inputSchema: z.object({
+        dataType: z
+          .enum(["daily_nutrition", "servings", "exercises", "biometrics", "notes"])
+          .describe("The Cronometer dataset to retrieve."),
+        startDate: z
+          .string()
+          .describe("First date to include, formatted exactly as YYYY-MM-DD."),
+        endDate: z
+          .string()
+          .describe("Last date to include, formatted exactly as YYYY-MM-DD; maximum 31 inclusive days."),
+      }),
+    },
+    async ({ dataType, startDate, endDate }) => {
+      const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
+      if (!parsed.success) return toolError("Reconnect this MCP connection to Cronometer first.");
+
+      try {
+        const result = await exportCronometerData(
+          parsed.data.cronometerSession,
+          dataType as CronometerExportType,
+          startDate,
+          endDate,
+        );
+        const rows = result.rows.slice(0, 1_000);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                dataType,
+                startDate,
+                endDate,
+                columns: result.columns,
+                rows,
+                returnedRows: rows.length,
+                totalRows: result.rows.length,
+                truncated: rows.length < result.rows.length,
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        if (error instanceof CronometerExportError) {
+          return toolError(exportErrorMessage(error.reason));
+        }
+        return toolError("Cronometer data retrieval failed. Try again later.");
+      }
+    },
+  );
+
   return server;
+}
+
+function toolError(message: string) {
+  return {
+    content: [{ type: "text" as const, text: message }],
+    isError: true,
+  };
+}
+
+function exportErrorMessage(reason: CronometerExportError["reason"]): string {
+  switch (reason) {
+    case "date_range":
+      return "Use valid YYYY-MM-DD dates with the start on or before the end and no more than 31 inclusive days.";
+    case "session":
+      return "The Cronometer session has expired. Reconnect this MCP connection to Cronometer.";
+    case "rate_limit":
+      return "Cronometer's daily export limit has been reached. Try again later.";
+    case "too_large":
+      return "The Cronometer export was too large. Try a shorter date range.";
+    case "format":
+      return "Cronometer returned an unexpected export format. The private endpoint may have changed.";
+    case "upstream":
+      return "Cronometer could not generate the export. Try again later.";
+  }
 }
 
 const mcpHandler = {

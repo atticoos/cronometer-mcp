@@ -43,4 +43,11 @@ The first connection opens `/authorize`, where the user signs into Cronometer an
 
 ## Current scope
 
-This first slice implements OAuth and one authenticated `connection_status` MCP tool. Nutrition, servings, exercise, biometric, and notes tools come next.
+The Worker exposes two authenticated, read-only MCP tools:
+
+- `connection_status` verifies that the MCP grant contains a Cronometer session.
+- `get_cronometer_data` retrieves daily nutrition summaries, food servings, exercises, biometrics, or notes for an inclusive date range of up to 31 days.
+
+Each data request consumes one Cronometer CSV export. Cronometer currently limits accounts to roughly 10 exports per day, so clients should request only the dataset and dates they need. Tool responses preserve the CSV's column order and values, and return at most 1,000 rows; shorten the date range if a result is marked as truncated.
+
+The Worker never returns or logs Cronometer cookies or export nonces. An expired upstream session produces a reconnect instruction instead.
