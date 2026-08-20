@@ -1,0 +1,3 @@
+# This first OAuth slice does not require application secrets.
+# Cronometer credentials are entered by the user during authorization and are
+# never written to this file or stored by the Worker.
