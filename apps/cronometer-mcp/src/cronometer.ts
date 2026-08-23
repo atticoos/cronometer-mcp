@@ -304,7 +304,7 @@ export function parseCronometerCsv(csv: string): CronometerExport {
 function browserHeaders(): Record<string, string> {
   return {
     Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-    "User-Agent": "chronometer-mcp/0.1 (+https://github.com/)",
+    "User-Agent": "cronometer-mcp/0.1 (+https://github.com/)",
   };
 }
 

@@ -1,6 +1,6 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "chronometer-mcp",
+	"name": "cronometer-mcp",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-20",
 	"compatibility_flags": [

@@ -1,28 +1,13 @@
 {
-  "name": "chronometer-mcp",
-  "version": "0.2.0",
+  "name": "cronometer-monorepo",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "deploy:dry-run": "wrangler deploy --dry-run",
-    "cf-typegen": "wrangler types",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "check": "npm run cf-typegen && npm run typecheck && npm test && npm run deploy:dry-run"
-  },
-  "dependencies": {
-    "@cloudflare/workers-oauth-provider": "0.10.2",
-    "@modelcontextprotocol/server": "2.0.0",
-    "agents": "^0.20.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@types/node": "^26.2.0",
-    "typescript": "6.0.3",
-    "vitest": "^4.1.8",
-    "wrangler": "^4.105.0"
+    "dev": "npm run dev --workspace cronometer-mcp",
+    "deploy": "npm run deploy --workspace cronometer-mcp",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   }
 }
