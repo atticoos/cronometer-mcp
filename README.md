@@ -1,4 +1,4 @@
-# Chronometer MCP
+# Cronometer MCP
 
 A Cloudflare Worker that exposes Cronometer data to MCP clients. The project uses Cronometer's private web/GWT endpoints because Cronometer does not publish an API.
 
@@ -36,7 +36,7 @@ npm run deploy
 Then connect ChatGPT to:
 
 ```text
-https://chronometer-mcp.<your-workers-subdomain>.workers.dev/mcp
+https://cronometer-mcp.<your-workers-subdomain>.workers.dev/mcp
 ```
 
 The first connection opens `/authorize`, where the user signs into Cronometer and grants read-only access.

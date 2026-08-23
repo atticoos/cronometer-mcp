@@ -23,7 +23,7 @@ const authPropsSchema = z.object({
 });
 
 function createServer(): McpServer {
-  const server = new McpServer({ name: "Chronometer MCP", version: "0.2.0" });
+  const server = new McpServer({ name: "Cronometer MCP", version: "0.2.0" });
 
   server.registerTool(
     "connection_status",

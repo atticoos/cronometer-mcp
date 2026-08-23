@@ -8,10 +8,10 @@ import {
   CronometerAuthenticationError,
 } from "./cronometer";
 
-const FLOW_PREFIX = "chronometer:auth-flow:";
+const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
 const MAX_LOGIN_ATTEMPTS = 5;
-const CSRF_COOKIE = "__Host-CHRONOMETER_CSRF";
+const CSRF_COOKIE = "__Host-CRONOMETER_CSRF";
 const READ_SCOPE = "cronometer:read";
 
 type AuthEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
@@ -28,7 +28,7 @@ export const authHandler = {
     const url = new URL(request.url);
 
     if (url.pathname === "/" && request.method === "GET") {
-      return new Response("Chronometer MCP is running. Connect an MCP client at /mcp.", {
+      return new Response("Cronometer MCP is running. Connect an MCP client at /mcp.", {
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
@@ -188,7 +188,7 @@ function loginPage(options: {
 </head>
 <body><main>
   <h1>Connect your Cronometer account</h1>
-  <p><strong>${escapeHtml(options.clientName)}</strong> is requesting read-only access through Chronometer MCP.</p>
+  <p><strong>${escapeHtml(options.clientName)}</strong> is requesting read-only access through Cronometer MCP.</p>
   ${error}
   <form method="post" action="/authorize">
     <input type="hidden" name="flow_id" value="${escapeHtml(options.flowId)}">
