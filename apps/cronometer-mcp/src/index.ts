@@ -11,34 +11,35 @@ import {
   exportCronometerData,
   type CronometerExportType,
 } from "./cronometer";
+import {
+  authPropsSchema,
+  registerMobileTools,
+  toolError,
+} from "./tools";
 
 type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 
-const authPropsSchema = z.object({
-  cronometerSession: z.object({
-    cookies: z.string().min(1),
-    userId: z.string().min(1),
-  }),
-  cronometerUsername: z.string().min(1),
-});
+const RECONNECT_MESSAGE = "Reconnect this MCP connection to Cronometer first.";
 
-function createServer(): McpServer {
-  const server = new McpServer({ name: "Cronometer MCP", version: "0.2.0" });
+export function createServer(): McpServer {
+  const server = new McpServer({ name: "Cronometer MCP", version: "0.3.0" });
+
 
   server.registerTool(
     "connection_status",
     {
-      description: "Check whether the current MCP authorization is linked to a Cronometer account.",
+      description:
+        "Check whether the current MCP authorization is linked to a Cronometer account.",
       inputSchema: z.object({}),
     },
-    async (_args) => {
+    async () => {
       const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
       return {
         content: [
           {
             type: "text" as const,
             text: parsed.success
-              ? "Connected to Cronometer. Read-only data tools can use this authorization."
+              ? `Connected to Cronometer as ${parsed.data.cronometerUsername}. Mobile data tools and CSV exports are available.`
               : "The MCP authorization is not linked to Cronometer.",
           },
         ],
@@ -73,11 +74,11 @@ function createServer(): McpServer {
     },
     async ({ dataType, startDate, endDate }) => {
       const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
-      if (!parsed.success) return toolError("Reconnect this MCP connection to Cronometer first.");
+      if (!parsed.success) return toolError(RECONNECT_MESSAGE);
 
       try {
         const result = await exportCronometerData(
-          parsed.data.cronometerSession,
+          parsed.data.cronometerWebSession,
           dataType as CronometerExportType,
           startDate,
           endDate,
@@ -88,12 +89,12 @@ function createServer(): McpServer {
             {
               type: "text" as const,
               text: JSON.stringify({
-                dataType,
-                startDate,
-                endDate,
                 columns: result.columns,
+                dataType,
+                endDate,
                 rows,
                 returnedRows: rows.length,
+                startDate,
                 totalRows: result.rows.length,
                 truncated: rows.length < result.rows.length,
               }),
@@ -109,14 +110,9 @@ function createServer(): McpServer {
     },
   );
 
-  return server;
-}
+  registerMobileTools(server);
 
-function toolError(message: string) {
-  return {
-    content: [{ type: "text" as const, text: message }],
-    isError: true,
-  };
+  return server;
 }
 
 function exportErrorMessage(reason: CronometerExportError["reason"]): string {
