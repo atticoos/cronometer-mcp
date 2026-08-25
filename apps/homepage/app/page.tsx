@@ -746,7 +746,7 @@ function Footer() {
   );
 }
 
-export default function App() {
+export default function HomePage() {
   return (
     <div className="min-h-screen font-sans">
       <Nav />
