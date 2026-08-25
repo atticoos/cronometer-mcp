@@ -15,7 +15,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const CSRF_COOKIE = "__Host-CRONOMETER_CSRF";
 const READ_SCOPE = "cronometer:read";
 
-type AuthEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
+type AuthEnv = Env & { ENROLL_SECRET?: string; OAUTH_PROVIDER: OAuthHelpers };
 
 interface PendingFlow {
   attempts: number;
@@ -69,6 +69,7 @@ async function beginAuthorization(request: Request, env: AuthEnv): Promise<Respo
     csrfToken,
     flowId,
     redirectUri: flow.oauthRequest.redirectUri,
+    requireEnrollment: Boolean(env.ENROLL_SECRET),
     setCookie: csrfCookie(csrfToken, FLOW_TTL_SECONDS),
   });
 }
@@ -101,6 +102,27 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
   if (flow.attempts >= MAX_LOGIN_ATTEMPTS) {
     await env.OAUTH_KV.delete(flowKey);
     return htmlError("Too many login attempts. Start the connection again.", 429);
+  }
+
+  if (env.ENROLL_SECRET) {
+    const enrollCode = stringField(form, "enroll_code", 256);
+    const enrollHash = enrollCode ? await sha256Hex(enrollCode) : "";
+    if (enrollHash !== (await sha256Hex(env.ENROLL_SECRET))) {
+      const attempts = await recordFailedAttempt(env, flowKey, flow);
+      if (attempts >= MAX_LOGIN_ATTEMPTS) {
+        await env.OAUTH_KV.delete(flowKey);
+        return htmlError("Too many login attempts. Start the connection again.", 429);
+      }
+      return loginPage({
+        clientName: flow.clientName,
+        csrfToken: csrfForm,
+        error:
+          "That enrollment code was not accepted. Ask this server's operator for the current code.",
+        flowId,
+        redirectUri: flow.oauthRequest.redirectUri,
+        requireEnrollment: true,
+      });
+    }
   }
 
   try {
@@ -138,11 +160,6 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
       status: 302,
     });
   } catch (error) {
-    const attempts = flow.attempts + 1;
-    await env.OAUTH_KV.put(flowKey, JSON.stringify({ ...flow, attempts }), {
-      expirationTtl: FLOW_TTL_SECONDS,
-    });
-
     const message = authenticationErrorMessage(error);
     return loginPage({
       clientName: flow.clientName,
@@ -150,8 +167,21 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
       error: message,
       flowId,
       redirectUri: flow.oauthRequest.redirectUri,
+      requireEnrollment: Boolean(env.ENROLL_SECRET),
     });
   }
+}
+
+async function recordFailedAttempt(
+  env: AuthEnv,
+  flowKey: string,
+  flow: PendingFlow,
+): Promise<number> {
+  const attempts = flow.attempts + 1;
+  await env.OAUTH_KV.put(flowKey, JSON.stringify({ ...flow, attempts }), {
+    expirationTtl: FLOW_TTL_SECONDS,
+  });
+  return attempts;
 }
 
 function authorizationErrorResponse(error: unknown): Response {
@@ -172,6 +202,7 @@ function loginPage(options: {
   error?: string;
   flowId: string;
   redirectUri: string;
+  requireEnrollment?: boolean;
   setCookie?: string;
 }): Response {
   const error = options.error
@@ -203,6 +234,12 @@ function loginPage(options: {
   <form method="post" action="/authorize">
     <input type="hidden" name="flow_id" value="${escapeHtml(options.flowId)}">
     <input type="hidden" name="csrf_token" value="${escapeHtml(options.csrfToken)}">
+    ${
+      options.requireEnrollment
+        ? `<label for="enroll_code">Enrollment code</label>
+    <input id="enroll_code" name="enroll_code" autocomplete="off" maxlength="256" required>`
+        : ""
+    }
     <label for="username">Cronometer username or email</label>
     <input id="username" name="username" autocomplete="username" maxlength="320" required>
     <label for="password">Cronometer password</label>
