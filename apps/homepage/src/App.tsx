@@ -188,6 +188,7 @@ const LIMITS = [
 ];
 
 const ENDPOINT = "https://mcp.cronometer-mcp/mcp";
+const GITHUB_URL = "https://github.com/atticoos/cronometer-mcp";
 
 function SectionHeading({
   eyebrow,
@@ -306,7 +307,7 @@ function Hero() {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-300">
             <SparklesIcon className="size-3.5" />
-            Unofficial · read & write · Model Context Protocol
+            Open source · read & write · Model Context Protocol
           </div>
           <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
             Let AI{" "}
@@ -339,6 +340,41 @@ function Hero() {
           </p>
         </div>
         <TerminalCard />
+      </div>
+    </section>
+  );
+}
+
+function OpenSource() {
+  return (
+    <section className="border-t border-white/5 py-8">
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="flex flex-col gap-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+              <DatabaseIcon className="size-5" />
+            </span>
+            <div>
+              <p className="font-mono text-[11px] font-medium tracking-[0.18em] text-emerald-400 uppercase">
+                Open source
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-white">Inspect every line. Improve any part.</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                Review the auth flow and every tool, self-host the Worker, report an issue, or
+                contribute a better way to use your nutrition data.
+              </p>
+            </div>
+          </div>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-white/10 px-5 py-2.5 text-sm font-semibold text-zinc-200 transition-colors hover:border-emerald-500/30 hover:text-white"
+          >
+            View on GitHub
+            <ArrowRightIcon className="size-4" />
+          </a>
+        </div>
       </div>
     </section>
   );
@@ -678,6 +714,15 @@ function Footer() {
           </div>
           <p className="font-mono text-xs text-zinc-600">Built on Cloudflare Workers</p>
         </div>
+        <a
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-emerald-400"
+        >
+          Open source on GitHub
+          <ArrowRightIcon className="size-3.5" />
+        </a>
         <p className="max-w-3xl text-xs leading-relaxed text-zinc-600">
           Unofficial integration — not affiliated with or endorsed by Cronometer.com. The login
           wire format is independently implemented against Cronometer&apos;s private web endpoints,
@@ -695,6 +740,7 @@ export default function App() {
       <Nav />
       <main>
         <Hero />
+        <OpenSource />
         <UseCases />
         <Features />
         <Capabilities />
