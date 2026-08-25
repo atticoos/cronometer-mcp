@@ -1,15 +1,20 @@
 # Cronometer MCP
 
-A Cloudflare Worker that exposes Cronometer data to MCP clients. The project uses Cronometer's private web/GWT endpoints because Cronometer does not publish an API.
+A Cloudflare Worker that exposes Cronometer data to MCP clients. Data tools use Cronometer's mobile REST API (the same JSON endpoints as the Android app); CSV exports use Cronometer's private web/GWT endpoints because no public API exists.
 
 ## Authentication design
 
-The Worker has two separate trust boundaries:
+The Worker has three trust boundaries:
 
 1. It is an OAuth 2.1 authorization server for ChatGPT and other MCP clients. `@cloudflare/workers-oauth-provider` handles discovery, dynamic client registration, PKCE, token exchange, refresh, revocation, and bearer validation.
-2. During authorization, the user submits their Cronometer username, password, and optional one-time code to the Worker. The Worker immediately exchanges them with Cronometer for a session. The password and one-time code are never stored or included in an MCP token. The resulting session is stored in the OAuth grant's encrypted `props`.
+2. During authorization, the user submits their Cronometer username, password, and optional one-time code to the Worker. The Worker immediately exchanges them with **two** upstream sessions:
+   - a **mobile session** via `POST mobile.cronometer.com/api/v2/login`, which returns a `sessionKey` used by all JSON data tools (v2 requests carry an `auth` block; v3 requests use an `x-crono-session` header), and
+   - a **web/GWT session** via the private web login, kept solely to mint short-lived export nonces for CSV downloads.
+3. Neither session outlives its upstream lifetime: both are stored in the OAuth grant's encrypted `props`, and the password and one-time code are never stored or included in an MCP token.
 
-This is an unofficial integration. The login wire format was independently implemented with
+Because credentials are never persisted, an expired upstream session cannot be silently refreshed -- affected tools return a reconnect instruction and the MCP connection must be re-authorized through `/authorize`. Note that deploying this refactor changes the stored props shape, so existing connections must reconnect once after upgrade.
+
+The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT), which reverse-engineered the endpoints from the Cronometer Android app. The export wire format was independently implemented with
 [`jrmycanady/gocronometer`](https://github.com/jrmycanady/gocronometer) as a protocol reference.
 Cronometer's private GWT permutation and request format can change without notice. The reference
 project is GPL-2.0; review licensing before copying any additional implementation code from it.
@@ -43,11 +48,16 @@ The first connection opens `/authorize`, where the user signs into Cronometer an
 
 ## Current scope
 
-The Worker exposes two authenticated, read-only MCP tools:
+The Worker exposes authenticated MCP tools backed by the mobile API:
 
-- `connection_status` verifies that the MCP grant contains a Cronometer session.
-- `get_cronometer_data` retrieves daily nutrition summaries, food servings, exercises, biometrics, or notes for an inclusive date range of up to 31 days.
+- `connection_status` verifies that the MCP grant contains both Cronometer sessions.
+- Food log & diary: `get_food_log`, `add_food_entry`, `remove_food_entry`, `mark_day_complete`, `copy_day`.
+- Nutrition & food database: `get_daily_nutrition`, `get_nutrition_scores`, `search_foods`, `get_food_details`.
+- Foods & recipes: `add_custom_food`, `add_recipe`.
+- Targets & tracking: `get_macro_targets`, `get_fasting_history`, `get_fasting_stats`, `list_biometrics`, `get_biometrics`.
 
-Each data request consumes one Cronometer CSV export. Cronometer currently limits accounts to roughly 10 exports per day, so clients should request only the dataset and dates they need. Tool responses preserve the CSV's column order and values, and return at most 1,000 rows; shorten the date range if a result is marked as truncated.
+In addition, `get_cronometer_data` retrieves raw CSV exports (daily nutrition summaries, food servings, exercises, biometrics, or notes) for an inclusive date range of up to 31 days via the web session.
 
-The Worker never returns or logs Cronometer cookies or export nonces. An expired upstream session produces a reconnect instruction instead.
+Each CSV export consumes one of Cronometer's limited daily exports (roughly 10 per day), so clients should request only the dataset and dates they need; the mobile tools are not subject to that limit. Export responses preserve the CSV's column order and values, and return at most 1,000 rows; shorten the date range if a result is marked as truncated.
+
+The Worker never returns or logs Cronometer credentials, sessions, or export nonces. An expired upstream session produces a reconnect instruction instead.

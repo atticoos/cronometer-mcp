@@ -7,6 +7,7 @@ import {
   authenticateCronometer,
   CronometerAuthenticationError,
 } from "./cronometer";
+import { authenticateCronometerMobile } from "./mobile";
 
 const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
@@ -103,16 +104,25 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
   }
 
   try {
-    const session = await authenticateCronometer(username, password, userCode);
+    // Both sessions are minted from the same credentials at authorization
+    // time: the web/GWT session powers CSV exports, the mobile sessionKey
+    // powers the JSON data tools. Neither password nor one-time code is ever
+    // stored; if either handshake fails, authorization is aborted so the
+    // grant always contains a complete, working pair.
+    const [webSession, mobileSession] = await Promise.all([
+      authenticateCronometer(username, password, userCode),
+      authenticateCronometerMobile(username, password, userCode),
+    ]);
 
-    const subject = await sha256Hex(`cronometer:${session.userId}`);
+    const subject = await sha256Hex(`cronometer:${webSession.userId}`);
     const requestedScopes = flow.oauthRequest.scope ?? [];
     const grantedScopes = requestedScopes.filter((scope) => scope === READ_SCOPE);
     const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
       metadata: { provider: "cronometer" },
       props: {
-        cronometerSession: session,
+        cronometerMobileSession: mobileSession,
         cronometerUsername: username,
+        cronometerWebSession: webSession,
       },
       request: flow.oauthRequest,
       scope: grantedScopes,
@@ -227,7 +237,7 @@ function authenticationErrorMessage(error: unknown): string {
     case "second_factor":
       return "Cronometer requires a current one-time code. Re-enter your credentials and add the code from your authenticator.";
     case "session":
-      return "Cronometer accepted the login, but its private session handshake failed. The integration may need an update.";
+      return "Cronometer accepted the login, but a session handshake failed. The integration may need an update.";
   }
 }
 
