@@ -6,7 +6,9 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "npm run dev --workspace cronometer-mcp",
+    "dev:homepage": "npm run dev --workspace homepage",
     "deploy": "npm run deploy --workspace cronometer-mcp",
+    "deploy:homepage": "npm run deploy --workspace homepage",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   }
