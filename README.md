@@ -14,7 +14,7 @@ The Worker has three trust boundaries:
 
 When the optional `ENROLL_SECRET` secret is configured (`wrangler secret put ENROLL_SECRET`), `/authorize` also requires a matching enrollment code before any credentials are processed, so only people who know the code can connect. Failed enrollment guesses count against the same five-attempt limit as failed logins. When the secret is unset, anyone with the Worker URL can connect their own Cronometer account.
 
-Because credentials are never persisted, an expired upstream session cannot be silently refreshed -- affected tools return a reconnect instruction and the MCP connection must be re-authorized through `/authorize`. Note that deploying this refactor changes the stored props shape, so existing connections must reconnect once after upgrade.
+Because credentials are never persisted, an expired upstream session cannot be silently refreshed -- affected tools return a reconnect instruction and the MCP connection must be re-authorized through `/authorize`. Refresh tokens (and the encrypted sessions inside their grant) expire after 7 days regardless of upstream session lifetime. Note that deploying this refactor changes the stored props shape, so existing connections must reconnect once after upgrade.
 
 The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT), which reverse-engineered the endpoints from the Cronometer Android app. The export wire format was independently implemented with
 [`jrmycanady/gocronometer`](https://github.com/jrmycanady/gocronometer) as a protocol reference.

@@ -145,6 +145,9 @@ export default new OAuthProvider<RuntimeEnv>({
   clientIdMetadataDocumentEnabled: true,
   clientRegistrationEndpoint: "/oauth/register",
   defaultHandler: authHandler,
+  // Bound how long encrypted upstream sessions (grant props) persist at rest.
+  // After this window the connection must be re-authorized via /authorize.
+  refreshTokenTTL: 7 * 24 * 60 * 60,
   scopesSupported: ["cronometer:read"],
   tokenEndpoint: "/oauth/token",
 });
