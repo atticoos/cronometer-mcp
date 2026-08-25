@@ -1,0 +1,49 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: production-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production-${{ matrix.app }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: cronometer-mcp
+            build: ""
+          - app: homepage
+            build: npm run build
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build ${{ matrix.app }}
+        if: matrix.build != ''
+        working-directory: apps/${{ matrix.app }}
+        run: ${{ matrix.build }}
+      - name: Deploy ${{ matrix.app }}
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/${{ matrix.app }}
+          command: deploy

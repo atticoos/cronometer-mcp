@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "deploy:dry-run": "npm run build && wrangler deploy --dry-run",
+    "lint": "eslint src vite.config.ts --max-warnings 0",
+    "test": "npm run build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
