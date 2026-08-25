@@ -1,0 +1,56 @@
+name: Deploy previews
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    environment:
+      name: preview-${{ matrix.app }}
+      url: ${{ steps.preview.outputs.deployment-url }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: cronometer-mcp
+            build: ""
+          - app: homepage
+            build: npm run build
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build ${{ matrix.app }}
+        if: matrix.build != ''
+        working-directory: apps/${{ matrix.app }}
+        run: ${{ matrix.build }}
+      - name: Deploy ${{ matrix.app }} preview
+        id: preview
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/${{ matrix.app }}
+          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }}
+      - name: Add preview URL to summary
+        env:
+          APP: ${{ matrix.app }}
+          PREVIEW_URL: ${{ steps.preview.outputs.deployment-url }}
+        run: |
+          echo "### ${APP}" >> "$GITHUB_STEP_SUMMARY"
+          echo "${PREVIEW_URL}" >> "$GITHUB_STEP_SUMMARY"

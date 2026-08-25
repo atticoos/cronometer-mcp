@@ -280,12 +280,6 @@ function isJsonRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function requireOk(response: Response, action: string): void {
-  if (!response.ok) {
-    throw new CronometerMobileError("upstream", `${action} returned HTTP ${response.status}`);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Dates and timezones
 // ---------------------------------------------------------------------------
