@@ -8,6 +8,7 @@ import {
   ClockIcon,
   DatabaseIcon,
   DownloadIcon,
+  GitHubIcon,
   HeartPulseIcon,
   LeafIcon,
   LockIcon,
@@ -220,7 +221,7 @@ function Nav() {
           <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
             <LeafIcon className="size-[18px]" />
           </span>
-          <span className="font-mono text-sm font-semibold text-white">
+          <span className="hidden font-mono text-sm font-semibold text-white sm:inline">
             cronometer<span className="text-emerald-400">-mcp</span>
           </span>
         </a>
@@ -235,12 +236,23 @@ function Nav() {
             </a>
           ))}
         </nav>
-        <a
-          href="#setup"
-          className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
-        >
-          Get started
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="View Cronometer MCP on GitHub"
+            className="flex size-9 items-center justify-center rounded-full border border-white/10 text-zinc-400 transition-colors hover:border-white/25 hover:text-white"
+          >
+            <GitHubIcon className="size-[18px]" />
+          </a>
+          <a
+            href="#setup"
+            className="rounded-full bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-400 sm:px-4 sm:text-sm"
+          >
+            Connect Cronometer
+          </a>
+        </div>
       </div>
     </header>
   );
