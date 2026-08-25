@@ -110,69 +110,69 @@ const CAPABILITIES: {
   tools: { name: string; badge: ToolBadge }[];
   footnote?: string;
 }[] = [
-  {
-    icon: UtensilsIcon,
-    title: "Diary & food log",
-    tools: [
-      { name: "get_food_log", badge: "read" },
-      { name: "add_food_entry", badge: "write" },
-      { name: "remove_food_entry", badge: "destructive" },
-      { name: "mark_day_complete", badge: "write" },
-      { name: "copy_day", badge: "write" },
-    ],
-  },
-  {
-    icon: AppleIcon,
-    title: "Nutrition insights",
-    tools: [
-      { name: "get_daily_nutrition", badge: "read" },
-      { name: "get_nutrition_scores", badge: "read" },
-    ],
-  },
-  {
-    icon: SearchIcon,
-    title: "Food database",
-    tools: [
-      { name: "search_foods", badge: "read" },
-      { name: "get_food_details", badge: "read" },
-    ],
-  },
-  {
-    icon: BookOpenIcon,
-    title: "Custom foods & recipes",
-    tools: [
-      { name: "add_custom_food", badge: "write" },
-      { name: "add_recipe", badge: "write" },
-    ],
-  },
-  {
-    icon: ClockIcon,
-    title: "Fasting",
-    tools: [
-      { name: "get_fasting_history", badge: "read" },
-      { name: "get_fasting_stats", badge: "read" },
-    ],
-  },
-  {
-    icon: HeartPulseIcon,
-    title: "Biometrics",
-    tools: [
-      { name: "list_biometrics", badge: "read" },
-      { name: "get_biometrics", badge: "read" },
-    ],
-  },
-  {
-    icon: TargetIcon,
-    title: "Macro targets",
-    tools: [{ name: "get_macro_targets", badge: "read" }],
-  },
-  {
-    icon: DownloadIcon,
-    title: "Bulk exports",
-    tools: [{ name: "get_cronometer_data", badge: "read" }],
-    footnote: "daily_nutrition · servings · exercises · biometrics · notes",
-  },
-];
+    {
+      icon: UtensilsIcon,
+      title: "Diary & food log",
+      tools: [
+        { name: "get_food_log", badge: "read" },
+        { name: "add_food_entry", badge: "write" },
+        { name: "remove_food_entry", badge: "destructive" },
+        { name: "mark_day_complete", badge: "write" },
+        { name: "copy_day", badge: "write" },
+      ],
+    },
+    {
+      icon: AppleIcon,
+      title: "Nutrition insights",
+      tools: [
+        { name: "get_daily_nutrition", badge: "read" },
+        { name: "get_nutrition_scores", badge: "read" },
+      ],
+    },
+    {
+      icon: SearchIcon,
+      title: "Food database",
+      tools: [
+        { name: "search_foods", badge: "read" },
+        { name: "get_food_details", badge: "read" },
+      ],
+    },
+    {
+      icon: BookOpenIcon,
+      title: "Custom foods & recipes",
+      tools: [
+        { name: "add_custom_food", badge: "write" },
+        { name: "add_recipe", badge: "write" },
+      ],
+    },
+    {
+      icon: ClockIcon,
+      title: "Fasting",
+      tools: [
+        { name: "get_fasting_history", badge: "read" },
+        { name: "get_fasting_stats", badge: "read" },
+      ],
+    },
+    {
+      icon: HeartPulseIcon,
+      title: "Biometrics",
+      tools: [
+        { name: "list_biometrics", badge: "read" },
+        { name: "get_biometrics", badge: "read" },
+      ],
+    },
+    {
+      icon: TargetIcon,
+      title: "Macro targets",
+      tools: [{ name: "get_macro_targets", badge: "read" }],
+    },
+    {
+      icon: DownloadIcon,
+      title: "Bulk exports",
+      tools: [{ name: "get_cronometer_data", badge: "read" }],
+      footnote: "daily_nutrition · servings · exercises · biometrics · notes",
+    },
+  ];
 
 const SECURITY_POINTS = [
   "Password and one-time codes are exchanged once at authorization, never persisted",
@@ -755,8 +755,8 @@ export default function HomePage() {
         <OpenSource />
         <UseCases />
         <Capabilities />
-        <Features />
         <Tools />
+        <Features />
         <Setup />
         <Security />
         <Cta />
