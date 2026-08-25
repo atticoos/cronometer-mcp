@@ -23,11 +23,43 @@ import {
 type Icon = ComponentType<{ className?: string }>;
 
 const NAV_LINKS = [
-  { label: "Features", href: "#features" },
+  { label: "Use cases", href: "#use-cases" },
   { label: "Capabilities", href: "#capabilities" },
-  { label: "Tools", href: "#tools" },
-  { label: "Setup", href: "#setup" },
   { label: "Security", href: "#security" },
+  { label: "Setup", href: "#setup" },
+];
+
+const USE_CASES: { icon: Icon; title: string; body: string; prompt: string; outcome: string }[] = [
+  {
+    icon: UtensilsIcon,
+    title: "Decide what to eat next",
+    body: "Cronometer can show what remains. AI can turn those remaining calories and macros into meals that fit your preferences, schedule, and training day.",
+    prompt: "I lift in two hours. What can I eat with today’s remaining macros?",
+    outcome: "A practical meal, not another dashboard",
+  },
+  {
+    icon: BookOpenIcon,
+    title: "Create the food you actually had",
+    body: "Describe the odd substitution or custom order in plain language. Your assistant can work out the nutrition and create a reusable custom food in Cronometer.",
+    prompt: "Add my Starbucks drink, but swap in their protein milk.",
+    outcome: "Custom nutrition without manual data entry",
+  },
+  {
+    icon: TargetIcon,
+    title: "Plan macros around your goals",
+    body: "Use nutrition history alongside context from other connected sources—such as workout logs, weight trends, and energy expenditure—to shape the next bulk, recomp, or cut.",
+    prompt: "Review my last recomp block and propose macros for a lean bulk.",
+    outcome: "A plan grounded in your actual trend data",
+  },
+];
+
+const MORE_USE_CASES = [
+  "Build recipes from ingredients",
+  "Estimate restaurant meals",
+  "Review weekly nutrition trends",
+  "Adjust training and rest days",
+  "Copy repeatable meal plans",
+  "Add fasting and biometric context",
 ];
 
 const FEATURES: { icon: Icon; title: string; body: string }[] = [
@@ -155,7 +187,7 @@ const LIMITS = [
   { value: "1,000", label: "rows per response" },
 ];
 
-const ENDPOINT = "https://cronometer-mcp.<your-subdomain>.workers.dev/mcp";
+const ENDPOINT = "https://mcp.cronometer-mcp/mcp";
 
 function SectionHeading({
   eyebrow,
@@ -234,13 +266,13 @@ function TerminalCard() {
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
           <p className="text-sky-300">you ›</p>
           <p className="mt-0.5 text-zinc-300">
-            I’m lifting this evening. How should I shape the rest of today’s macros?
+            What should I eat next? I’m lifting this evening.
           </p>
         </div>
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-fuchsia-300">tool › get_daily_nutrition</p>
+          <p className="text-fuchsia-300">tools › get_food_log · get_macro_targets</p>
           <p className="mt-0.5 break-all text-zinc-500">
-            {'{ "date": "today", "targets": true, "diary": true }'}
+            {'{ "date": "2026-08-25" }'}
           </p>
         </div>
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
@@ -249,6 +281,16 @@ function TerminalCard() {
             You have 850 kcal left. Aim for 62 g protein, 90 g carbs, and 18 g fat — with more of
             those carbs around your workout.
           </p>
+          <div className="mt-3 space-y-2 border-t border-white/5 pt-3 text-xs">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-zinc-300">Chicken rice bowl</p>
+              <p className="shrink-0 text-zinc-500">42P · 60C · 12F</p>
+            </div>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-zinc-300">Greek yogurt, banana & oats</p>
+              <p className="shrink-0 text-zinc-500">20P · 30C · 6F</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -273,9 +315,9 @@ function Hero() {
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-400">
-            Give ChatGPT, Claude, or any MCP client live access to your Cronometer targets, intake,
-            and trends — so it can help shape your macros around your goals and keep your food log
-            up to date. Securely, under your own account.
+            Cronometer is great at showing what you ate and what&apos;s left. Connect it to AI to turn
+            those numbers into your next meal, create custom foods in plain language, and build a
+            macro plan around your goals.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
@@ -286,10 +328,10 @@ function Hero() {
               <ArrowRightIcon className="size-4" />
             </a>
             <a
-              href="#tools"
+              href="#use-cases"
               className="inline-flex items-center gap-2 rounded-full border border-white/10 px-6 py-3 text-sm font-semibold text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
             >
-              See the tools
+              Explore use cases
             </a>
           </div>
           <p className="mt-6 break-all font-mono text-xs text-zinc-500">
@@ -302,13 +344,69 @@ function Hero() {
   );
 }
 
+function UseCases() {
+  return (
+    <section id="use-cases" className="border-t border-white/5 py-24">
+      <div className="mx-auto max-w-6xl px-6">
+        <SectionHeading eyebrow="Why connect AI" title="From tracking the past to choosing what’s next">
+          Your food log becomes useful context for decisions: what to eat now, how to record real
+          life accurately, and how to adjust the plan as your goals change.
+        </SectionHeading>
+        <div className="mt-14 grid gap-5 lg:grid-cols-3">
+          {USE_CASES.map((useCase, index) => (
+            <article
+              key={useCase.title}
+              className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+                  <useCase.icon className="size-5" />
+                </span>
+                <span className="font-mono text-xs text-zinc-600">0{index + 1}</span>
+              </div>
+              <h3 className="mt-5 text-lg font-semibold text-white">{useCase.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{useCase.body}</p>
+              <div className="mt-5 rounded-xl bg-black/30 p-4 ring-1 ring-white/5">
+                <p className="font-mono text-[11px] text-emerald-400">YOU COULD ASK</p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-300">“{useCase.prompt}”</p>
+              </div>
+              <p className="mt-5 flex items-center gap-2 text-xs text-zinc-500">
+                <CheckIcon className="size-4 shrink-0 text-emerald-400" />
+                {useCase.outcome}
+              </p>
+            </article>
+          ))}
+        </div>
+        <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+          <p className="text-sm font-medium text-white">And the everyday jobs that add up</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {MORE_USE_CASES.map((useCase) => (
+              <span
+                key={useCase}
+                className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-zinc-400"
+              >
+                {useCase}
+              </span>
+            ))}
+          </div>
+        </div>
+        <p className="mx-auto mt-6 max-w-3xl text-center text-xs leading-relaxed text-zinc-600">
+          Cross-source planning depends on the other data and integrations you choose to give your
+          AI assistant. Cronometer MCP supplies the nutrition side of that context.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function Features() {
   return (
     <section id="features" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Features" title="Built like infrastructure">
+        <SectionHeading eyebrow="Technical foundation" title="Built for the data behind the advice">
           One Worker stands between your assistant and Cronometer — handling auth, sessions, rate
-          limits, and parsing so tools stay simple.
+          limits, parsing, and permissions so useful automation does not become a security
+          shortcut.
         </SectionHeading>
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feature) => (
@@ -333,7 +431,7 @@ function Capabilities() {
   return (
     <section id="capabilities" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Capabilities" title="Eighteen tools, eight jobs">
+        <SectionHeading eyebrow="Capabilities" title="The data and actions behind the advice">
           connection_status keeps the link honest; the other seventeen read and write your account
           through Cronometer&apos;s mobile API and CSV exports. Every chip is annotated read, write,
           or destructive.
@@ -386,9 +484,9 @@ function Tools() {
   return (
     <section id="tools" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Tools" title="Flagship examples">
-          A taste of the surface. Live tools return structured JSON; the bulk exporter returns
-          columns and rows that preserve Cronometer&apos;s CSV order.
+        <SectionHeading eyebrow="Under the hood" title="What your assistant can actually do">
+          Structured reads provide the context. Explicitly labeled writes handle the tedious work.
+          Bulk history makes longer-horizon planning possible.
         </SectionHeading>
         <div className="mx-auto mt-14 max-w-4xl space-y-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
@@ -413,7 +511,7 @@ function Tools() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
             <div className="flex flex-wrap items-center gap-3">
               <p className="font-mono text-base font-semibold text-emerald-300">
-                add_food_entry({"{"} foodId, measureId, grams, date?, diaryGroup? {"}"})
+                add_custom_food({"{"} foodName, serving, macros, nutrients? {"}"})
               </p>
               <span
                 className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES.write}`}
@@ -422,11 +520,11 @@ function Tools() {
               </span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Logs a serving to the diary. Pair it with search_foods and get_food_details to
-              resolve IDs, and remove_food_entry to undo.
+              Creates a reusable food with its serving size, calories, macros, and optional
+              micronutrients—useful when a real-world order does not match a database entry.
             </p>
             <pre className="mt-5 overflow-x-auto rounded-xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-zinc-400 ring-1 ring-white/5">
-              {`{ "entry": { "id": "987654", "food_id": 89231, "grams": 150 },\n  "note": "Use the returned serving ID to remove this entry." }`}
+              {`{ "food": "Protein milk latte", "serving": "1 grande",\n  "energy_kcal": 210, "protein_g": 20,\n  "carbs_g": 24, "fat_g": 4 }`}
             </pre>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
@@ -485,9 +583,9 @@ const STEPS: { number: string; title: string; body: ReactNode }[] = [
     title: "Start asking — and logging",
     body: (
       <>
-        Ask about today&apos;s diary, nutrition scores, or fasting stats — or let your assistant log
-        meals, build recipes, and track biometrics for you. Live tools hit Cronometer&apos;s mobile
-        API; bulk history comes from bounded CSV exports.
+        Ask what to eat next, create a custom food in plain language, review a nutrition trend, or
+        plan macros for your next training block. Live tools hit Cronometer&apos;s mobile API; bulk
+        history comes from bounded CSV exports.
       </>
     ),
   },
@@ -552,8 +650,8 @@ function Cta() {
           Ready to wire up your assistant?
         </h2>
         <p className="mt-4 text-base leading-relaxed text-zinc-400">
-          Deploy the Worker, add the connector URL, sign in once — then ask questions, log meals,
-          and build recipes in plain language.
+          Add the connector, sign in once, and turn today&apos;s remaining macros into a meal you can
+          actually eat.
         </p>
         <a
           href="#setup"
@@ -597,6 +695,7 @@ export default function App() {
       <Nav />
       <main>
         <Hero />
+        <UseCases />
         <Features />
         <Capabilities />
         <Tools />
