@@ -32,6 +32,8 @@ npm run dev
 
 Connect an MCP client to `http://localhost:8787/mcp`. Local KV data is maintained by Wrangler.
 
+A daily cron trigger (03:17 UTC) runs the OAuth provider's `purgeExpiredData` sweep as defense-in-depth cleanup for expired grants, orphaned tokens, and stale client registrations.
+
 ## Deploy to Cloudflare
 
 Wrangler can provision the `OAUTH_KV` namespace declared in `wrangler.jsonc` on first deploy:

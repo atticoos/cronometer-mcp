@@ -138,7 +138,7 @@ const mcpHandler = {
   },
 } satisfies ExportedHandler<RuntimeEnv>;
 
-export default new OAuthProvider<RuntimeEnv>({
+const provider = new OAuthProvider<RuntimeEnv>({
   apiHandler: mcpHandler,
   apiRoute: "/mcp",
   authorizeEndpoint: "/authorize",
@@ -151,3 +151,14 @@ export default new OAuthProvider<RuntimeEnv>({
   scopesSupported: ["cronometer:read"],
   tokenEndpoint: "/oauth/token",
 });
+
+export default {
+  fetch: (request, env, ctx) => provider.fetch(request, env, ctx),
+  async scheduled(_controller, env) {
+    const result = await provider.purgeExpiredData(env, { batchSize: 100 });
+    console.log(
+      `[oauth-kv-purge] grants checked/purged: ${result.grantsChecked}/${result.grantsPurged}, ` +
+        `tokens checked/purged: ${result.tokensChecked}/${result.tokensPurged}, done: ${result.done}`,
+    );
+  },
+} satisfies ExportedHandler<RuntimeEnv>;
