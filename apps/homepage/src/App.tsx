@@ -234,20 +234,20 @@ function TerminalCard() {
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
           <p className="text-sky-300">you ›</p>
           <p className="mt-0.5 text-zinc-300">
-            Log 150 g of chicken breast for lunch, then tell me where my protein stands.
+            I’m lifting this evening. How should I shape the rest of today’s macros?
           </p>
         </div>
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-fuchsia-300">tool › add_food_entry</p>
+          <p className="text-fuchsia-300">tool › get_daily_nutrition</p>
           <p className="mt-0.5 break-all text-zinc-500">
-            {'{ "foodId": 89231, "measureId": 12, "grams": 150, "diaryGroup": "lunch" }'}
+            {'{ "date": "today", "targets": true, "diary": true }'}
           </p>
         </div>
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
           <p className="text-emerald-300">assistant ›</p>
           <p className="mt-0.5 text-zinc-300">
-            Logged — that adds 47 g of protein. You&apos;re at 143 g for the day, just past your
-            140 g target.
+            You have 850 kcal left. Aim for 62 g protein, 90 g carbs, and 18 g fat — with more of
+            those carbs around your workout.
           </p>
         </div>
       </div>
@@ -267,15 +267,15 @@ function Hero() {
             Unofficial · read & write · Model Context Protocol
           </div>
           <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
-            Ask your AI{" "}
+            Let AI{" "}
             <span className="bg-gradient-to-r from-emerald-300 to-teal-400 bg-clip-text text-transparent">
-              what you ate.
+              tailor your macros.
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-400">
-            Cronometer MCP is a Cloudflare Worker that speaks the Model Context Protocol, so
-            ChatGPT, Claude, and any MCP client can read — and even log — your Cronometer nutrition
-            data. Securely, under your own account.
+            Give ChatGPT, Claude, or any MCP client live access to your Cronometer targets, intake,
+            and trends — so it can help shape your macros around your goals and keep your food log
+            up to date. Securely, under your own account.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
