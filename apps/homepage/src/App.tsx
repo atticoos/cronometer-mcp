@@ -5,16 +5,18 @@ import {
   BookOpenIcon,
   CalendarRangeIcon,
   CheckIcon,
+  ClockIcon,
   DatabaseIcon,
-  DumbbellIcon,
-  GaugeIcon,
+  DownloadIcon,
   HeartPulseIcon,
   LeafIcon,
   LockIcon,
+  PenLineIcon,
   RefreshIcon,
+  SearchIcon,
   ShieldCheckIcon,
   SparklesIcon,
-  StickyNoteIcon,
+  TargetIcon,
   UtensilsIcon,
 } from "./components/icons";
 
@@ -22,7 +24,7 @@ type Icon = ComponentType<{ className?: string }>;
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
-  { label: "Datasets", href: "#datasets" },
+  { label: "Capabilities", href: "#capabilities" },
   { label: "Tools", href: "#tools" },
   { label: "Setup", href: "#setup" },
   { label: "Security", href: "#security" },
@@ -37,22 +39,22 @@ const FEATURES: { icon: Icon; title: string; body: string }[] = [
   {
     icon: LockIcon,
     title: "Credentials used once",
-    body: "Your Cronometer password and one-time code are exchanged for a session during authorization and immediately discarded. Never stored, never embedded in an MCP token.",
+    body: "Your Cronometer password and one-time code are exchanged for web and mobile sessions during authorization, then immediately discarded. Never stored, never embedded in an MCP token.",
   },
   {
-    icon: BookOpenIcon,
-    title: "Strictly read-only",
-    body: "Two tools, both reads. No writes, no deletes, no side effects on your Cronometer account.",
+    icon: PenLineIcon,
+    title: "Reads and writes, clearly labeled",
+    body: "Every tool carries MCP annotations — read-only, idempotent, or destructive — so your client can gate exactly what your assistant is allowed to do.",
   },
   {
     icon: DatabaseIcon,
-    title: "Five datasets, one schema",
-    body: "Daily nutrition summaries, food servings, exercises, biometrics, and notes come back as structured columns and rows that preserve the source CSV order.",
+    title: "Live API + bulk exports",
+    body: "Sixteen tools speak to Cronometer's mobile REST API for live diary data, while get_cronometer_data pulls bulk CSV history for long-range questions.",
   },
   {
     icon: CalendarRangeIcon,
     title: "Bounded by design",
-    body: "Inclusive date windows up to 31 days per request, responses capped at 1,000 rows, and an explicit truncated flag whenever data is cut short.",
+    body: "Export windows up to 31 inclusive days, responses capped at 1,000 rows, and an explicit truncated flag whenever data is cut short.",
   },
   {
     icon: RefreshIcon,
@@ -61,39 +63,89 @@ const FEATURES: { icon: Icon; title: string; body: string }[] = [
   },
 ];
 
-const DATASETS: { icon: Icon; name: string; description: string }[] = [
-  {
-    icon: AppleIcon,
-    name: "daily_nutrition",
-    description: "Full macro and micronutrient breakdown for each day",
-  },
+type ToolBadge = "read" | "write" | "destructive";
+
+const BADGE_STYLES: Record<ToolBadge, string> = {
+  read: "border-emerald-500/20 bg-emerald-500/5 text-emerald-300",
+  write: "border-amber-500/20 bg-amber-500/5 text-amber-300",
+  destructive: "border-red-500/20 bg-red-500/5 text-red-300",
+};
+
+const CAPABILITIES: {
+  icon: Icon;
+  title: string;
+  tools: { name: string; badge: ToolBadge }[];
+  footnote?: string;
+}[] = [
   {
     icon: UtensilsIcon,
-    name: "servings",
-    description: "Logged foods, recipes, and portions",
+    title: "Diary & food log",
+    tools: [
+      { name: "get_food_log", badge: "read" },
+      { name: "add_food_entry", badge: "write" },
+      { name: "remove_food_entry", badge: "destructive" },
+      { name: "mark_day_complete", badge: "write" },
+      { name: "copy_day", badge: "write" },
+    ],
   },
   {
-    icon: DumbbellIcon,
-    name: "exercises",
-    description: "Workouts and energy expenditure",
+    icon: AppleIcon,
+    title: "Nutrition insights",
+    tools: [
+      { name: "get_daily_nutrition", badge: "read" },
+      { name: "get_nutrition_scores", badge: "read" },
+    ],
+  },
+  {
+    icon: SearchIcon,
+    title: "Food database",
+    tools: [
+      { name: "search_foods", badge: "read" },
+      { name: "get_food_details", badge: "read" },
+    ],
+  },
+  {
+    icon: BookOpenIcon,
+    title: "Custom foods & recipes",
+    tools: [
+      { name: "add_custom_food", badge: "write" },
+      { name: "add_recipe", badge: "write" },
+    ],
+  },
+  {
+    icon: ClockIcon,
+    title: "Fasting",
+    tools: [
+      { name: "get_fasting_history", badge: "read" },
+      { name: "get_fasting_stats", badge: "read" },
+    ],
   },
   {
     icon: HeartPulseIcon,
-    name: "biometrics",
-    description: "Weight, body fat, and custom measurements",
+    title: "Biometrics",
+    tools: [
+      { name: "list_biometrics", badge: "read" },
+      { name: "get_biometrics", badge: "read" },
+    ],
   },
   {
-    icon: StickyNoteIcon,
-    name: "notes",
-    description: "Journal entries and daily annotations",
+    icon: TargetIcon,
+    title: "Macro targets",
+    tools: [{ name: "get_macro_targets", badge: "read" }],
+  },
+  {
+    icon: DownloadIcon,
+    title: "Bulk exports",
+    tools: [{ name: "get_cronometer_data", badge: "read" }],
+    footnote: "daily_nutrition · servings · exercises · biometrics · notes",
   },
 ];
 
 const SECURITY_POINTS = [
   "Password and one-time codes are exchanged once at authorization, never persisted",
-  "Cronometer sessions are sealed inside encrypted OAuth grant properties",
+  "Both Cronometer sessions — web and mobile — are sealed inside encrypted OAuth grant properties",
   "Cookies and export nonces are never returned in tool responses or written to logs",
-  "The tool surface is read-only — no mutation is possible",
+  "MCP annotations mark each tool read-only, idempotent, or destructive — your client decides what to allow",
   "Expired sessions produce reconnect instructions instead of raw failures",
 ];
 
@@ -177,24 +229,25 @@ function TerminalCard() {
         </div>
         <div className="space-y-1">
           <p className="text-emerald-400">✓ OAuth 2.1 · PKCE · dynamic client registration</p>
-          <p className="text-emerald-400">✓ authorized — read-only grant</p>
+          <p className="text-emerald-400">✓ authorized — read & write grant</p>
         </div>
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
           <p className="text-sky-300">you ›</p>
           <p className="mt-0.5 text-zinc-300">
-            What was my average protein intake over the last 7 days?
+            Log 150 g of chicken breast for lunch, then tell me where my protein stands.
           </p>
         </div>
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-fuchsia-300">tool › get_cronometer_data</p>
+          <p className="text-fuchsia-300">tool › add_food_entry</p>
           <p className="mt-0.5 break-all text-zinc-500">
-            {'{ "type": "daily_nutrition", "start_date": "2026-08-15", "end_date": "2026-08-21" }'}
+            {'{ "foodId": 89231, "measureId": 12, "grams": 150, "diaryGroup": "lunch" }'}
           </p>
         </div>
         <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
           <p className="text-emerald-300">assistant ›</p>
           <p className="mt-0.5 text-zinc-300">
-            You averaged 128 g of protein per day, peaking Thursday at 156 g.
+            Logged — that adds 47 g of protein. You&apos;re at 143 g for the day, just past your
+            140 g target.
           </p>
         </div>
       </div>
@@ -211,7 +264,7 @@ function Hero() {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-300">
             <SparklesIcon className="size-3.5" />
-            Unofficial · read-only · Model Context Protocol
+            Unofficial · read & write · Model Context Protocol
           </div>
           <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
             Ask your AI{" "}
@@ -221,8 +274,8 @@ function Hero() {
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-400">
             Cronometer MCP is a Cloudflare Worker that speaks the Model Context Protocol, so
-            ChatGPT, Claude, and any MCP client can query your Cronometer nutrition data —
-            securely, read-only, under your own account.
+            ChatGPT, Claude, and any MCP client can read — and even log — your Cronometer nutrition
+            data. Securely, under your own account.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
@@ -254,8 +307,8 @@ function Features() {
     <section id="features" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeading eyebrow="Features" title="Built like infrastructure">
-          One Worker stands between your assistant and Cronometer&apos;s web app — handling auth,
-          sessions, rate limits, and CSV parsing so tools stay simple.
+          One Worker stands between your assistant and Cronometer — handling auth, sessions, rate
+          limits, and parsing so tools stay simple.
         </SectionHeading>
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feature) => (
@@ -276,27 +329,45 @@ function Features() {
   );
 }
 
-function Datasets() {
+function Capabilities() {
   return (
-    <section id="datasets" className="border-t border-white/5 py-24">
+    <section id="capabilities" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Datasets" title="Everything your exports can answer">
-          Each request maps to one of Cronometer&apos;s CSV export types, parsed into columns and
-          rows your assistant can reason over.
+        <SectionHeading eyebrow="Capabilities" title="Eighteen tools, eight jobs">
+          connection_status keeps the link honest; the other seventeen read and write your account
+          through Cronometer&apos;s mobile API and CSV exports. Every chip is annotated read, write,
+          or destructive.
         </SectionHeading>
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {DATASETS.map((dataset) => (
+        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {CAPABILITIES.map((capability) => (
             <div
-              key={dataset.name}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center transition-colors hover:border-emerald-500/30"
+              key={capability.title}
+              className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-emerald-500/30"
             >
-              <dataset.icon className="mx-auto size-6 text-emerald-400" />
-              <p className="mt-4 font-mono text-sm font-semibold text-white">{dataset.name}</p>
-              <p className="mt-2 text-xs leading-relaxed text-zinc-500">{dataset.description}</p>
+              <capability.icon className="size-6 text-emerald-400" />
+              <h3 className="mt-4 text-sm font-semibold text-white">{capability.title}</h3>
+              <div className="mt-3 flex flex-col items-start gap-1.5">
+                {capability.tools.map((tool) => (
+                  <span
+                    key={tool.name}
+                    className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES[tool.badge]}`}
+                  >
+                    {tool.name}
+                  </span>
+                ))}
+              </div>
+              {capability.footnote ? (
+                <p className="mt-3 text-[11px] leading-relaxed text-zinc-600">
+                  {capability.footnote}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>
-        <div className="mx-auto mt-12 grid max-w-3xl grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.02]">
+        <p className="mt-12 text-center font-mono text-xs text-zinc-600">
+          get_cronometer_data · bulk export limits
+        </p>
+        <div className="mx-auto mt-4 grid max-w-3xl grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.02]">
           {LIMITS.map((limit) => (
             <div key={limit.label} className="px-4 py-6 text-center">
               <p className="font-mono text-xl font-semibold text-white sm:text-2xl">
@@ -315,43 +386,67 @@ function Tools() {
   return (
     <section id="tools" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Tools" title="A deliberately small surface">
-          Two authenticated, read-only tools. That&apos;s it — every response is data, never side
-          effects.
+        <SectionHeading eyebrow="Tools" title="Flagship examples">
+          A taste of the surface. Live tools return structured JSON; the bulk exporter returns
+          columns and rows that preserve Cronometer&apos;s CSV order.
         </SectionHeading>
         <div className="mx-auto mt-14 max-w-4xl space-y-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-            <p className="font-mono text-base font-semibold text-emerald-300">
-              connection_status()
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="font-mono text-base font-semibold text-emerald-300">
+                get_food_log({"{"} date? {"}"})
+              </p>
+              <span
+                className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES.read}`}
+              >
+                read
+              </span>
+            </div>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Verifies that your MCP grant still holds a live Cronometer session — useful before
-              spending one of the day&apos;s exports.
+              The full diary for a day: every entry enriched with food name, source, and serving
+              size, plus an energy summary and consumed totals for every tracked nutrient.
             </p>
             <pre className="mt-5 overflow-x-auto rounded-xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-zinc-400 ring-1 ring-white/5">
-              {`{ "connected": true, "user_id": "123456" }`}
+              {`{ "date": "2026-08-25",\n  "energy_summary": { "consumed_kcal": 1420,\n                      "remaining_kcal": 580,\n                      "total_target_kcal": 2000 },\n  "nutrition_summary": { ... }, "diary": { ... } }`}
             </pre>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-            <p className="font-mono text-base font-semibold text-emerald-300">
-              get_cronometer_data({"{"} type, start_date, end_date {"}"})
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Retrieves one dataset over an inclusive date range of up to 31 days. Responses
-              preserve the CSV&apos;s column order and values.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {DATASETS.map((dataset) => (
-                <span
-                  key={dataset.name}
-                  className="rounded-full border border-white/10 bg-black/30 px-3 py-1 font-mono text-xs text-zinc-300"
-                >
-                  {dataset.name}
-                </span>
-              ))}
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="font-mono text-base font-semibold text-emerald-300">
+                add_food_entry({"{"} foodId, measureId, grams, date?, diaryGroup? {"}"})
+              </p>
+              <span
+                className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES.write}`}
+              >
+                write
+              </span>
             </div>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Logs a serving to the diary. Pair it with search_foods and get_food_details to
+              resolve IDs, and remove_food_entry to undo.
+            </p>
             <pre className="mt-5 overflow-x-auto rounded-xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-zinc-400 ring-1 ring-white/5">
-              {`{ "columns": ["Date", "Energy (kcal)", ...],\n  "rows": [["2026-08-21", "2140", ...]],\n  "truncated": false }`}
+              {`{ "entry": { "id": "987654", "food_id": 89231, "grams": 150 },\n  "note": "Use the returned serving ID to remove this entry." }`}
+            </pre>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="font-mono text-base font-semibold text-emerald-300">
+                get_cronometer_data({"{"} dataType, startDate, endDate {"}"})
+              </p>
+              <span
+                className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES.read}`}
+              >
+                read
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Bulk CSV history over an inclusive window of up to 31 days — daily nutrition
+              summaries, servings, exercises, biometrics, or notes. Each call uses one of
+              Cronometer&apos;s limited daily exports.
+            </p>
+            <pre className="mt-5 overflow-x-auto rounded-xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-zinc-400 ring-1 ring-white/5">
+              {`{ "columns": ["Date", "Energy (kcal)", ...],\n  "rows": [["2026-07-01", "2140", ...]],\n  "totalRows": 31, "truncated": false }`}
             </pre>
           </div>
         </div>
@@ -381,17 +476,18 @@ const STEPS: { number: string; title: string; body: ReactNode }[] = [
         The first connection opens{" "}
         <span className="font-mono text-emerald-300">/authorize</span>, where you enter your
         Cronometer username, password, and one-time code if you use two-factor authentication. The
-        Worker exchanges them for a session immediately.
+        Worker exchanges them for web and mobile sessions immediately.
       </>
     ),
   },
   {
     number: "03",
-    title: "Start asking",
+    title: "Start asking — and logging",
     body: (
       <>
-        Ask your assistant anything your exports can answer. Every query becomes one bounded CSV
-        fetch under the hood — so ask for exactly the dataset and dates you need.
+        Ask about today&apos;s diary, nutrition scores, or fasting stats — or let your assistant log
+        meals, build recipes, and track biometrics for you. Live tools hit Cronometer&apos;s mobile
+        API; bulk history comes from bounded CSV exports.
       </>
     ),
   },
@@ -425,9 +521,6 @@ function Security() {
       <div className="mx-auto grid max-w-6xl gap-14 px-6 lg:grid-cols-2 lg:items-start">
         <div className="lg:sticky lg:top-28">
           <SectionHeading eyebrow="Security & privacy" title="Your credentials never linger">
-            <span className="inline-flex items-center gap-2 align-middle">
-              <GaugeIcon className="size-5 text-emerald-400" />
-            </span>{" "}
             The Worker sits at two trust boundaries and keeps both clean: it is an OAuth 2.1
             authorization server for your clients, and a one-shot credential exchanger with
             Cronometer.
@@ -459,8 +552,8 @@ function Cta() {
           Ready to wire up your assistant?
         </h2>
         <p className="mt-4 text-base leading-relaxed text-zinc-400">
-          Deploy the Worker, add the connector URL, sign in once — and start asking questions about
-          your nutrition in plain language.
+          Deploy the Worker, add the connector URL, sign in once — then ask questions, log meals,
+          and build recipes in plain language.
         </p>
         <a
           href="#setup"
@@ -490,8 +583,8 @@ function Footer() {
         <p className="max-w-3xl text-xs leading-relaxed text-zinc-600">
           Unofficial integration — not affiliated with or endorsed by Cronometer.com. The login
           wire format is independently implemented against Cronometer&apos;s private web endpoints,
-          which may change without notice. Read-only access is granted only by you, per client, via
-          OAuth.
+          which may change without notice. Access — read and write — is granted only by you, per
+          client, via OAuth.
         </p>
       </div>
     </footer>
@@ -505,7 +598,7 @@ export default function App() {
       <main>
         <Hero />
         <Features />
-        <Datasets />
+        <Capabilities />
         <Tools />
         <Setup />
         <Security />
