@@ -5,9 +5,9 @@
   "type": "module",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "npm run dev --workspace cronometer-mcp",
+    "dev": "npm run dev --workspace cronometer-mcp-worker",
     "dev:homepage": "npm run dev --workspace homepage",
-    "deploy": "npm run deploy --workspace cronometer-mcp",
+    "deploy": "npm run deploy --workspace cronometer-mcp-worker",
     "deploy:homepage": "npm run deploy --workspace homepage",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "npm run typecheck --workspaces --if-present",
