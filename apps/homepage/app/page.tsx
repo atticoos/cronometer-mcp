@@ -754,8 +754,8 @@ export default function HomePage() {
         <Hero />
         <OpenSource />
         <UseCases />
-        <Features />
         <Capabilities />
+        <Features />
         <Tools />
         <Setup />
         <Security />
