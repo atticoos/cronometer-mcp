@@ -1,5 +1,5 @@
 {
-  "name": "cronometer-mcp",
+  "name": "cronometer-mcp-worker",
   "version": "0.3.0",
   "private": true,
   "type": "module",

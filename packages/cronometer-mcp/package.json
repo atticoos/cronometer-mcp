@@ -1,0 +1,52 @@
+{
+  "name": "cronometer-mcp",
+  "version": "0.0.1",
+  "description": "Local MCP server exposing Cronometer food logging and nutrition data to MCP clients.",
+  "license": "MIT",
+  "author": "Atticus White",
+  "type": "module",
+  "bin": {
+    "cronometer-mcp": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atticoos/cronometer-mcp.git",
+    "directory": "packages/cronometer-mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/atticoos/cronometer-mcp/issues"
+  },
+  "homepage": "https://github.com/atticoos/cronometer-mcp/tree/main/packages/cronometer-mcp#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "cronometer",
+    "nutrition",
+    "food-log"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "lint": "eslint src --max-warnings 0",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "6.0.3"
+  }
+}
