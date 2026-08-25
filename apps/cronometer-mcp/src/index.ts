@@ -21,8 +21,9 @@ type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 
 const RECONNECT_MESSAGE = "Reconnect this MCP connection to Cronometer first.";
 
-function createServer(): McpServer {
+export function createServer(): McpServer {
   const server = new McpServer({ name: "Cronometer MCP", version: "0.3.0" });
+
 
   server.registerTool(
     "connection_status",
