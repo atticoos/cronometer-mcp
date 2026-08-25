@@ -188,7 +188,7 @@ const LIMITS = [
   { value: "1,000", label: "rows per response" },
 ];
 
-const ENDPOINT = "https://mcp.cronometer-mcp/mcp";
+const ENDPOINT = "https://mcp.cronometer-mcp.dev/mcp";
 const GITHUB_URL = "https://github.com/atticoos/cronometer-mcp";
 
 function SectionHeading({
