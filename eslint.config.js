@@ -19,7 +19,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/homepage/src/**/*.{ts,tsx}"],
+    files: ["apps/homepage/app/**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": reactHooks,
     },

@@ -1,6 +1,6 @@
 import type { ReactNode, SVGProps } from "react";
 
-type IconProps = SVGProps<SVGSVGElement>;
+type IconProps = Readonly<SVGProps<SVGSVGElement>>;
 
 function Icon({ children, ...props }: IconProps & { children: ReactNode }) {
   return (
