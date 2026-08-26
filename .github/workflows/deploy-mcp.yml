@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/cronometer-mcp/**"
+      - "packages/**"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.base.json"
