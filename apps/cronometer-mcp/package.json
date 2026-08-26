@@ -18,6 +18,8 @@
     "@microlabs/otel-cf-workers": "^1.0.0-rc.52",
     "@modelcontextprotocol/server": "2.0.0",
     "agents": "^0.20.1",
+    "cronometer-api": "*",
+    "cronometer-mcp-tools": "*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
