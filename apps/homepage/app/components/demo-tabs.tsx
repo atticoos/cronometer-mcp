@@ -546,6 +546,11 @@ const QUICK_LOG_ENTRIES = [
     detail: "dinner · logged 14 times · 1½ servings",
     macros: "470 kcal · 34P",
   },
+  {
+    name: "Greek yogurt bowl",
+    detail: "afternoon snack · logged 9 times · post-gym",
+    macros: "240 kcal · 20P",
+  },
 ];
 
 const QUICK_LOG_SCENARIO: ChatItem[] = [
@@ -553,7 +558,7 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
     role: "user",
     id: "quicklog-question",
     delay: 600,
-    text: "Log today's meals: protein & oat breakfast, usual chicken rice bowl at lunch, and turkey chili dinner."
+    text: "Log today's meals: protein & oat breakfast, chicken rice bowl at lunch, a greek yogurt bowl in the afternoon, and turkey chili dinner."
   },
   {
     role: "tool",
@@ -601,9 +606,15 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
       {
         kind: "text",
         className: "border-t border-white/5 pt-3 text-xs text-zinc-500",
-        text: "Adding all three to today’s diary.",
+        text: "Want me to add all four to today’s diary?",
       },
     ],
+  },
+  {
+    role: "user",
+    id: "quicklog-confirm",
+    delay: 950,
+    text: "Yes — log them.",
   },
   {
     role: "tool",
@@ -612,8 +623,8 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
     calls: [
       {
         name: "cronometer-mcp",
-        args: "add_food_entry ×3",
-        result: "3 entries added · 1,700 kcal · 124P / 148C / 56F",
+        args: "add_food_entry ×4",
+        result: "4 entries added · 1,940 kcal · 144P / 170C / 64F",
         resultTone: "success",
       },
     ],
