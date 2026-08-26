@@ -6,19 +6,28 @@ import {
   BookOpenIcon,
   CalendarRangeIcon,
   CheckIcon,
+  ClaudeIcon,
   ClockIcon,
+  CodeIcon,
+  CursorIcon,
   DatabaseIcon,
   DownloadIcon,
+  GeminiIcon,
   GitHubIcon,
   HeartPulseIcon,
+  HermesIcon,
   LeafIcon,
   LockIcon,
+  OpenAIIcon,
+  OpenClawIcon,
   PenLineIcon,
+  PonchoIcon,
   RefreshIcon,
   SearchIcon,
   ShieldCheckIcon,
   SparklesIcon,
   TargetIcon,
+  WindsurfIcon,
   UtensilsIcon,
 } from "./components/icons";
 
@@ -214,11 +223,18 @@ const LIMITS = [
   { value: "1,000", label: "rows per response" },
 ];
 
-const HERO_STATS = [
-  { value: "18", label: "focused tools" },
-  { value: "OAuth 2.1", label: "browser sign-in" },
-  { value: "Read & write", label: "annotated per tool" },
-  { value: "0", label: "stored passwords or codes" },
+const WORKS_WITH: { name: string; icon: Icon; iconClass?: string }[] = [
+  { name: "ChatGPT", icon: OpenAIIcon },
+  { name: "Codex", icon: OpenAIIcon },
+  { name: "Poncho", icon: PonchoIcon, iconClass: "text-red-400" },
+  { name: "OpenClaw", icon: OpenClawIcon, iconClass: "text-red-400" },
+  { name: "Hermes", icon: HermesIcon },
+  { name: "Cursor", icon: CursorIcon },
+  { name: "Claude Desktop", icon: ClaudeIcon, iconClass: "text-orange-400" },
+  { name: "Claude Code", icon: ClaudeIcon, iconClass: "text-orange-300" },
+  { name: "Gemini CLI", icon: GeminiIcon, iconClass: "text-blue-400" },
+  { name: "VS Code", icon: CodeIcon, iconClass: "text-sky-400" },
+  { name: "Windsurf", icon: WindsurfIcon, iconClass: "text-teal-300" },
 ];
 
 const FAQ_ITEMS: { question: string; answer: string }[] = [
@@ -376,52 +392,43 @@ function Hero() {
         </div>
         <DemoTabs />
       </div>
-      <div className="relative mx-auto max-w-6xl px-6 pb-20">
-        <div className="grid grid-cols-2 divide-white/10 rounded-2xl border border-white/10 bg-white/[0.02] sm:grid-cols-4 sm:divide-x">
-          {HERO_STATS.map((stat) => (
-            <div key={stat.label} className="px-4 py-5 text-center">
-              <p className="font-mono text-lg font-semibold text-white sm:text-xl">{stat.value}</p>
-              <p className="mt-1 text-xs text-zinc-500">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <WorksWith />
     </section>
   );
 }
 
-function OpenSource() {
+function WorksWith() {
   return (
-    <section className="border-t border-white/5 py-8">
+    <div className="relative border-t border-white/5 py-10">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="flex flex-col gap-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-4">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
-              <DatabaseIcon className="size-5" />
-            </span>
-            <div>
-              <p className="font-mono text-[11px] font-medium tracking-[0.18em] text-emerald-400 uppercase">
-                Open source
-              </p>
-              <h2 className="mt-1 text-lg font-semibold text-white">Inspect every line. Improve any part.</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-400">
-                Review the auth flow and every tool, self-host the Worker, report an issue, or
-                contribute a better way to use your nutrition data.
-              </p>
-            </div>
-          </div>
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-white/10 px-5 py-2.5 text-sm font-semibold text-zinc-200 transition-colors hover:border-emerald-500/30 hover:text-white"
-          >
-            View on GitHub
-            <ArrowRightIcon className="size-4" />
-          </a>
+        <p className="font-mono text-[11px] font-medium tracking-[0.28em] text-zinc-500 uppercase">
+          Works with
+        </p>
+      </div>
+      <div className="marquee marquee-mask mt-7 overflow-hidden">
+        <div className="marquee-track flex w-max">
+          {[0, 1].map((copy) => (
+            <ul
+              key={copy}
+              aria-hidden={copy === 1 || undefined}
+              className="flex items-center gap-3 pr-3"
+            >
+              {WORKS_WITH.map((client) => (
+                <li
+                  key={client.name}
+                  className="flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] py-2.5 pr-5 pl-4 text-sm font-medium whitespace-nowrap text-zinc-100"
+                >
+                  <client.icon
+                    className={`size-4 shrink-0 ${client.iconClass ?? "text-zinc-300"}`}
+                  />
+                  {client.name}
+                </li>
+              ))}
+            </ul>
+          ))}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -872,7 +879,6 @@ export default function HomePage() {
       <Nav />
       <main>
         <Hero />
-        <OpenSource />
         <Problem />
         <UseCases />
         <Capabilities />

@@ -232,3 +232,102 @@ export function PenLineIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function OpenAIIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="7.5" y="4" width="9" height="16" rx="4.5" />
+      <rect x="7.5" y="4" width="9" height="16" rx="4.5" transform="rotate(60 12 12)" />
+      <rect x="7.5" y="4" width="9" height="16" rx="4.5" transform="rotate(120 12 12)" />
+    </Icon>
+  );
+}
+
+export function PonchoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path
+        fill="currentColor"
+        stroke="none"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19ZM8.75 10.5a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Zm6.5 0a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z"
+      />
+    </Icon>
+  );
+}
+
+export function OpenClawIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path strokeWidth={2.2} d="M7.6 3.2c1.7 4.4 1.4 9.9-1.4 17.2" />
+      <path strokeWidth={2.2} d="M12.7 2.4c1.8 4.8 1.5 10.8-1.3 18.9" />
+      <path strokeWidth={2.2} d="M17.8 3.2c1.7 4.4 1.4 9.9-1.4 17.2" />
+    </Icon>
+  );
+}
+
+export function HermesIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
+      <path d="M9.25 8.25v7.5" />
+      <path d="M14.75 8.25v7.5" />
+      <path d="M9.25 12h5.5" />
+    </Icon>
+  );
+}
+
+export function CursorIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="m3.3 7 8.7 5 8.7-5" />
+      <path d="M12 22V12" />
+    </Icon>
+  );
+}
+
+export function ClaudeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 2.5v19" />
+      <path d="m16.75 3.77-9.5 16.46" />
+      <path d="m20.23 7.25-16.46 9.5" />
+      <path d="M2.5 12h19" />
+      <path d="m3.77 7.25 16.46 9.5" />
+      <path d="m7.25 3.77 9.5 16.46" />
+    </Icon>
+  );
+}
+
+export function GeminiIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path
+        fill="currentColor"
+        stroke="none"
+        d="M12 2c.66 5.31 4.69 9.34 10 10-5.31.66-9.34 4.69-10 10-.66-5.31-4.69-9.34-10-10 5.31-.66 9.34-4.69 10-10Z"
+      />
+    </Icon>
+  );
+}
+
+export function CodeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m16 18 6-6-6-6" />
+      <path d="m8 6-6 6 6 6" />
+    </Icon>
+  );
+}
+
+export function WindsurfIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+    </Icon>
+  );
+}
