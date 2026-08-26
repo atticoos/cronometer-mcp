@@ -48,20 +48,19 @@ The first connection opens `/authorize`, where the user signs into Cronometer an
 
 ## CI and deployments
 
-GitHub Actions runs linting and tests for both workspaces on pull requests and on `main`.
-Pull requests from branches in this repository upload both apps as Cloudflare preview versions;
-merges to `main` deploy both apps to production.
+GitHub Actions runs linting and tests for the Worker workspace on pull requests and on `main`.
+Pull requests from branches in this repository upload the app as Cloudflare preview versions;
+merges to `main` deploy it to production.
 
 Configure these GitHub Actions secrets before enabling deployments:
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_API_TOKEN` with Cloudflare Workers edit access, scoped to the deployment account
 
-The deploy jobs use per-app GitHub environments (for example, `preview-homepage` and
-`production-cronometer-mcp`), so approvals and environment-scoped secrets can be configured
-independently if needed. Preview URLs are attached to the GitHub deployment and shown in the
-workflow run summary. Forked pull requests do not receive deployment credentials and skip the
-preview job.
+The deploy jobs use per-app GitHub environments (for example, `production-cronometer-mcp`),
+so approvals and environment-scoped secrets can be configured independently if needed. Preview
+URLs are attached to the GitHub deployment and shown in the workflow run summary. Forked pull
+requests do not receive deployment credentials and skip the preview job.
 
 ## Current scope
 
