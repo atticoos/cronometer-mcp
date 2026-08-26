@@ -37,12 +37,12 @@ type ChatItem =
   | { role: "tool"; id: string; delay?: number; calls: ToolCallSpec[] }
   | { role: "note"; id: string; delay?: number; node: ReactNode }
   | {
-      role: "assistant";
-      id: string;
-      delay?: number;
-      typing?: boolean;
-      segments: AssistantSegment[];
-    };
+    role: "assistant";
+    id: string;
+    delay?: number;
+    typing?: boolean;
+    segments: AssistantSegment[];
+  };
 
 const TYPE_BASE_MS = 15;
 const TYPE_JITTER_MS = 22;
@@ -130,9 +130,8 @@ function Caret({ tone }: { tone: "sky" | "emerald" }) {
   return (
     <span
       aria-hidden="true"
-      className={`chat-caret ml-[1px] inline-block h-[1em] w-[7px] translate-y-[2px] ${
-        tone === "sky" ? "bg-sky-300/90" : "bg-emerald-300/90"
-      }`}
+      className={`chat-caret ml-[1px] inline-block h-[1em] w-[7px] translate-y-[2px] ${tone === "sky" ? "bg-sky-300/90" : "bg-emerald-300/90"
+        }`}
     />
   );
 }
@@ -229,9 +228,8 @@ function ToolCallView({ name, args, result, resultTone = "muted" }: ToolCallSpec
       </p>
       {result ? (
         <p
-          className={`mt-0.5 pl-[14px] text-xs ${
-            success ? "text-emerald-300/90" : "text-zinc-500"
-          }`}
+          className={`mt-0.5 pl-[14px] text-xs ${success ? "text-emerald-300/90" : "text-zinc-500"
+            }`}
         >
           <span className={success ? "text-emerald-500/60" : "text-zinc-700"}>└ </span>
           {result}
@@ -532,6 +530,119 @@ const WEEK_SCENARIO: ChatItem[] = [
   },
 ];
 
+const QUICK_LOG_ENTRIES = [
+  {
+    name: "Overnight oats & whey",
+    detail: "breakfast · logged 18 times · your usual serving",
+    macros: "520 kcal · 38P",
+  },
+  {
+    name: "Chicken rice bowl",
+    detail: "lunch · logged 11 times · last Thursday",
+    macros: "710 kcal · 52P",
+  },
+  {
+    name: "Turkey chili",
+    detail: "dinner · logged 14 times · 1½ servings",
+    macros: "470 kcal · 34P",
+  },
+];
+
+const QUICK_LOG_SCENARIO: ChatItem[] = [
+  {
+    role: "user",
+    id: "quicklog-question",
+    delay: 600,
+    text: "Log today's meals: protein & oat breakfast, usual chicken rice bowl at lunch, and turkey chili dinner."
+  },
+  {
+    role: "tool",
+    id: "quicklog-tools",
+    delay: 900,
+    calls: [
+      {
+        name: "cronometer-mcp",
+        args: "get_meal_history",
+        result: "every meal you logged last month",
+      },
+      {
+        name: "cronometer-mcp",
+        args: "resolve_meals",
+        result: "3 of 3 matched · servings reused from your log",
+      },
+    ],
+  },
+  {
+    role: "assistant",
+    id: "quicklog-answer",
+    delay: 1150,
+    typing: true,
+    segments: [
+      {
+        kind: "text",
+        text: "All three matched meals already in your log — no searching or weighing needed:",
+      },
+      {
+        kind: "block",
+        node: (
+          <div className="space-y-3 border-t border-white/5 pt-3 text-xs">
+            {QUICK_LOG_ENTRIES.map((entry) => (
+              <div key={entry.name} className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-zinc-200">{entry.name}</p>
+                  <p className="mt-0.5 text-[11px] text-zinc-500">{entry.detail}</p>
+                </div>
+                <p className="shrink-0 text-zinc-500">{entry.macros}</p>
+              </div>
+            ))}
+          </div>
+        ),
+      },
+      {
+        kind: "text",
+        className: "border-t border-white/5 pt-3 text-xs text-zinc-500",
+        text: "Adding all three to today’s diary.",
+      },
+    ],
+  },
+  {
+    role: "tool",
+    id: "quicklog-write",
+    delay: 850,
+    calls: [
+      {
+        name: "cronometer-mcp",
+        args: "add_food_entry ×3",
+        result: "3 entries added · 1,700 kcal · 124P / 148C / 56F",
+        resultTone: "success",
+      },
+    ],
+  },
+  {
+    role: "assistant",
+    id: "quicklog-done",
+    delay: 1000,
+    typing: true,
+    segments: [
+      {
+        kind: "text",
+        text: "Done — your whole day is logged, exactly as you usually eat it.",
+      },
+    ],
+  },
+  {
+    role: "note",
+    id: "quicklog-footnote",
+    delay: 650,
+    node: (
+      <p className="flex items-center gap-1.5 px-1 pb-1 text-[11px] text-zinc-500">
+        <CheckIcon className="size-3 shrink-0 text-emerald-500" />
+        Casual mentions like “my usual” were resolved from your own meal history
+      </p>
+    ),
+  },
+];
+
 function TypingIndicator() {
   return (
     <div aria-hidden="true" className="chat-enter inline-flex items-center gap-1.5 py-1 pl-0.5">
@@ -621,10 +732,10 @@ function ChatFeed({ items }: { items: readonly ChatItem[] }) {
 
 const TABS = [
   {
-    id: "dinner",
-    label: "Dinner tonight",
-    title: "chatgpt · tuesday, 6:47 pm",
-    items: DINNER_SCENARIO,
+    id: "quick-log",
+    label: "Log my day",
+    title: "chatgpt · thursday, 9:12 pm",
+    items: QUICK_LOG_SCENARIO,
   },
   {
     id: "macros",
@@ -637,6 +748,12 @@ const TABS = [
     label: "Weekly plan",
     title: "chatgpt · sunday, 4:37 pm",
     items: WEEK_SCENARIO,
+  },
+  {
+    id: "dinner",
+    label: "Dinner tonight",
+    title: "chatgpt · tuesday, 6:47 pm",
+    items: DINNER_SCENARIO,
   },
 ] as const;
 
@@ -657,7 +774,7 @@ function ChatWindow({ title, children }: { title: string; children: ReactNode })
 }
 
 export default function DemoTabs() {
-  const [activeTab, setActiveTab] = useState<TabId>("dinner");
+  const [activeTab, setActiveTab] = useState<TabId>("quick-log");
   const active = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
@@ -674,11 +791,10 @@ export default function DemoTabs() {
             role="tab"
             aria-selected={tab.id === active.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
-              tab.id === active.id
+            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${tab.id === active.id
                 ? "bg-emerald-500 text-emerald-950"
                 : "text-zinc-400 hover:text-white"
-            }`}
+              }`}
           >
             {tab.label}
           </button>
