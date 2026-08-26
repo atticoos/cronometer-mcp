@@ -8,6 +8,11 @@
 		"global_fetch_strictly_public"
 	],
 	"preview_urls": true,
+	// Plain-text (non-secret) vars. CI preview deploys override OTEL_SERVICE_NAME
+	// with --var so preview traces are separable from production.
+	"vars": {
+		"OTEL_SERVICE_NAME": "cronometer-mcp"
+	},
 	"kv_namespaces": [
 		{
 			"binding": "OAUTH_KV",

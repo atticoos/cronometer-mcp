@@ -46,6 +46,31 @@ https://cronometer-mcp.<your-workers-subdomain>.workers.dev/mcp
 
 The first connection opens `/authorize`, where the user signs into Cronometer and grants read-only access.
 
+## Secrets
+
+Secrets are set per environment with Wrangler and never committed. Local development uses
+`.dev.vars` (copy `.dev.vars.example` and fill in real values; it is gitignored):
+
+```sh
+cp apps/cronometer-mcp/.dev.vars.example apps/cronometer-mcp/.dev.vars
+```
+
+Production secrets for the Worker are created once and survive all deploys (Wrangler,
+GitHub Actions, or manual):
+
+```sh
+cd apps/cronometer-mcp
+npx wrangler secret put OTEL_EXPORTER_OTLP_ENDPOINT
+npx wrangler secret put OTEL_EXPORTER_OTLP_HEADERS
+```
+
+`OTEL_EXPORTER_OTLP_ENDPOINT` is the full OTLP trace URL (for Grafana Cloud, including
+`/v1/traces`). `OTEL_EXPORTER_OTLP_HEADERS` uses the OTel env format
+`key=value,key2=value2`; for Grafana Cloud that is
+`Authorization=Basic <base64 of instance-id:token>` from the stack's OpenTelemetry setup
+page. Rotate by re-running `wrangler secret put`. Use `npx wrangler secret list` to
+verify what is configured; a missing value disables tracing rather than failing requests.
+
 ## CI and deployments
 
 GitHub Actions runs linting and tests for the Worker workspace on pull requests and on `main`.
