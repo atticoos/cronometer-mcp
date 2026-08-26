@@ -70,7 +70,7 @@ function MacroPlanScenario() {
         <p className="mt-0.5 text-zinc-300">I want to start losing weight. Can you set my macros?</p>
       </div>
       <p className="px-1 text-[11px] leading-relaxed text-zinc-600">
-        apple-health · height, weight, and four weeks of energy burn & workouts
+        apple-health · height, weight, and four weeks of activity
       </p>
       <p className="-mt-2 px-1 text-[11px] leading-relaxed text-zinc-600">
         cronometer-mcp · current targets and every logged day last month
