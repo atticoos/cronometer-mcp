@@ -178,5 +178,9 @@ export default instrument(
       headers: parseOtlpHeaders(env?.OTEL_EXPORTER_OTLP_HEADERS),
     },
     service: { name: env?.OTEL_SERVICE_NAME ?? "cronometer-mcp" },
+    // MCP clients (e.g. ChatGPT) may send an unsampled traceparent, which the
+    // default parent-based sampler would inherit — silently dropping every
+    // span of the invocation. Always sample locally instead.
+    sampling: { headSampler: { ratio: 1, acceptRemote: false } },
   }),
 );
