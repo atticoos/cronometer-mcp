@@ -73,7 +73,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/cronometer-mcp
-          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }} --var OTEL_SERVICE_NAME:cronometer-mcp-pr-${{ github.event.pull_request.number }}
+          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }} --var OTEL_SERVICE_NAME:cronometer-mcp-dev
       - name: Add preview URL to summary
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.deployment-url }}
