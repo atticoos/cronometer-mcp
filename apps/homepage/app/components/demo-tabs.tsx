@@ -30,60 +30,74 @@ type ChatItem = {
   node: ReactNode;
 };
 
-function UserBubble({ children }: { children: ReactNode }) {
+function UserLine({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-      <p className="text-sky-300">you ›</p>
-      <p className="mt-0.5 text-zinc-300">{children}</p>
-    </div>
-  );
-}
-
-function AssistantBubble({ children }: { children: ReactNode }) {
-  return (
-    <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-      <p className="text-emerald-300">assistant ›</p>
-      <div className="mt-0.5 text-zinc-300">{children}</div>
-    </div>
-  );
-}
-
-function ToolNote({ lines }: { lines: string[] }) {
-  return (
-    <div className="space-y-1 px-1 text-[11px] leading-relaxed text-zinc-600">
-      {lines.map((line) => (
-        <p key={line}>{line}</p>
-      ))}
-    </div>
-  );
-}
-
-function StatusLine({ children }: { children: ReactNode }) {
-  return (
-    <p className="flex items-center gap-1.5 px-1 text-xs text-emerald-400">
-      <CheckIcon className="size-3.5 shrink-0" />
+    <p className="text-zinc-100">
+      <span className="mr-2 text-sky-400/70">you ›</span>
       {children}
     </p>
   );
+}
+
+function AssistantText({ children }: { children: ReactNode }) {
+  return <div className="space-y-2.5 text-zinc-400">{children}</div>;
+}
+
+function ToolCall({
+  name,
+  args,
+  result,
+  resultTone = "muted",
+}: {
+  name: string;
+  args?: string;
+  result?: ReactNode;
+  resultTone?: "muted" | "success";
+}) {
+  const success = resultTone === "success";
+  return (
+    <div>
+      <p className="flex items-center gap-2">
+        <span className="size-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+        <span className="font-semibold text-zinc-100">{name}</span>
+        {args ? <span className="text-zinc-400">({args})</span> : null}
+      </p>
+      {result ? (
+        <p className={`mt-0.5 pl-[14px] text-xs ${success ? "text-emerald-300/90" : "text-zinc-500"}`}>
+          <span className={success ? "text-emerald-500/60" : "text-zinc-700"}>└ </span>
+          {result}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ToolGroup({ children }: { children: ReactNode }) {
+  return <div className="space-y-2.5">{children}</div>;
 }
 
 const DINNER_SCENARIO: ChatItem[] = [
   {
     id: "dinner-question",
     wait: 600,
-    node: (
-      <UserBubble>What should I make for dinner? Long day, low energy.</UserBubble>
-    ),
+    node: <UserLine>What should I make for dinner? Long day, low energy.</UserLine>,
   },
   {
     id: "dinner-tools",
     wait: 800,
     node: (
-      <ToolNote
-        lines={[
-          "cronometer-mcp · checking today’s remaining macros and dinners you’ve logged before",
-        ]}
-      />
+      <ToolGroup>
+        <ToolCall
+          name="cronometer-mcp"
+          args="get_remaining_macros"
+          result="610 kcal · 48P / 52C / 22F left today"
+        />
+        <ToolCall
+          name="cronometer-mcp"
+          args="find_prior_dinners"
+          result="12 dinners you’ve logged before"
+        />
+      </ToolGroup>
     ),
   },
   {
@@ -91,12 +105,12 @@ const DINNER_SCENARIO: ChatItem[] = [
     wait: 1500,
     typing: true,
     node: (
-      <AssistantBubble>
+      <AssistantText>
         <p>
           You have 610 kcal left — 48 g protein, 52 g carbs, 22 g fat. All three of these fit,
           and you’ve cooked every one of them before:
         </p>
-        <div className="mt-3 space-y-3 border-t border-white/5 pt-3 text-xs">
+        <div className="space-y-3 border-t border-white/5 pt-3 text-xs">
           {DINNER_SUGGESTIONS.map((suggestion) => (
             <div key={suggestion.name} className="flex items-start justify-between gap-3">
               <div>
@@ -107,14 +121,14 @@ const DINNER_SCENARIO: ChatItem[] = [
             </div>
           ))}
         </div>
-        <p className="mt-3 border-t border-white/5 pt-3 text-xs text-zinc-400">
+        <p className="border-t border-white/5 pt-3 text-xs text-zinc-500">
           Pick one and I’ll log it for tonight.
         </p>
-        <p className="mt-3 flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400">
+        <p className="flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400/90">
           <CheckIcon className="size-3.5 shrink-0" />
           Every suggestion comes from meals already in your log
         </p>
-      </AssistantBubble>
+      </AssistantText>
     ),
   },
 ];
@@ -123,20 +137,24 @@ const MACRO_SCENARIO: ChatItem[] = [
   {
     id: "macro-question",
     wait: 600,
-    node: (
-      <UserBubble>I want to start losing weight. Can you set my macros?</UserBubble>
-    ),
+    node: <UserLine>I want to start losing weight. Can you set my macros?</UserLine>,
   },
   {
     id: "macro-tools",
     wait: 800,
     node: (
-      <ToolNote
-        lines={[
-          "apple-health · height, weight, and four weeks of activity",
-          "cronometer-mcp · current targets and every logged day last month",
-        ]}
-      />
+      <ToolGroup>
+        <ToolCall
+          name="apple-health"
+          args="get_body_metrics"
+          result="height · weight · four weeks of activity"
+        />
+        <ToolCall
+          name="cronometer-mcp"
+          args="get_intake_history"
+          result="current targets · every logged day last month"
+        />
+      </ToolGroup>
     ),
   },
   {
@@ -144,13 +162,13 @@ const MACRO_SCENARIO: ChatItem[] = [
     wait: 1700,
     typing: true,
     node: (
-      <AssistantBubble>
+      <AssistantText>
         <p>
           You’ve eaten about 2,480 kcal a day against roughly 2,580 burned, so your weight has
           held steady. Easing down to 2,330 is a gentle deficit — closer to half a pound a week —
           and leaves your training days untouched.
         </p>
-        <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3 text-xs">
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3 text-xs">
           <div className="flex items-center justify-between gap-3">
             <p className="font-semibold text-amber-200">Proposed macro targets</p>
             <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
@@ -158,24 +176,29 @@ const MACRO_SCENARIO: ChatItem[] = [
             </span>
           </div>
           <p className="mt-2 font-mono text-sm text-zinc-100">2,330 kcal · 150P / 275C / 70F</p>
-          <p className="mt-1.5 text-zinc-400">
+          <p className="mt-1.5 text-zinc-500">
             Protein anchored near 1.8 g per kg · extra carbs land on training days
           </p>
         </div>
-        <p className="mt-3 text-zinc-400">Want me to make these your targets in Cronometer?</p>
-      </AssistantBubble>
+        <p className="text-xs text-zinc-500">Want me to make these your targets in Cronometer?</p>
+      </AssistantText>
     ),
   },
   {
     id: "macro-confirm",
     wait: 900,
-    node: <UserBubble>Yes — do it.</UserBubble>,
+    node: <UserLine>Yes — do it.</UserLine>,
   },
   {
     id: "macro-write",
     wait: 800,
     node: (
-      <StatusLine>Cronometer updated · 2,330 kcal · 150P / 275C / 70F</StatusLine>
+      <ToolCall
+        name="cronometer-mcp"
+        args="set_macro_targets"
+        result="updated · 2,330 kcal · 150P / 275C / 70F"
+        resultTone="success"
+      />
     ),
   },
   {
@@ -183,9 +206,9 @@ const MACRO_SCENARIO: ChatItem[] = [
     wait: 1300,
     typing: true,
     node: (
-      <AssistantBubble>
+      <AssistantText>
         Done. Weekdays already average under this — weekends are where you went over.
-      </AssistantBubble>
+      </AssistantText>
     ),
   },
   {
@@ -215,17 +238,19 @@ const WEEK_SCENARIO: ChatItem[] = [
     id: "week-question",
     wait: 600,
     node: (
-      <UserBubble>
+      <UserLine>
         Plan my meals for next week. I don’t want to think about it after Monday.
-      </UserBubble>
+      </UserLine>
     ),
   },
   {
     id: "week-tools",
     wait: 800,
     node: (
-      <ToolNote
-        lines={["cronometer-mcp · macro targets · every meal you logged last month"]}
+      <ToolCall
+        name="cronometer-mcp"
+        args="get_meal_history"
+        result="every meal you logged last month"
       />
     ),
   },
@@ -234,12 +259,12 @@ const WEEK_SCENARIO: ChatItem[] = [
     wait: 1700,
     typing: true,
     node: (
-      <AssistantBubble>
+      <AssistantText>
         <p>
           I built this from the meals you already eat on repeat — every day lands within ~25 kcal
           of your 2,330 target:
         </p>
-        <div className="mt-3 space-y-1.5 border-t border-white/5 pt-3 text-xs">
+        <div className="space-y-1.5 border-t border-white/5 pt-3 text-xs">
           {WEEK_PLAN.map((row) => (
             <div key={row.day} className="flex items-baseline justify-between gap-3">
               <p className="shrink-0 font-mono text-zinc-500">{row.day}</p>
@@ -248,28 +273,25 @@ const WEEK_SCENARIO: ChatItem[] = [
             </div>
           ))}
         </div>
-        <p className="mt-3 border-t border-white/5 pt-3 text-xs text-zinc-400">
+        <p className="border-t border-white/5 pt-3 text-xs text-zinc-500">
           Want a grocery list to match?
         </p>
-        <p className="mt-3 flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400">
+        <p className="flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400/90">
           <CheckIcon className="size-3.5 shrink-0" />
           Built from the meals you already eat on repeat
         </p>
-      </AssistantBubble>
+      </AssistantText>
     ),
   },
 ];
 
 function TypingIndicator() {
   return (
-    <div
-      aria-hidden="true"
-      className="chat-enter inline-flex items-center gap-1.5 rounded-xl bg-white/[0.03] px-3.5 py-3 ring-1 ring-white/5"
-    >
+    <div aria-hidden="true" className="chat-enter inline-flex items-center gap-1.5 py-1 pl-0.5">
       {[0, 1, 2].map((dot) => (
         <span
           key={dot}
-          className="chat-dot size-1.5 rounded-full bg-zinc-400"
+          className="chat-dot size-1.5 rounded-full bg-zinc-500"
           style={{ animationDelay: `${dot * 160}ms` }}
         />
       ))}
@@ -307,7 +329,7 @@ function ChatFeed({ items }: { items: readonly ChatItem[] }) {
   return (
     <div
       ref={scrollerRef}
-      className="chat-scroll h-[26rem] space-y-4 overflow-y-auto p-5 font-mono text-[13px] leading-relaxed"
+      className="chat-scroll h-[26rem] space-y-3.5 overflow-y-auto p-5 font-mono text-[13px] leading-relaxed"
     >
       {items.slice(0, shownCount).map((item) => (
         <div key={item.id} className="chat-enter">
