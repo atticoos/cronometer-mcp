@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import DemoTabs, { MacroPlanDemo } from "./components/demo-tabs";
 import EndpointCopy from "./components/endpoint-copy";
+import SetupTabs from "./components/setup-tabs";
 import {
   AppleIcon,
   ArrowRightIcon,
@@ -587,11 +588,11 @@ function Capabilities() {
 const STEPS: { number: string; title: string; body: ReactNode }[] = [
   {
     number: "01",
-    title: "Add the connector",
+    title: "Grab the endpoint",
     body: (
       <>
-        Point any OAuth-capable MCP client — ChatGPT connectors, Claude, Cursor, VS Code — at the
-        Worker&apos;s <span className="font-mono text-emerald-300">/mcp</span> endpoint:
+        Every client connects to the same{" "}
+        <span className="font-mono text-emerald-300">/mcp</span> endpoint:
         <br />
         <span className="break-all font-mono text-xs text-zinc-400">{ENDPOINT}</span>
       </>
@@ -643,7 +644,8 @@ function Setup() {
           }
         >
           One endpoint, one browser sign-in. There are no API keys—authorization exchanges your
-          Cronometer login for scoped sessions and discards the credentials.
+          Cronometer login for scoped sessions and discards the credentials. Pick your client
+          below—browser assistants and terminal agents each have a two-minute path.
         </SectionHeading>
         <div className="mt-14 grid gap-10 md:grid-cols-3">
           {STEPS.map((step) => (
@@ -653,6 +655,16 @@ function Setup() {
               <p className="mt-2 text-sm leading-relaxed text-zinc-400">{step.body}</p>
             </div>
           ))}
+        </div>
+        <div className="mt-20 flex items-center gap-5">
+          <span className="h-px flex-1 bg-white/5" />
+          <p className="font-mono text-[11px] font-medium tracking-[0.28em] text-zinc-500 uppercase">
+            Pick your client
+          </p>
+          <span className="h-px flex-1 bg-white/5" />
+        </div>
+        <div className="mt-10">
+          <SetupTabs endpoint={ENDPOINT} />
         </div>
       </div>
     </section>
