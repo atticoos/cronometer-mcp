@@ -160,7 +160,7 @@ function StreamingText({
 }) {
   const { typed, isTyping } = useTypewriter(
     active ? text : "",
-    active ? onDone : undefined,
+    active ? onDone : undefined
   );
   if (!active) {
     return <p className={className}>{text}</p>;
@@ -192,7 +192,10 @@ function AssistantText({
     }
     const current = segments[activeIndex];
     if (current.kind !== "block") return;
-    const timer = window.setTimeout(advance, reducedMotion ? 80 : BLOCK_REVEAL_MS);
+    const timer = window.setTimeout(
+      advance,
+      reducedMotion ? 80 : BLOCK_REVEAL_MS
+    );
     return () => window.clearTimeout(timer);
   }, [activeIndex, segments, reducedMotion, advance, notifyDone]);
 
@@ -211,13 +214,18 @@ function AssistantText({
             active={index === activeIndex && activeIndex < segments.length}
             onDone={advance}
           />
-        ),
+        )
       )}
     </div>
   );
 }
 
-function ToolCallView({ name, args, result, resultTone = "muted" }: ToolCallSpec) {
+function ToolCallView({
+  name,
+  args,
+  result,
+  resultTone = "muted",
+}: ToolCallSpec) {
   const success = resultTone === "success";
   return (
     <div>
@@ -231,7 +239,9 @@ function ToolCallView({ name, args, result, resultTone = "muted" }: ToolCallSpec
           className={`mt-0.5 pl-[14px] text-xs ${success ? "text-emerald-300/90" : "text-zinc-500"
             }`}
         >
-          <span className={success ? "text-emerald-500/60" : "text-zinc-700"}>└ </span>
+          <span className={success ? "text-emerald-500/60" : "text-zinc-700"}>
+            └{" "}
+          </span>
           {result}
         </p>
       ) : null}
@@ -239,7 +249,13 @@ function ToolCallView({ name, args, result, resultTone = "muted" }: ToolCallSpec
   );
 }
 
-function ToolGroup({ calls, onDone }: { calls: readonly ToolCallSpec[]; onDone?: () => void }) {
+function ToolGroup({
+  calls,
+  onDone,
+}: {
+  calls: readonly ToolCallSpec[];
+  onDone?: () => void;
+}) {
   const reducedMotion = usePrefersReducedMotion();
   const notifyDone = useFireOnce(onDone);
 
@@ -270,7 +286,13 @@ function ToolGroup({ calls, onDone }: { calls: readonly ToolCallSpec[]; onDone?:
   );
 }
 
-function TimedReveal({ children, onDone }: { children: ReactNode; onDone?: () => void }) {
+function TimedReveal({
+  children,
+  onDone,
+}: {
+  children: ReactNode;
+  onDone?: () => void;
+}) {
   const notifyDone = useFireOnce(onDone);
   useEffect(() => {
     const timer = window.setTimeout(notifyDone, STATIC_HOLD_MS);
@@ -323,10 +345,15 @@ const PRE_WORKOUT_SCENARIO: ChatItem[] = [
         node: (
           <div className="space-y-3 border-t border-white/5 pt-3 text-xs">
             {PRE_WORKOUT_SUGGESTIONS.map((suggestion) => (
-              <div key={suggestion.name} className="flex items-start justify-between gap-3">
+              <div
+                key={suggestion.name}
+                className="flex items-start justify-between gap-3"
+              >
                 <div>
                   <p className="text-zinc-200">{suggestion.name}</p>
-                  <p className="mt-0.5 text-[11px] text-zinc-500">{suggestion.history}</p>
+                  <p className="mt-0.5 text-[11px] text-zinc-500">
+                    {suggestion.history}
+                  </p>
                 </div>
                 <p className="shrink-0 text-zinc-500">{suggestion.macros}</p>
               </div>
@@ -339,16 +366,49 @@ const PRE_WORKOUT_SCENARIO: ChatItem[] = [
         className: "border-t border-white/5 pt-3 text-xs text-zinc-500",
         text: "The yogurt and banana is the lightest option. Pick one and I’ll log it as your pre-workout meal.",
       },
+    ],
+  },
+  {
+    role: "user",
+    id: "pre-workout-confirm",
+    delay: 950,
+    text: "Yes.",
+  },
+  {
+    role: "tool",
+    id: "pre-workout-write",
+    delay: 750,
+    calls: [
       {
-        kind: "block",
-        node: (
-          <p className="flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400/90">
-            <CheckIcon className="size-3.5 shrink-0" />
-            Matched to today’s remaining macros and your meal history
-          </p>
-        ),
+        name: "cronometer-mcp",
+        args: "add_food_entry × 3",
+        result: "added · Greek yogurt, banana & honey · 24P / 42C / 1F",
+        resultTone: "success",
       },
     ],
+  },
+  {
+    role: "assistant",
+    id: "pre-workout-complete",
+    delay: 1000,
+    typing: true,
+    segments: [
+      {
+        kind: "text",
+        text: "Done — your pre-workout meal is logged. You’ll still have 46g protein, 53g carbs, and 29g fat left for the day.",
+      },
+    ],
+  },
+  {
+    role: "note",
+    id: "pre-workout-footnote",
+    delay: 650,
+    node: (
+      <p className="flex items-center gap-1.5 border-t border-white/5 px-1 pt-3 pb-1 text-xs text-emerald-400/90">
+        <CheckIcon className="size-3.5 shrink-0" />
+        Matched to today’s remaining macros and your meal history
+      </p>
+    ),
   },
 ];
 
@@ -396,14 +456,19 @@ const MACRO_SCENARIO: ChatItem[] = [
         node: (
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3 text-xs">
             <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold text-amber-200">Proposed macro targets</p>
+              <p className="font-semibold text-amber-200">
+                Proposed macro targets
+              </p>
               <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
                 review
               </span>
             </div>
-            <p className="mt-2 font-mono text-sm text-zinc-100">2,330 kcal · 150P / 275C / 70F</p>
+            <p className="mt-2 font-mono text-sm text-zinc-100">
+              2,330 kcal · 150P / 275C / 70F
+            </p>
             <p className="mt-1.5 text-zinc-500">
-              Protein anchored near 1.8 g per kg · extra carbs land on training days
+              Protein anchored near 1.8 g per kg · extra carbs land on training
+              days
             </p>
           </div>
         ),
@@ -460,13 +525,41 @@ const MACRO_SCENARIO: ChatItem[] = [
 ];
 
 const WEEK_PLAN = [
-  { day: "mon", meals: "Overnight oats & whey · chicken rice bowl · turkey chili", kcal: "2,340" },
-  { day: "tue", meals: "Eggs & toast · turkey wrap · salmon & broccoli", kcal: "2,320" },
-  { day: "wed", meals: "Greek yogurt bowl · chicken stir-fry · salmon & broccoli", kcal: "2,300" },
-  { day: "thu", meals: "Overnight oats & whey · chicken rice bowl · turkey chili", kcal: "2,340" },
-  { day: "fri", meals: "Eggs & toast · turkey wrap · chicken stir-fry", kcal: "2,310" },
-  { day: "sat", meals: "Greek yogurt bowl · chicken rice bowl · salmon & broccoli", kcal: "2,350" },
-  { day: "sun", meals: "Overnight oats & whey · turkey wrap · turkey chili", kcal: "2,280" },
+  {
+    day: "mon",
+    meals: "Overnight oats & whey · chicken rice bowl · turkey chili",
+    kcal: "2,340",
+  },
+  {
+    day: "tue",
+    meals: "Eggs & toast · turkey wrap · salmon & broccoli",
+    kcal: "2,320",
+  },
+  {
+    day: "wed",
+    meals: "Greek yogurt bowl · chicken stir-fry · salmon & broccoli",
+    kcal: "2,300",
+  },
+  {
+    day: "thu",
+    meals: "Overnight oats & whey · chicken rice bowl · turkey chili",
+    kcal: "2,340",
+  },
+  {
+    day: "fri",
+    meals: "Eggs & toast · turkey wrap · chicken stir-fry",
+    kcal: "2,310",
+  },
+  {
+    day: "sat",
+    meals: "Greek yogurt bowl · chicken rice bowl · salmon & broccoli",
+    kcal: "2,350",
+  },
+  {
+    day: "sun",
+    meals: "Overnight oats & whey · turkey wrap · turkey chili",
+    kcal: "2,280",
+  },
 ];
 
 const WEEK_SCENARIO: ChatItem[] = [
@@ -503,7 +596,10 @@ const WEEK_SCENARIO: ChatItem[] = [
         node: (
           <div className="space-y-1.5 border-t border-white/5 pt-3 text-xs">
             {WEEK_PLAN.map((row) => (
-              <div key={row.day} className="flex items-baseline justify-between gap-3">
+              <div
+                key={row.day}
+                className="flex items-baseline justify-between gap-3"
+              >
                 <p className="shrink-0 font-mono text-zinc-500">{row.day}</p>
                 <p className="text-zinc-200">{row.meals}</p>
                 <p className="shrink-0 font-mono text-zinc-500">{row.kcal}</p>
@@ -645,7 +741,10 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
 
 function TypingIndicator() {
   return (
-    <div aria-hidden="true" className="chat-enter inline-flex items-center gap-1.5 py-1 pl-0.5">
+    <div
+      aria-hidden="true"
+      className="chat-enter inline-flex items-center gap-1.5 py-1 pl-0.5"
+    >
       {[0, 1, 2].map((dot) => (
         <span
           key={dot}
@@ -657,16 +756,24 @@ function TypingIndicator() {
   );
 }
 
-function renderChatItem(item: ChatItem, index: number, onDone: (index: number) => void) {
+function renderChatItem(
+  item: ChatItem,
+  index: number,
+  onDone: (index: number) => void
+) {
   switch (item.role) {
     case "user":
       return <UserLine text={item.text} onDone={() => onDone(index)} />;
     case "tool":
       return <ToolGroup calls={item.calls} onDone={() => onDone(index)} />;
     case "assistant":
-      return <AssistantText segments={item.segments} onDone={() => onDone(index)} />;
+      return (
+        <AssistantText segments={item.segments} onDone={() => onDone(index)} />
+      );
     case "note":
-      return <TimedReveal onDone={() => onDone(index)}>{item.node}</TimedReveal>;
+      return (
+        <TimedReveal onDone={() => onDone(index)}>{item.node}</TimedReveal>
+      );
   }
 }
 
@@ -684,8 +791,7 @@ function ChatFeed({ items }: { items: readonly ChatItem[] }) {
     const delay =
       isFirst && upcoming.role === "user"
         ? 0
-        : upcoming.delay ??
-          (isFirst ? FIRST_ITEM_FALLBACK_MS : DEFAULT_GAP_MS);
+        : upcoming.delay ?? (isFirst ? FIRST_ITEM_FALLBACK_MS : DEFAULT_GAP_MS);
     const timer = window.setTimeout(() => {
       setShownCount((count) => count + 1);
     }, delay);
@@ -732,8 +838,8 @@ function ChatFeed({ items }: { items: readonly ChatItem[] }) {
 
 const TABS = [
   {
-    id: "pre-workout",
-    label: "Pre-workout fuel",
+    id: "ideal-meal",
+    label: "Ideal meal",
     title: "chatgpt · tuesday, 4:47 pm",
     items: PRE_WORKOUT_SCENARIO,
   },
@@ -774,7 +880,7 @@ function ChatWindow({ title, children }: { title: string; children: ReactNode })
 }
 
 export default function DemoTabs() {
-  const [activeTab, setActiveTab] = useState<TabId>("pre-workout");
+  const [activeTab, setActiveTab] = useState<TabId>("ideal-meal");
   const active = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
