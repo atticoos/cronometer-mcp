@@ -107,9 +107,7 @@ function MacroPlanScenario() {
       <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
         <p className="text-emerald-300">assistant ›</p>
         <p className="mt-0.5 text-zinc-300">
-          Done. Worth knowing from your last month of logs: weekdays already average under this —
-          weekends are where you went over. I can show you day by day how 2,330 would have played
-          out, whenever you want.
+          Done. Your weekdays already fit this — weekends are where you went over.
         </p>
       </div>
       <p className="flex items-center gap-1.5 px-1 pb-1 text-[11px] text-zinc-500">
