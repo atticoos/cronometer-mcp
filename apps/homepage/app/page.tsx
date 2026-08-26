@@ -218,12 +218,6 @@ const CAPABILITIES: {
     },
   ];
 
-const LIMITS = [
-  { value: "~10 / day", label: "upstream export cap" },
-  { value: "≤ 31 days", label: "window per request" },
-  { value: "1,000", label: "rows per response" },
-];
-
 const WORKS_WITH: { name: string; icon: Icon; iconClass?: string }[] = [
   { name: "ChatGPT", icon: OpenAIIcon },
   { name: "Codex", icon: OpenAIIcon },
@@ -556,7 +550,7 @@ function Capabilities() {
             >
               <capability.icon className="size-6 text-emerald-400" />
               <h3 className="mt-4 text-sm font-semibold text-white">{capability.title}</h3>
-              <div className="mt-3 flex flex-col items-start gap-1.5">
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 {capability.tools.map((tool) => (
                   <span
                     key={tool.name}
@@ -571,19 +565,6 @@ function Capabilities() {
                   {capability.footnote}
                 </p>
               ) : null}
-            </div>
-          ))}
-        </div>
-        <p className="mt-12 text-center font-mono text-xs text-zinc-600">
-          get_cronometer_data · bulk export limits
-        </p>
-        <div className="mx-auto mt-4 grid max-w-3xl grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.02]">
-          {LIMITS.map((limit) => (
-            <div key={limit.label} className="px-4 py-6 text-center">
-              <p className="font-mono text-xl font-semibold text-white sm:text-2xl">
-                {limit.value}
-              </p>
-              <p className="mt-1 text-xs text-zinc-500">{limit.label}</p>
             </div>
           ))}
         </div>
