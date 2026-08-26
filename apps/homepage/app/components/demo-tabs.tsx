@@ -94,11 +94,7 @@ function MacroPlanScenario() {
             Protein anchored near 1.8 g per kg · extra carbs land on training days
           </p>
         </div>
-        <p className="mt-3 text-zinc-400">
-          Want me to make these your targets in Cronometer? I can also show you what 2,330 looks
-          like against how you actually eat — which days last month would have fit, and where
-          you’d have run over.
-        </p>
+        <p className="mt-3 text-zinc-400">Want me to make these your targets in Cronometer?</p>
       </div>
       <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
         <p className="text-sky-300">you ›</p>
@@ -108,6 +104,14 @@ function MacroPlanScenario() {
         <CheckIcon className="size-3.5 shrink-0" />
         Cronometer updated · 2,330 kcal · 150P / 275C / 70F
       </p>
+      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
+        <p className="text-emerald-300">assistant ›</p>
+        <p className="mt-0.5 text-zinc-300">
+          Done. Worth knowing from your last month of logs: weekdays already average under this —
+          weekends are where you went over. I can show you day by day how 2,330 would have played
+          out, whenever you want.
+        </p>
+      </div>
       <p className="flex items-center gap-1.5 px-1 pb-1 text-[11px] text-zinc-500">
         <CheckIcon className="size-3 shrink-0 text-emerald-500" />
         Built from your Apple Health activity and a full month of logged meals
