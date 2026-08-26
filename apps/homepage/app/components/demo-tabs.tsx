@@ -79,8 +79,8 @@ function MacroPlanScenario() {
         <p className="text-emerald-300">assistant ›</p>
         <p className="mt-0.5 text-zinc-300">
           You’ve eaten about 2,480 kcal a day against roughly 2,580 burned, so your weight has held
-          steady. Dropping to 1,900 puts you near half a kilo down per week without touching your
-          training days.
+          steady. Easing down to 2,330 is a gentle deficit — closer to half a pound a week — and
+          leaves your training days untouched.
         </p>
         <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3 text-xs">
           <div className="flex items-center justify-between gap-3">
@@ -89,12 +89,16 @@ function MacroPlanScenario() {
               review
             </span>
           </div>
-          <p className="mt-2 font-mono text-sm text-zinc-100">1,900 kcal · 155P / 180C / 62F</p>
+          <p className="mt-2 font-mono text-sm text-zinc-100">2,330 kcal · 150P / 275C / 70F</p>
           <p className="mt-1.5 text-zinc-400">
             Protein anchored near 1.8 g per kg · extra carbs land on training days
           </p>
         </div>
-        <p className="mt-3 text-zinc-400">Want me to make these your targets in Cronometer?</p>
+        <p className="mt-3 text-zinc-400">
+          Want me to make these your targets in Cronometer? I can also show you what 2,330 looks
+          like against how you actually eat — which days last month would have fit, and where
+          you’d have run over.
+        </p>
       </div>
       <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
         <p className="text-sky-300">you ›</p>
@@ -102,7 +106,7 @@ function MacroPlanScenario() {
       </div>
       <p className="flex items-center gap-1.5 px-1 text-xs text-emerald-400">
         <CheckIcon className="size-3.5 shrink-0" />
-        Cronometer updated · 1,900 kcal · 155P / 180C / 62F
+        Cronometer updated · 2,330 kcal · 150P / 275C / 70F
       </p>
       <p className="flex items-center gap-1.5 px-1 pb-1 text-[11px] text-zinc-500">
         <CheckIcon className="size-3 shrink-0 text-emerald-500" />
