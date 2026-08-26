@@ -70,6 +70,8 @@ jobs:
       - run: npm ci
       - name: Build
         working-directory: apps/homepage
+        env:
+          PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: npm run build
       - name: Deploy preview
         id: preview

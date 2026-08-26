@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { builtPreviewPrNumber } from "./preview-pr";
 
 const productionUrl = new URL("https://cronometer-mcp.dev");
 const title = "Cronometer MCP — Talk to your Cronometer data from your AI assistant";
@@ -10,6 +11,10 @@ const socialDescription =
 
 function firstHeaderValue(value: string | null) {
   return value?.split(",", 1)[0]?.trim();
+}
+
+function previewPrNumber(host: string | null | undefined) {
+  return /^pr-(\d+)\./i.exec(host ?? "")?.[1];
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -24,9 +29,12 @@ export async function generateMetadata(): Promise<Metadata> {
       ? new URL(`${protocol}://${host}`)
       : productionUrl;
 
+  const prNumber = builtPreviewPrNumber ?? previewPrNumber(host);
+  const pageTitle = prNumber ? `${title} (PR #${prNumber})` : title;
+
   return {
     metadataBase,
-    title,
+    title: pageTitle,
     description:
       "An open-source Cronometer MCP connector that lets AI assistants read and write your food log, nutrition, biometrics, and fasting history in plain language.",
     alternates: { canonical: productionUrl },
