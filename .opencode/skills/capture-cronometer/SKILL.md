@@ -15,6 +15,29 @@ instead captured at the network layer: device iptables -> `adb reverse` tunnel
 -> SNI router -> mitmproxy regular mode. The mitmproxy CA is trusted because it
 is installed into the Conscrypt APEX certificate store (Android 14+).
 
+## How the MITM works
+
+The app's TLS traffic must be decrypted, which requires the client to trust
+mitmproxy's certificate authority:
+
+1. mitmproxy holds a local CA (`~/.mitmproxy/mitmproxy-ca-cert.pem`, generated
+   on first run). The emulator has this CA installed as a trusted root (setup
+   in the `setup-avd` skill: legacy `/system/etc/security/cacerts` store AND
+   the Conscrypt APEX overlay at `/apex/com.android.conscrypt/cacerts` — the
+   latter is what Android 14+ apps actually consult, and it evaporates on
+   reboot, hence the per-session re-apply in Step 0).
+2. Dart (Flutter) does NOT use Android's proxy settings or network security
+   config, so traffic is not "proxied" — it is *redirected*. Device iptables
+   sends all outbound tcp/443 to localhost:8080; `adb reverse` tunnels that to
+   the host's SNI router (:9090); the router reads the ClientHello SNI and
+   issues `CONNECT <host>:443` to mitmdump (:18081, regular proxy mode).
+3. mitmproxy terminates TLS with its own cert for the target host (trusted
+   because of step 1), talks really to the server, and logs plaintext flows.
+
+Prerequisite if missing: `brew install mitmproxy` (provides `mitmdump`), then
+generate the CA by running `mitmdump` once (any port) or see `setup-avd`
+step 5.
+
 ## Rig components
 
 | Piece | Location | Purpose |
@@ -68,6 +91,10 @@ several pieces do NOT survive reboots.
    Always `nohup ... & disown` — plain background jobs die when the shell call ends.
 
 ## Step 1: Verify interception works
+
+Verify the whole TLS path (tunnel + router + proxy + CA trust) with a real
+handshake against the target host — must print `OK TLSv1.x`, NOT
+`UNEXPECTED_MESSAGE`:
 
 ```bash
 python3 - <<'EOF'
