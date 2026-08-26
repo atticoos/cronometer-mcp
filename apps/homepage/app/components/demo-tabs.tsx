@@ -118,9 +118,59 @@ function MacroPlanScenario() {
   );
 }
 
+const WEEK_PLAN = [
+  { day: "mon", meals: "Overnight oats & whey · chicken rice bowl · turkey chili", kcal: "2,340" },
+  { day: "tue", meals: "Eggs & toast · turkey wrap · salmon & broccoli", kcal: "2,320" },
+  { day: "wed", meals: "Greek yogurt bowl · chicken stir-fry · salmon & broccoli", kcal: "2,300" },
+  { day: "thu", meals: "Overnight oats & whey · chicken rice bowl · turkey chili", kcal: "2,340" },
+  { day: "fri", meals: "Eggs & toast · turkey wrap · chicken stir-fry", kcal: "2,310" },
+  { day: "sat", meals: "Greek yogurt bowl · chicken rice bowl · salmon & broccoli", kcal: "2,350" },
+  { day: "sun", meals: "Overnight oats & whey · turkey wrap · turkey chili", kcal: "2,280" },
+];
+
+function WeeklyPlanScenario() {
+  return (
+    <>
+      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
+        <p className="text-sky-300">you ›</p>
+        <p className="mt-0.5 text-zinc-300">
+          Plan my meals for next week. I don’t want to think about it after Monday.
+        </p>
+      </div>
+      <p className="px-1 text-[11px] leading-relaxed text-zinc-600">
+        cronometer-mcp · macro targets · every meal you logged last month
+      </p>
+      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
+        <p className="text-emerald-300">assistant ›</p>
+        <p className="mt-0.5 text-zinc-300">
+          I built this from the meals you already eat on repeat — every day lands within ~25 kcal
+          of your 2,330 target:
+        </p>
+        <div className="mt-3 space-y-1.5 border-t border-white/5 pt-3 text-xs">
+          {WEEK_PLAN.map((row) => (
+            <div key={row.day} className="flex items-baseline justify-between gap-3">
+              <p className="shrink-0 font-mono text-zinc-500">{row.day}</p>
+              <p className="text-zinc-200">{row.meals}</p>
+              <p className="shrink-0 font-mono text-zinc-500">{row.kcal}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 border-t border-white/5 pt-3 text-xs text-zinc-400">
+          Want a grocery list to match?
+        </p>
+        <p className="mt-3 flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400">
+          <CheckIcon className="size-3.5 shrink-0" />
+          Built from the meals you already eat on repeat
+        </p>
+      </div>
+    </>
+  );
+}
+
 const TABS = [
   { id: "dinner", label: "Dinner tonight", title: "chatgpt · tuesday, 6:47 pm", body: DinnerScenario },
   { id: "macros", label: "Macro plan", title: "claude · sunday morning", body: MacroPlanScenario },
+  { id: "week", label: "Weekly plan", title: "chatgpt · sunday, 4:37 pm", body: WeeklyPlanScenario },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
