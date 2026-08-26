@@ -1,0 +1,3 @@
+# Worktrunk project hooks: https://worktrunk.dev/hook/
+[pre-start]
+install = "npm install"
