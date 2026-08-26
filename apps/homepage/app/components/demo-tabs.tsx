@@ -373,7 +373,7 @@ const PRE_WORKOUT_SCENARIO: ChatItem[] = [
     role: "user",
     id: "pre-workout-confirm",
     delay: 950,
-    text: "Yes.",
+    text: "First one",
   },
   {
     role: "tool",
