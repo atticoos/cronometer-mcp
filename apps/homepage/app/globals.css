@@ -54,6 +54,36 @@ body {
   animation: chat-typing-dot 1s ease-in-out infinite;
 }
 
+@keyframes chat-tool-line {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-tool-line {
+  animation: chat-tool-line 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes chat-caret-blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.chat-caret {
+  animation: chat-caret-blink 1.05s linear infinite;
+}
+
 .chat-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
@@ -98,8 +128,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .chat-enter,
   .chat-dot,
+  .chat-tool-line,
   .marquee-track {
     animation: none;
+  }
+
+  .chat-caret {
+    animation: none;
+    opacity: 0.55;
   }
 
   .chat-scroll {
