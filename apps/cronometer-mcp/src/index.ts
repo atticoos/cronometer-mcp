@@ -173,7 +173,6 @@ export default instrument(
   { fetch: oauthProvider.fetch.bind(oauthProvider) },
   (env) => ({
     exporter: {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       url: env?.OTEL_EXPORTER_OTLP_ENDPOINT,
       headers: parseOtlpHeaders(env?.OTEL_EXPORTER_OTLP_HEADERS),
     },

@@ -1,6 +1,5 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { z } from "zod";
 
 type ToolResult = { isError?: boolean } & Record<string, unknown>;
 type ToolHandler = (
