@@ -11,19 +11,15 @@ import {
   ClockIcon,
   CodeIcon,
   CursorIcon,
-  DatabaseIcon,
   DownloadIcon,
   GeminiIcon,
   GitHubIcon,
   HeartPulseIcon,
   HermesIcon,
   LeafIcon,
-  LockIcon,
   OpenAIIcon,
   OpenClawIcon,
-  PenLineIcon,
   PonchoIcon,
-  RefreshIcon,
   SearchIcon,
   ShieldCheckIcon,
   SparklesIcon,
@@ -37,7 +33,6 @@ type Icon = ComponentType<{ className?: string }>;
 const NAV_LINKS = [
   { label: "Use cases", href: "#use-cases" },
   { label: "Capabilities", href: "#capabilities" },
-  { label: "Security", href: "#security" },
   { label: "Setup", href: "#setup" },
   { label: "FAQ", href: "#faq" },
 ];
@@ -139,39 +134,6 @@ const MORE_USE_CASES = [
   "Add fasting and biometric context",
 ];
 
-const FEATURES: { icon: Icon; title: string; body: string }[] = [
-  {
-    icon: ShieldCheckIcon,
-    title: "OAuth 2.1 out of the box",
-    body: "Discovery document, dynamic client registration, PKCE, token exchange, refresh, revocation, and bearer validation — all handled by the Worker.",
-  },
-  {
-    icon: LockIcon,
-    title: "Credentials used once",
-    body: "Your Cronometer password and one-time code are exchanged for web and mobile sessions during authorization, then immediately discarded. Never stored, never embedded in an MCP token.",
-  },
-  {
-    icon: PenLineIcon,
-    title: "Reads and writes, clearly labeled",
-    body: "Every tool carries MCP annotations — read-only, idempotent, or destructive — so your client can gate exactly what your assistant is allowed to do.",
-  },
-  {
-    icon: DatabaseIcon,
-    title: "Live API + bulk exports",
-    body: "Sixteen tools speak to Cronometer's mobile REST API for live diary data, while get_cronometer_data pulls bulk CSV history for long-range questions.",
-  },
-  {
-    icon: CalendarRangeIcon,
-    title: "Bounded by design",
-    body: "Export windows up to 31 inclusive days, responses capped at 1,000 rows, and an explicit truncated flag whenever data is cut short.",
-  },
-  {
-    icon: RefreshIcon,
-    title: "Graceful degradation",
-    body: "An expired upstream session returns a clear reconnect instruction instead of a cryptic error, so your assistant knows exactly what to do next.",
-  },
-];
-
 type ToolBadge = "read" | "write" | "destructive";
 
 const BADGE_STYLES: Record<ToolBadge, string> = {
@@ -255,14 +217,6 @@ const CAPABILITIES: {
       footnote: "daily_nutrition · servings · exercises · biometrics · notes",
     },
   ];
-
-const SECURITY_POINTS = [
-  "Password and one-time codes are exchanged once at authorization, never persisted",
-  "Both Cronometer sessions — web and mobile — are sealed inside encrypted OAuth grant properties",
-  "Cookies and export nonces are never returned in tool responses or written to logs",
-  "MCP annotations mark each tool read-only, idempotent, or destructive — your client decides what to allow",
-  "Expired sessions produce reconnect instructions instead of raw failures",
-];
 
 const LIMITS = [
   { value: "~10 / day", label: "upstream export cap" },
@@ -585,34 +539,6 @@ function UseCases() {
   );
 }
 
-function Features() {
-  return (
-    <section id="features" className="border-t border-white/5 py-24">
-      <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Technical foundation" title="Built for the data behind the advice">
-          One Worker stands between your assistant and Cronometer — handling auth, sessions, rate
-          limits, parsing, and permissions so useful automation does not become a security
-          shortcut.
-        </SectionHeading>
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((feature) => (
-            <div
-              key={feature.title}
-              className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]"
-            >
-              <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
-                <feature.icon className="size-5" />
-              </span>
-              <h3 className="mt-5 text-base font-semibold text-white">{feature.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{feature.body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function Capabilities() {
   return (
     <section id="capabilities" className="border-t border-white/5 py-24">
@@ -672,79 +598,6 @@ function Capabilities() {
             <ArrowRightIcon className="size-4" />
           </a>
         </p>
-      </div>
-    </section>
-  );
-}
-
-function Tools() {
-  return (
-    <section id="tools" className="border-t border-white/5 py-24">
-      <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Worked examples" title="What a real exchange looks like">
-          Structured reads provide the context. Explicitly labeled writes handle the tedious work.
-          Bulk history makes longer-horizon planning possible.
-        </SectionHeading>
-        <div className="mx-auto mt-14 max-w-4xl space-y-5">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="font-mono text-base font-semibold text-emerald-300">
-                get_food_log({"{"} date? {"}"})
-              </p>
-              <span
-                className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES.read}`}
-              >
-                read
-              </span>
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              The full diary for a day: every entry enriched with food name, source, and serving
-              size, plus an energy summary and consumed totals for every tracked nutrient.
-            </p>
-            <pre className="mt-5 overflow-x-auto rounded-xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-zinc-400 ring-1 ring-white/5">
-              {`{ "date": "2026-08-25",\n  "energy_summary": { "consumed_kcal": 1420,\n                      "remaining_kcal": 580,\n                      "total_target_kcal": 2000 },\n  "nutrition_summary": { ... }, "diary": { ... } }`}
-            </pre>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="font-mono text-base font-semibold text-emerald-300">
-                add_custom_food({"{"} foodName, serving, macros, nutrients? {"}"})
-              </p>
-              <span
-                className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES.write}`}
-              >
-                write
-              </span>
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Creates a reusable food with its serving size, calories, macros, and optional
-              micronutrients—useful when a real-world order does not match a database entry.
-            </p>
-            <pre className="mt-5 overflow-x-auto rounded-xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-zinc-400 ring-1 ring-white/5">
-              {`{ "food": "Protein milk latte", "serving": "1 grande",\n  "energy_kcal": 210, "protein_g": 20,\n  "carbs_g": 24, "fat_g": 4 }`}
-            </pre>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="font-mono text-base font-semibold text-emerald-300">
-                get_cronometer_data({"{"} dataType, startDate, endDate {"}"})
-              </p>
-              <span
-                className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${BADGE_STYLES.read}`}
-              >
-                read
-              </span>
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Bulk CSV history over an inclusive window of up to 31 days — daily nutrition
-              summaries, servings, exercises, biometrics, or notes. Each call uses one of
-              Cronometer&apos;s limited daily exports.
-            </p>
-            <pre className="mt-5 overflow-x-auto rounded-xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-zinc-400 ring-1 ring-white/5">
-              {`{ "columns": ["Date", "Energy (kcal)", ...],\n  "rows": [["2026-07-01", "2140", ...]],\n  "totalRows": 31, "truncated": false }`}
-            </pre>
-          </div>
-        </div>
       </div>
     </section>
   );
@@ -820,33 +673,6 @@ function Setup() {
             </div>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function Security() {
-  return (
-    <section id="security" className="border-t border-white/5 py-24">
-      <div className="mx-auto grid max-w-6xl gap-14 px-6 lg:grid-cols-2 lg:items-start">
-        <div className="lg:sticky lg:top-28">
-          <SectionHeading eyebrow="Security & privacy" title="Your credentials never linger">
-            The Worker sits at two trust boundaries and keeps both clean: it is an OAuth 2.1
-            authorization server for your clients, and a one-shot credential exchanger with
-            Cronometer.
-          </SectionHeading>
-        </div>
-        <ul className="space-y-4">
-          {SECURITY_POINTS.map((point) => (
-            <li
-              key={point}
-              className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4"
-            >
-              <CheckIcon className="mt-0.5 size-5 shrink-0 text-emerald-400" />
-              <span className="text-sm leading-relaxed text-zinc-300">{point}</span>
-            </li>
-          ))}
-        </ul>
       </div>
     </section>
   );
@@ -951,10 +777,7 @@ export default function HomePage() {
         <Problem />
         <UseCases />
         <Capabilities />
-        <Tools />
-        <Features />
         <Setup />
-        <Security />
         <Faq />
         <Cta />
       </main>
