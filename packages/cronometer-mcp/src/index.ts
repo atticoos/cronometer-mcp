@@ -1,149 +1,109 @@
-import { createInterface } from "node:readline";
+import {
+  authenticateCronometerSessions,
+  CronometerAuthenticationError,
+  registerCronometerTools,
+} from "@cronometer-mcp/core";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 
 export const SERVER_NAME = "cronometer-mcp";
+export const SERVER_VERSION = "0.1.0";
 
-export const SERVER_VERSION = "0.0.1";
-
-const PROTOCOL_VERSION = "2025-06-18";
-
-const STATUS_MESSAGE =
-  "cronometer-mcp is a placeholder release. Cronometer data tools are under active development.";
-
-type JsonRpcId = string | number | null;
-
-interface JsonRpcMessage {
-  jsonrpc?: unknown;
-  id?: unknown;
-  method?: unknown;
-  params?: unknown;
+export interface CronometerCredentials {
+  password: string;
+  userCode: string;
+  username: string;
 }
 
-interface JsonRpcError {
-  code: number;
-  message: string;
+export interface CronometerContext {
+  cronometerMobileSession: {
+    sessionKey: string;
+    timezone?: string;
+    userId: number;
+  };
+  cronometerUsername: string;
+  cronometerWebSession: {
+    cookies: string;
+    userId: string;
+  };
 }
 
-const TOOLS = [
-  {
-    name: "server_status",
-    description:
-      "Report the status of the cronometer-mcp local server. Placeholder until Cronometer tools ship.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-  },
-] as const;
+type Environment = Record<string, string | undefined>;
 
-function isNotification(message: JsonRpcMessage): boolean {
-  return message.id === undefined || message.id === null;
-}
+export function readCredentials(environment: Environment = process.env): CronometerCredentials {
+  const username = environment.CRONOMETER_USERNAME?.trim();
+  const password = environment.CRONOMETER_PASSWORD;
+  const missing = [
+    !username && "CRONOMETER_USERNAME",
+    !password && "CRONOMETER_PASSWORD",
+  ].filter(Boolean);
 
-function write(output: NodeJS.WritableStream, payload: unknown): void {
-  output.write(`${JSON.stringify(payload)}\n`);
-}
-
-function sendResult(
-  output: NodeJS.WritableStream,
-  id: JsonRpcId,
-  result: unknown,
-): void {
-  write(output, { jsonrpc: "2.0", id, result });
-}
-
-function sendError(
-  output: NodeJS.WritableStream,
-  id: JsonRpcId,
-  error: JsonRpcError,
-): void {
-  write(output, { jsonrpc: "2.0", id, error });
-}
-
-function handleMethod(
-  output: NodeJS.WritableStream,
-  id: JsonRpcId,
-  method: string,
-  params: unknown,
-): boolean {
-  switch (method) {
-    case "initialize": {
-      const requested = (params as { protocolVersion?: unknown } | undefined)
-        ?.protocolVersion;
-      sendResult(output, id, {
-        protocolVersion:
-          typeof requested === "string" ? requested : PROTOCOL_VERSION,
-        capabilities: { tools: {} },
-        serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
-      });
-      return true;
-    }
-    case "ping":
-      sendResult(output, id, {});
-      return true;
-    case "tools/list":
-      sendResult(output, id, { tools: TOOLS });
-      return true;
-    case "tools/call": {
-      const name = (params as { name?: unknown } | undefined)?.name;
-      if (name !== "server_status") {
-        sendError(output, id, {
-          code: -32602,
-          message: `Unknown tool: ${String(name)}`,
-        });
-        return true;
-      }
-      sendResult(output, id, {
-        content: [{ type: "text", text: STATUS_MESSAGE }],
-      });
-      return true;
-    }
-    default:
-      return false;
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variable${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`,
+    );
   }
+
+  return {
+    password: password as string,
+    userCode: environment.CRONOMETER_USER_CODE?.trim() ?? "",
+    username: username as string,
+  };
 }
 
-export function handleMessage(line: string, output: NodeJS.WritableStream): void {
-  if (!line.trim()) {
-    return;
-  }
-  let message: JsonRpcMessage;
-  try {
-    message = JSON.parse(line) as JsonRpcMessage;
-  } catch {
-    sendError(output, null, {
-      code: -32700,
-      message: "Parse error",
-    });
-    return;
-  }
-  if (typeof message.method !== "string") {
-    if (!isNotification(message)) {
-      sendError(output, (message.id as JsonRpcId) ?? null, {
-        code: -32600,
-        message: "Invalid Request",
-      });
-    }
-    return;
-  }
-  if (isNotification(message)) {
-    return;
-  }
-  if (!handleMethod(output, message.id as JsonRpcId, message.method, message.params)) {
-    sendError(output, message.id as JsonRpcId, {
-      code: -32601,
-      message: `Method not found: ${message.method}`,
-    });
-  }
-}
-
-export function startStdioServer(
-  input: NodeJS.ReadableStream = process.stdin,
-  output: NodeJS.WritableStream = process.stdout,
-): void {
-  process.stderr.write(
-    `${SERVER_NAME} v${SERVER_VERSION} placeholder listening on stdio\n`,
+export function authenticateWithCronometer(
+  credentials: CronometerCredentials,
+): Promise<CronometerContext> {
+  return authenticateCronometerSessions(
+    credentials.username,
+    credentials.password,
+    credentials.userCode,
   );
-  const lines = createInterface({ input });
-  lines.on("line", (line) => handleMessage(line, output));
+}
+
+export function createServer(context: CronometerContext): McpServer {
+  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  const restartMessage =
+    "The Cronometer session has expired. Restart this local MCP server to authenticate again.";
+
+  registerCronometerTools(server, {
+    expiredSessionMessage: restartMessage,
+    getContext: () => context,
+    missingContextMessage: restartMessage,
+  });
+
+  return server;
+}
+
+export async function startStdioServer(
+  environment: Environment = process.env,
+): Promise<McpServer> {
+  const credentials = readCredentials(environment);
+  process.stderr.write(`${SERVER_NAME}: authenticating with Cronometer\n`);
+
+  let context: CronometerContext;
+  try {
+    context = await authenticateWithCronometer(credentials);
+  } catch (error) {
+    throw new Error(authenticationErrorMessage(error), { cause: error });
+  }
+
+  const server = createServer(context);
+  await server.connect(new StdioServerTransport());
+  process.stderr.write(`${SERVER_NAME} v${SERVER_VERSION}: connected on stdio\n`);
+  return server;
+}
+
+function authenticationErrorMessage(error: unknown): string {
+  if (!(error instanceof CronometerAuthenticationError)) {
+    return "Could not authenticate with Cronometer. Check your network connection and try again.";
+  }
+  switch (error.reason) {
+    case "credentials":
+      return "Cronometer did not accept CRONOMETER_USERNAME or CRONOMETER_PASSWORD.";
+    case "second_factor":
+      return "Cronometer requires a current one-time code in CRONOMETER_USER_CODE.";
+    case "session":
+      return "Cronometer accepted the login, but the session handshake failed. The integration may need an update.";
+  }
 }

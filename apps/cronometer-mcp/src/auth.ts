@@ -4,10 +4,9 @@ import {
   type OAuthHelpers,
 } from "@cloudflare/workers-oauth-provider";
 import {
-  authenticateCronometer,
+  authenticateCronometerSessions,
   CronometerAuthenticationError,
-} from "./cronometer";
-import { authenticateCronometerMobile } from "./mobile";
+} from "@cronometer-mcp/core";
 
 const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
@@ -109,21 +108,15 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
     // powers the JSON data tools. Neither password nor one-time code is ever
     // stored; if either handshake fails, authorization is aborted so the
     // grant always contains a complete, working pair.
-    const [webSession, mobileSession] = await Promise.all([
-      authenticateCronometer(username, password, userCode),
-      authenticateCronometerMobile(username, password, userCode),
-    ]);
+    const sessions = await authenticateCronometerSessions(username, password, userCode);
+    const webSession = sessions.cronometerWebSession;
 
     const subject = await sha256Hex(`cronometer:${webSession.userId}`);
     const requestedScopes = flow.oauthRequest.scope ?? [];
     const grantedScopes = requestedScopes.filter((scope) => scope === READ_SCOPE);
     const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
       metadata: { provider: "cronometer" },
-      props: {
-        cronometerMobileSession: mobileSession,
-        cronometerUsername: username,
-        cronometerWebSession: webSession,
-      },
+      props: sessions,
       request: flow.oauthRequest,
       scope: grantedScopes,
       userId: subject,

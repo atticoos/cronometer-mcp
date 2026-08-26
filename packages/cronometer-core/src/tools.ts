@@ -1,33 +1,26 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import { getMcpAuthContext } from "agents/mcp/server";
 import { z } from "zod";
-import * as mobile from "./mobile";
+import * as mobile from "./mobile.js";
+import {
+  CronometerExportError,
+  exportCronometerData,
+  type CronometerExportType,
+} from "./cronometer.js";
+import type { AuthContext } from "./session.js";
 
-const RECONNECT_MESSAGE = "Reconnect this MCP connection to Cronometer first.";
+export type AuthContextProvider = () => AuthContext | null;
 
-export const mobileSessionSchema = z.object({
-  sessionKey: z.string().min(1),
-  timezone: z.string().optional(),
-  userId: z.number(),
-});
-
-export const webSessionSchema = z.object({
-  cookies: z.string().min(1),
-  userId: z.string().min(1),
-});
-
-export const authPropsSchema = z.object({
-  cronometerMobileSession: mobileSessionSchema,
-  cronometerUsername: z.string().min(1),
-  cronometerWebSession: webSessionSchema,
-});
-
-export type AuthContext = z.infer<typeof authPropsSchema>;
-
-export function readAuthContext(): AuthContext | null {
-  const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
-  return parsed.success ? parsed.data : null;
+export interface CronometerToolOptions {
+  disconnectedStatusMessage?: string;
+  expiredSessionMessage?: string;
+  getContext: AuthContextProvider;
+  missingContextMessage?: string;
 }
+
+const DEFAULT_DISCONNECTED_STATUS = "This MCP server is not authenticated with Cronometer.";
+const DEFAULT_EXPIRED_SESSION =
+  "The Cronometer session has expired. Authenticate with Cronometer again.";
+const DEFAULT_MISSING_CONTEXT = "Authenticate this MCP server with Cronometer first.";
 
 const READ_ONLY_ANNOTATIONS = {
   destructiveHint: false,
@@ -79,11 +72,17 @@ export function toolError(message: string) {
   };
 }
 
-function mobileErrorMessage(error: unknown): string {
+interface ToolMessages {
+  disconnectedStatus: string;
+  expiredSession: string;
+  missingContext: string;
+}
+
+function mobileErrorMessage(error: unknown, messages: ToolMessages): string {
   if (error instanceof mobile.CronometerMobileError) {
     switch (error.reason) {
       case "session":
-        return "The Cronometer session has expired. Reconnect this MCP connection to Cronometer.";
+        return messages.expiredSession;
       case "request":
         return error.message;
       case "upstream":
@@ -97,19 +96,119 @@ function mobileErrorMessage(error: unknown): string {
 }
 
 async function withMobileSession(
+  getContext: AuthContextProvider,
+  messages: ToolMessages,
   run: (session: mobile.CronometerMobileSession, context: AuthContext) => Promise<Record<string, unknown>>,
 ) {
-  const context = readAuthContext();
-  if (!context) return toolError(RECONNECT_MESSAGE);
+  const context = getContext();
+  if (!context) return toolError(messages.missingContext);
   try {
     return toolSuccess(await run(context.cronometerMobileSession, context));
   } catch (error) {
-    return toolError(mobileErrorMessage(error));
+    return toolError(mobileErrorMessage(error, messages));
   }
 }
 
+/** Register the complete Cronometer tool surface on an MCP server. */
+export function registerCronometerTools(
+  server: McpServer,
+  options: CronometerToolOptions,
+): void {
+  const messages: ToolMessages = {
+    disconnectedStatus: options.disconnectedStatusMessage ?? DEFAULT_DISCONNECTED_STATUS,
+    expiredSession: options.expiredSessionMessage ?? DEFAULT_EXPIRED_SESSION,
+    missingContext: options.missingContextMessage ?? DEFAULT_MISSING_CONTEXT,
+  };
+
+  server.registerTool(
+    "connection_status",
+    {
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "Check whether this MCP server is authenticated with Cronometer.",
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const context = options.getContext();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: context
+              ? `Connected to Cronometer as ${context.cronometerUsername}. Mobile data tools and CSV exports are available.`
+              : messages.disconnectedStatus,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "get_cronometer_data",
+    {
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Retrieve one read-only Cronometer CSV export for an inclusive date range of up to 31 days. " +
+        "Available datasets are daily nutrition summaries, food servings, exercises, biometrics, and notes. " +
+        "Each call uses one of Cronometer's limited daily exports, so request only the data and dates needed.",
+      inputSchema: z.object({
+        dataType: z
+          .enum(["daily_nutrition", "servings", "exercises", "biometrics", "notes"])
+          .describe("The Cronometer dataset to retrieve."),
+        startDate: z.string().describe("First date to include, formatted exactly as YYYY-MM-DD."),
+        endDate: z
+          .string()
+          .describe(
+            "Last date to include, formatted exactly as YYYY-MM-DD; maximum 31 inclusive days.",
+          ),
+      }),
+    },
+    async ({ dataType, startDate, endDate }) => {
+      const context = options.getContext();
+      if (!context) return toolError(messages.missingContext);
+
+      try {
+        const result = await exportCronometerData(
+          context.cronometerWebSession,
+          dataType as CronometerExportType,
+          startDate,
+          endDate,
+        );
+        const rows = result.rows.slice(0, 1_000);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                columns: result.columns,
+                dataType,
+                endDate,
+                returnedRows: rows.length,
+                rows,
+                startDate,
+                totalRows: result.rows.length,
+                truncated: rows.length < result.rows.length,
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        if (error instanceof CronometerExportError) {
+          return toolError(exportErrorMessage(error.reason, messages.expiredSession));
+        }
+        return toolError("Cronometer data retrieval failed. Try again later.");
+      }
+    },
+  );
+
+  registerMobileTools(server, options.getContext, messages);
+}
+
 /** Register every mobile-API tool on the server. */
-export function registerMobileTools(server: McpServer): void {
+function registerMobileTools(
+  server: McpServer,
+  getContext: AuthContextProvider,
+  messages: ToolMessages,
+): void {
   // ---------------------------------------------------------------------------
   // Food log & diary
   // ---------------------------------------------------------------------------
@@ -125,7 +224,7 @@ export function registerMobileTools(server: McpServer): void {
       inputSchema: z.object({ date: optionalDateString }),
     },
     async ({ date }) =>
-      withMobileSession(async (session) => {
+      withMobileSession(getContext, messages, async (session) => {
         const diary = await mobile.enrichDiaryServings(
           session,
           await mobile.getDiary(session, date),
@@ -181,7 +280,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ foodId, measureId, grams, date, translationId, diaryGroup }) =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         entry: await mobile.addServing(session, {
           date,
           diaryGroup: DIARY_GROUP_IDS[diaryGroup],
@@ -206,7 +305,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ entryIds, date }) =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         date: date ?? mobile.formatToday(session.timezone),
         ...(await mobile.deleteEntries(session, entryIds, date)),
       })),
@@ -223,7 +322,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ date, complete }) =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         date,
         marked: complete ? "complete" : "incomplete",
         result: await mobile.markDayComplete(session, date, complete),
@@ -239,7 +338,7 @@ export function registerMobileTools(server: McpServer): void {
       inputSchema: z.object({ date: optionalDateString.describe("Destination date.") }),
     },
     async ({ date }) =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         destination_date: date ?? mobile.formatToday(session.timezone),
         result: await mobile.copyDay(session, date),
       })),
@@ -260,7 +359,7 @@ export function registerMobileTools(server: McpServer): void {
       inputSchema: z.object({ date: optionalDateString }),
     },
     async ({ date }) =>
-      withMobileSession(async (session) => {
+      withMobileSession(getContext, messages, async (session) => {
         const data = await mobile.getConsumedNutrients(session, date);
         return {
           date: date ?? mobile.formatToday(session.timezone),
@@ -280,7 +379,7 @@ export function registerMobileTools(server: McpServer): void {
       inputSchema: z.object({ date: optionalDateString }),
     },
     async ({ date }) =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         date: date ?? mobile.formatToday(session.timezone),
         scores: await mobile.getNutritionScores(session, date),
       })),
@@ -298,7 +397,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ query }) =>
-      withMobileSession(async (session) => {
+      withMobileSession(getContext, messages, async (session) => {
         const foods = await mobile.searchFoods(session, query);
         return {
           count: foods.length,
@@ -328,7 +427,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ foodId }) =>
-      withMobileSession(async (session) => {
+      withMobileSession(getContext, messages, async (session) => {
         const food = await mobile.getFood(session, foodId);
         return {
           default_measure_id: food.defaultMeasureId,
@@ -393,7 +492,7 @@ export function registerMobileTools(server: McpServer): void {
       servingName,
       servingGrams,
     }) =>
-      withMobileSession(async (session) => {
+      withMobileSession(getContext, messages, async (session) => {
         const { foodId } = await mobile.createCustomFood(session, {
           calories,
           carbsG,
@@ -451,7 +550,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ name, ingredients, servingName, servingGrams, comments }) =>
-      withMobileSession(async (session) => {
+      withMobileSession(getContext, messages, async (session) => {
         const result = await mobile.createRecipe(session, {
           comments,
           ingredients: ingredients.map((ingredient) => ({
@@ -489,7 +588,7 @@ export function registerMobileTools(server: McpServer): void {
       inputSchema: z.object({}),
     },
     async () =>
-      withMobileSession(async (session) => await mobile.getMacroTargets(session)),
+      withMobileSession(getContext, messages, async (session) => await mobile.getMacroTargets(session)),
   );
 
   server.registerTool(
@@ -504,7 +603,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ startDate, endDate }) =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         end_date: endDate ?? mobile.formatToday(session.timezone),
         fasting: await mobile.getFastingHistory(session, startDate, endDate),
         start_date:
@@ -521,7 +620,7 @@ export function registerMobileTools(server: McpServer): void {
       inputSchema: z.object({}),
     },
     async () =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         stats: await mobile.getFastingStats(session),
       })),
   );
@@ -536,7 +635,7 @@ export function registerMobileTools(server: McpServer): void {
       inputSchema: z.object({}),
     },
     async () =>
-      withMobileSession(async (session) => {
+      withMobileSession(getContext, messages, async (session) => {
         const metrics = await mobile.listBiometrics(session);
         return {
           count: metrics.length,
@@ -566,7 +665,7 @@ export function registerMobileTools(server: McpServer): void {
       }),
     },
     async ({ metricId, unitId, startDate, endDate }) =>
-      withMobileSession(async (session) => ({
+      withMobileSession(getContext, messages, async (session) => ({
         biometrics: await mobile.getBiometrics(session, metricId, unitId, startDate, endDate),
         end_date: endDate ?? mobile.formatToday(session.timezone),
         metric_id: metricId,
@@ -583,4 +682,24 @@ function offsetDay(day: string, deltaDays: number): string {
   const timestamp =
     Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) + deltaDays * 86_400_000;
   return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function exportErrorMessage(
+  reason: CronometerExportError["reason"],
+  expiredSessionMessage: string,
+): string {
+  switch (reason) {
+    case "date_range":
+      return "Use valid YYYY-MM-DD dates with the start on or before the end and no more than 31 inclusive days.";
+    case "session":
+      return expiredSessionMessage;
+    case "rate_limit":
+      return "Cronometer's daily export limit has been reached. Try again later.";
+    case "too_large":
+      return "The Cronometer export was too large. Try a shorter date range.";
+    case "format":
+      return "Cronometer returned an unexpected export format. The private endpoint may have changed.";
+    case "upstream":
+      return "Cronometer could not generate the export. Try again later.";
+  }
 }

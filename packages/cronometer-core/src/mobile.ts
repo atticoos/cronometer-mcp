@@ -8,13 +8,11 @@
  *   - v2 (`POST /api/v2/*`): JSON-body auth via an `auth` block on every call.
  *   - v3 (`DELETE /api/v3/user/{id}/*`): header-based auth (`x-crono-session`).
  *
- * Unlike the upstream client, this module never stores credentials. Sessions
- * are minted once during MCP authorization and live in the OAuth grant's
- * encrypted props; an expired `sessionKey` surfaces as a reconnect
- * instruction instead of triggering an automatic re-login.
+ * This module never stores credentials or automatically refreshes sessions.
+ * Each runtime decides how sessions are minted, scoped, and renewed.
  */
 
-import { CronometerAuthenticationError } from "./cronometer";
+import { CronometerAuthenticationError } from "./cronometer.js";
 
 const MOBILE_BASE_URL = "https://mobile.cronometer.com";
 const UPSTREAM_TIMEOUT_MS = 30_000;

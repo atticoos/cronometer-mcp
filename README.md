@@ -1,6 +1,49 @@
 # Cronometer MCP
 
-A Cloudflare Worker that exposes Cronometer data to MCP clients. Data tools use Cronometer's mobile REST API (the same JSON endpoints as the Android app); CSV exports use Cronometer's private web/GWT endpoints because no public API exists.
+Cronometer MCP exposes Cronometer data to MCP clients in two forms: a hosted
+Cloudflare Worker and a local Node.js stdio server. Data tools use Cronometer's
+mobile REST API (the same JSON endpoints as the Android app); CSV exports use
+Cronometer's private web/GWT endpoints because no public API exists.
+
+## Local Node.js server
+
+The publishable package in `packages/cronometer-mcp` can run in local agents
+without the hosted OAuth flow. It authenticates at startup from
+`CRONOMETER_USERNAME`, `CRONOMETER_PASSWORD`, and optional
+`CRONOMETER_USER_CODE` environment variables:
+
+```json
+{
+  "mcpServers": {
+    "cronometer": {
+      "command": "npx",
+      "args": ["-y", "cronometer-mcp"],
+      "env": {
+        "CRONOMETER_USERNAME": "you@example.com",
+        "CRONOMETER_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+See [`packages/cronometer-mcp/README.md`](packages/cronometer-mcp/README.md)
+for the tool list, security notes, and installation options.
+
+## Shared architecture
+
+`packages/cronometer-core` owns both Cronometer API clients, authentication
+session types, and the complete MCP tool surface. The two runtime adapters are
+deliberately small:
+
+- `apps/cronometer-mcp` resolves encrypted OAuth grant properties for each
+  Worker request and serves MCP over HTTP.
+- `packages/cronometer-mcp` authenticates once from local environment variables
+  and serves MCP over stdio.
+
+The context-provider boundary keeps request state out of Worker module globals.
+The local npm package bundles the private core implementation into its build,
+so `npm install cronometer-mcp` remains a single-package installation.
 
 ## Authentication design
 
@@ -14,7 +57,7 @@ The Worker has three trust boundaries:
 
 Because credentials are never persisted, an expired upstream session cannot be silently refreshed -- affected tools return a reconnect instruction and the MCP connection must be re-authorized through `/authorize`. Note that deploying this refactor changes the stored props shape, so existing connections must reconnect once after upgrade.
 
-The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT), which reverse-engineered the endpoints from the Cronometer Android app. The export wire format was independently implemented with
+The shared mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT), which reverse-engineered the endpoints from the Cronometer Android app. The export wire format was independently implemented with
 [`jrmycanady/gocronometer`](https://github.com/jrmycanady/gocronometer) as a protocol reference.
 Cronometer's private GWT permutation and request format can change without notice. The reference
 project is GPL-2.0; review licensing before copying any additional implementation code from it.

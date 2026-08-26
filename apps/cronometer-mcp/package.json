@@ -14,6 +14,7 @@
     "check": "npm run cf-typegen && npm run typecheck && npm test && npm run deploy:dry-run"
   },
   "dependencies": {
+    "@cronometer-mcp/core": "0.1.0",
     "@cloudflare/workers-oauth-provider": "0.10.2",
     "@modelcontextprotocol/server": "2.0.0",
     "agents": "^0.20.1",

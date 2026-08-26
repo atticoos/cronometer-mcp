@@ -1,24 +1,24 @@
 {
   "name": "cronometer-mcp",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Local MCP server exposing Cronometer food logging and nutrition data to MCP clients.",
   "license": "MIT",
   "author": "Atticus White",
   "type": "module",
   "bin": {
-    "cronometer-mcp": "dist/cli.js"
+    "cronometer-mcp": "lib/cli.js"
   },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "lib"
   ],
   "engines": {
     "node": ">=20"
@@ -40,13 +40,25 @@
     "food-log"
   ],
   "scripts": {
-    "build": "tsc -p .",
-    "lint": "eslint src --max-warnings 0",
+    "prebuild": "npm run build --workspace @cronometer-mcp/core",
+    "build": "tsc -p . --emitDeclarationOnly && esbuild src/index.ts src/cli.ts --bundle --splitting --platform=node --format=esm --outdir=lib --chunk-names=core --external:@modelcontextprotocol/server --external:@modelcontextprotocol/server/* --external:zod",
+    "lint": "eslint src test --max-warnings 0",
+    "prepack": "npm run build",
+    "pretest": "npm run build --workspace @cronometer-mcp/core",
     "prepublishOnly": "npm run build",
+    "test": "vitest run",
     "typecheck": "tsc -p . --noEmit"
   },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
+    "@cronometer-mcp/core": "0.1.0",
+    "@modelcontextprotocol/client": "2.0.0",
     "@types/node": "^26.2.0",
-    "typescript": "6.0.3"
+    "esbuild": "^0.28.1",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.8"
   }
 }
