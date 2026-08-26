@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Cronometer MCP — Let AI tailor your macros";
+export const alt = "Cronometer MCP — Talk to your Cronometer data from your AI assistant";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -115,26 +115,27 @@ export default function OpenGraphImage() {
             style={{
               display: "flex",
               color: "white",
-              fontSize: 78,
+              fontSize: 62,
               fontWeight: 800,
               letterSpacing: "-0.03em",
-              lineHeight: 1.05,
+              lineHeight: 1.08,
             }}
           >
-            Let AI&nbsp;<span style={{ color: "#5eead4" }}>tailor your macros.</span>
+            Talk to your <span style={{ color: "#5eead4" }}>&nbsp;Cronometer data</span> from your AI
+            assistant.
           </div>
           <div
             style={{
               display: "flex",
-              maxWidth: 860,
+              maxWidth: 900,
               marginTop: 22,
               color: "#a1a1aa",
-              fontSize: 25,
+              fontSize: 24,
               lineHeight: 1.45,
             }}
           >
-            Turn what you logged and what remains into your next meal, custom foods, and a macro
-            plan built around your goals.
+            The open-source connector that lets ChatGPT, Claude, and Cursor use your food log,
+            nutrition, biometrics, and fasting history—in plain language.
           </div>
         </div>
 

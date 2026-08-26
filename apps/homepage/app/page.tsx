@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import DemoTabs from "./components/demo-tabs";
 import {
   AppleIcon,
   ArrowRightIcon,
@@ -28,29 +29,48 @@ const NAV_LINKS = [
   { label: "Capabilities", href: "#capabilities" },
   { label: "Security", href: "#security" },
   { label: "Setup", href: "#setup" },
+  { label: "FAQ", href: "#faq" },
+];
+
+const PROBLEMS: { icon: Icon; title: string; body: string }[] = [
+  {
+    icon: TargetIcon,
+    title: "Know what comes next",
+    body: "You want tonight’s meal to fit what remains—not another screen of consumed totals to eyeball and do the math on.",
+  },
+  {
+    icon: BookOpenIcon,
+    title: "Record real life accurately",
+    body: "You remember exactly what you ordered, but no database entry matches it, so honest logging turns into guesswork.",
+  },
+  {
+    icon: CalendarRangeIcon,
+    title: "Plan without spreadsheets",
+    body: "Multi-week questions live behind CSV exports and manual comparison, so the next plan never quite starts from your data.",
+  },
 ];
 
 const USE_CASES: { icon: Icon; title: string; body: string; prompt: string; outcome: string }[] = [
   {
-    icon: UtensilsIcon,
-    title: "Decide what to eat next",
-    body: "Cronometer can show what remains. AI can turn those remaining calories and macros into meals that fit your preferences, schedule, and training day.",
-    prompt: "I lift in two hours. What can I eat with today’s remaining macros?",
-    outcome: "A practical meal, not another dashboard",
+    icon: TargetIcon,
+    title: "Understand your nutrition",
+    body: "Summarize days or weeks of logging to see where macros drifted, which days held together, and the entries behind the trend.",
+    prompt: "Review my last four weeks and show where my macros drifted from target.",
+    outcome: "A trend summary grounded in specific entries",
   },
   {
     icon: BookOpenIcon,
-    title: "Create the food you actually had",
-    body: "Describe the odd substitution or custom order in plain language. Your assistant can work out the nutrition and create a reusable custom food in Cronometer.",
+    title: "Log what you actually ate",
+    body: "Describe the odd substitution or custom order in plain language. Your assistant works out the nutrition and creates a reusable custom food in Cronometer.",
     prompt: "Add my Starbucks drink, but swap in their protein milk.",
     outcome: "Custom nutrition without manual data entry",
   },
   {
-    icon: TargetIcon,
-    title: "Plan macros around your goals",
-    body: "Use nutrition history alongside context from other connected sources—such as workout logs, weight trends, and energy expenditure—to shape the next bulk, recomp, or cut.",
-    prompt: "Review my last recomp block and propose macros for a lean bulk.",
-    outcome: "A plan grounded in your actual trend data",
+    icon: UtensilsIcon,
+    title: "Decide what to eat next",
+    body: "Cronometer shows what remains. Your assistant turns those remaining calories and macros into a meal that fits your preferences, schedule, and training day.",
+    prompt: "I lift in two hours. What can I eat with today’s remaining macros?",
+    outcome: "A practical meal, not another dashboard",
   },
 ];
 
@@ -167,6 +187,12 @@ const CAPABILITIES: {
       tools: [{ name: "get_macro_targets", badge: "read" }],
     },
     {
+      icon: ShieldCheckIcon,
+      title: "Account",
+      tools: [{ name: "connection_status", badge: "read" }],
+      footnote: "verifies both Cronometer sessions are live",
+    },
+    {
       icon: DownloadIcon,
       title: "Bulk exports",
       tools: [{ name: "get_cronometer_data", badge: "read" }],
@@ -186,6 +212,51 @@ const LIMITS = [
   { value: "~10 / day", label: "upstream export cap" },
   { value: "≤ 31 days", label: "window per request" },
   { value: "1,000", label: "rows per response" },
+];
+
+const HERO_STATS = [
+  { value: "18", label: "focused tools" },
+  { value: "OAuth 2.1", label: "browser sign-in" },
+  { value: "Read & write", label: "annotated per tool" },
+  { value: "0", label: "stored passwords or codes" },
+];
+
+const FAQ_ITEMS: { question: string; answer: string }[] = [
+  {
+    question: "What is Cronometer MCP?",
+    answer:
+      "An independent, open-source connector that lets ChatGPT, Claude, Cursor, and other MCP clients read and write data in your Cronometer account—food log, daily nutrition, biometrics, fasting history, and bulk exports.",
+  },
+  {
+    question: "Do I need a Cronometer API key?",
+    answer:
+      "No. Cronometer does not offer a public API, so the server signs in once with your Cronometer username, password, and one-time code during authorization. There is nothing to create, manage, or rotate.",
+  },
+  {
+    question: "Do I need to install anything?",
+    answer:
+      "No. The hosted endpoint serves OAuth discovery, dynamic client registration, and all 18 tools. If you prefer your own deployment, the same open-source Worker runs on any Cloudflare account.",
+  },
+  {
+    question: "Which assistants work with Cronometer MCP?",
+    answer:
+      "Any MCP client that connects to a remote server over HTTP—ChatGPT connectors, Claude, Cursor, VS Code, Codex, and others. Every tool carries MCP annotations regardless of which client you use.",
+  },
+  {
+    question: "Is my password stored?",
+    answer:
+      "No. Credentials are exchanged exactly once at authorization for web and mobile sessions, which live inside the encrypted OAuth grant. Your password and one-time code are never persisted and never embedded in an MCP token.",
+  },
+  {
+    question: "Can it change my Cronometer account?",
+    answer:
+      "Yes. Write tools cover food entries, custom foods, recipes, day copying, and day completion. Each tool declares whether it is read-only, idempotent, or destructive, so compatible clients can require confirmation before anything mutates.",
+  },
+  {
+    question: "Is this an official Cronometer product?",
+    answer:
+      "No. Cronometer MCP is an independent open-source project and is not affiliated with or endorsed by Cronometer.com.",
+  },
 ];
 
 const ENDPOINT = "https://mcp.cronometer-mcp.dev/mcp";
@@ -258,100 +329,62 @@ function Nav() {
   );
 }
 
-function TerminalCard() {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/50 shadow-2xl shadow-emerald-950/50 ring-1 ring-white/5 backdrop-blur">
-      <div className="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
-        <span className="size-3 rounded-full bg-red-500/70" />
-        <span className="size-3 rounded-full bg-yellow-500/70" />
-        <span className="size-3 rounded-full bg-green-500/70" />
-        <span className="ml-3 font-mono text-xs text-zinc-500">chatgpt · connector</span>
-      </div>
-      <div className="space-y-4 p-5 font-mono text-[13px] leading-relaxed">
-        <div>
-          <p className="text-zinc-500">$ connect</p>
-          <p className="mt-1 break-all text-zinc-300">{ENDPOINT}</p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-emerald-400">✓ OAuth 2.1 · PKCE · dynamic client registration</p>
-          <p className="text-emerald-400">✓ authorized — read & write grant</p>
-        </div>
-        <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-sky-300">you ›</p>
-          <p className="mt-0.5 text-zinc-300">
-            What should I eat next? I’m lifting this evening.
-          </p>
-        </div>
-        <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-fuchsia-300">tools › get_food_log · get_macro_targets</p>
-          <p className="mt-0.5 break-all text-zinc-500">
-            {'{ "date": "2026-08-25" }'}
-          </p>
-        </div>
-        <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-emerald-300">assistant ›</p>
-          <p className="mt-0.5 text-zinc-300">
-            You have 850 kcal left. Aim for 62 g protein, 90 g carbs, and 18 g fat — with more of
-            those carbs around your workout.
-          </p>
-          <div className="mt-3 space-y-2 border-t border-white/5 pt-3 text-xs">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-zinc-300">Chicken rice bowl</p>
-              <p className="shrink-0 text-zinc-500">42P · 60C · 12F</p>
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-zinc-300">Greek yogurt, banana & oats</p>
-              <p className="shrink-0 text-zinc-500">20P · 30C · 6F</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Hero() {
   return (
     <section id="top" className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 -top-40 h-[480px] bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.15),transparent_60%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black,transparent)]" />
-      <div className="relative mx-auto grid max-w-6xl gap-14 px-6 pt-20 pb-24 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:pt-28 lg:pb-32">
+      <div className="relative mx-auto grid max-w-6xl gap-14 px-6 pt-20 pb-14 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:pt-28">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-300">
             <SparklesIcon className="size-3.5" />
             Open source · read & write · Model Context Protocol
           </div>
-          <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
-            Let AI{" "}
+          <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-5xl xl:text-6xl">
+            Talk to your{" "}
             <span className="bg-gradient-to-r from-emerald-300 to-teal-400 bg-clip-text text-transparent">
-              tailor your macros.
-            </span>
+              Cronometer data
+            </span>{" "}
+            from your AI assistant.
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-400">
-            Cronometer is great at showing what you ate and what&apos;s left. Connect it to AI to turn
-            those numbers into your next meal, create custom foods in plain language, and build a
-            macro plan around your goals.
+            Cronometer MCP is the connector that lets ChatGPT, Claude, Cursor, and other AI
+            assistants use your food log, daily nutrition, biometrics, and fasting history. See
+            what remains, log what you actually ate, and plan macros in plain language.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
               href="#setup"
               className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
             >
-              Connect your client
+              Connect Cronometer
               <ArrowRightIcon className="size-4" />
             </a>
             <a
               href="#use-cases"
               className="inline-flex items-center gap-2 rounded-full border border-white/10 px-6 py-3 text-sm font-semibold text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
             >
-              Explore use cases
+              See what you can ask
             </a>
           </div>
-          <p className="mt-6 break-all font-mono text-xs text-zinc-500">
+          <p className="mt-6 text-xs text-zinc-500">
+            Independent, open-source connector for Cronometer.
+          </p>
+          <p className="mt-2 break-all font-mono text-xs text-zinc-500">
             GET <span className="text-zinc-400">{ENDPOINT}</span>
           </p>
         </div>
-        <TerminalCard />
+        <DemoTabs />
+      </div>
+      <div className="relative mx-auto max-w-6xl px-6 pb-20">
+        <div className="grid grid-cols-2 divide-white/10 rounded-2xl border border-white/10 bg-white/[0.02] sm:grid-cols-4 sm:divide-x">
+          {HERO_STATS.map((stat) => (
+            <div key={stat.label} className="px-4 py-5 text-center">
+              <p className="font-mono text-lg font-semibold text-white sm:text-xl">{stat.value}</p>
+              <p className="mt-1 text-xs text-zinc-500">{stat.label}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -392,13 +425,41 @@ function OpenSource() {
   );
 }
 
+function Problem() {
+  return (
+    <section className="border-t border-white/5 py-24">
+      <div className="mx-auto max-w-6xl px-6">
+        <SectionHeading eyebrow="The problem" title="Your Cronometer data is useful. Getting answers from it should be easier.">
+          Your food log holds the evidence—but answering a simple question still means opening
+          diary screens, doing macro arithmetic, and exporting spreadsheets.
+        </SectionHeading>
+        <div className="mt-14 grid gap-10 md:grid-cols-3">
+          {PROBLEMS.map((problem) => (
+            <div key={problem.title}>
+              <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+                <problem.icon className="size-5" />
+              </span>
+              <h3 className="mt-4 text-base font-semibold text-white">{problem.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{problem.body}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mx-auto mt-14 max-w-2xl text-center text-lg text-zinc-300">
+          Instead of doing arithmetic over diary screens, ask in plain language and get an answer
+          grounded in specific entries.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function UseCases() {
   return (
     <section id="use-cases" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Why connect AI" title="From tracking the past to choosing what’s next">
-          Your food log becomes useful context for decisions: what to eat now, how to record real
-          life accurately, and how to adjust the plan as your goals change.
+        <SectionHeading eyebrow="What you can do" title="Turn your food log into a useful conversation.">
+          Understand the trend, record the meal you actually had, and decide what comes next—all
+          from the same conversation.
         </SectionHeading>
         <div className="mt-14 grid gap-5 lg:grid-cols-3">
           {USE_CASES.map((useCase, index) => (
@@ -439,8 +500,9 @@ function UseCases() {
           </div>
         </div>
         <p className="mx-auto mt-6 max-w-3xl text-center text-xs leading-relaxed text-zinc-600">
-          Cross-source planning depends on the other data and integrations you choose to give your
-          AI assistant. Cronometer MCP supplies the nutrition side of that context.
+          Trend reviews can also fold in other data you choose to give your assistant—training
+          logs, weight trends, energy expenditure. Cronometer MCP supplies the nutrition side of
+          that context.
         </p>
       </div>
     </section>
@@ -479,12 +541,12 @@ function Capabilities() {
   return (
     <section id="capabilities" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Capabilities" title="The data and actions behind the advice">
+        <SectionHeading eyebrow="Tool manifest" title="18 focused tools behind every answer.">
           connection_status keeps the link honest; the other seventeen read and write your account
-          through Cronometer&apos;s mobile API and CSV exports. Every chip is annotated read, write,
-          or destructive.
+          through Cronometer&apos;s mobile API and bounded CSV exports. Every chip is annotated
+          read, write, or destructive.
         </SectionHeading>
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {CAPABILITIES.map((capability) => (
             <div
               key={capability.title}
@@ -523,6 +585,17 @@ function Capabilities() {
             </div>
           ))}
         </div>
+        <p className="mt-10 text-center">
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-400 transition-colors hover:text-emerald-300"
+          >
+            Explore the complete tool manifest on GitHub
+            <ArrowRightIcon className="size-4" />
+          </a>
+        </p>
       </div>
     </section>
   );
@@ -532,7 +605,7 @@ function Tools() {
   return (
     <section id="tools" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Under the hood" title="What your assistant can actually do">
+        <SectionHeading eyebrow="Worked examples" title="What a real exchange looks like">
           Structured reads provide the context. Explicitly labeled writes handle the tedious work.
           Bulk history makes longer-horizon planning possible.
         </SectionHeading>
@@ -628,12 +701,18 @@ const STEPS: { number: string; title: string; body: ReactNode }[] = [
   },
   {
     number: "03",
-    title: "Start asking — and logging",
+    title: "Ask your first question",
     body: (
       <>
-        Ask what to eat next, create a custom food in plain language, review a nutrition trend, or
-        plan macros for your next training block. Live tools hit Cronometer&apos;s mobile API; bulk
-        history comes from bounded CSV exports.
+        Confirm the link read-only with{" "}
+        <span className="text-zinc-300">
+          “Which Cronometer account is connected?”
+        </span>{" "}
+        — answered by <span className="font-mono text-emerald-300">connection_status</span>. Then
+        try the real thing:{" "}
+        <span className="text-zinc-300">
+          “What can I eat with today’s remaining macros?”
+        </span>
       </>
     ),
   },
@@ -643,9 +722,18 @@ function Setup() {
   return (
     <section id="setup" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="Setup" title="Connected in three steps">
-          No API keys to manage. Your assistant discovers the server, registers itself, and
-          completes authorization in the browser.
+        <SectionHeading
+          eyebrow="Setup"
+          title={
+            <>
+              Connect Cronometer.
+              <br />
+              Ask your first question.
+            </>
+          }
+        >
+          One endpoint, one browser sign-in. There are no API keys—authorization exchanges your
+          Cronometer login for scoped sessions and discards the credentials.
         </SectionHeading>
         <div className="mt-14 grid gap-10 md:grid-cols-3">
           {STEPS.map((step) => (
@@ -688,6 +776,35 @@ function Security() {
   );
 }
 
+function Faq() {
+  return (
+    <section id="faq" className="border-t border-white/5 py-24">
+      <div className="mx-auto max-w-6xl px-6">
+        <SectionHeading eyebrow="Questions, answered" title="Know what you are connecting before you start.">
+          The short version: no API keys, no install, credentials are never stored, and the whole
+          server is open source if you would rather read it than trust it.
+        </SectionHeading>
+        <div className="mx-auto mt-14 max-w-3xl space-y-3">
+          {FAQ_ITEMS.map((item) => (
+            <details
+              key={item.question}
+              className="group rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4 open:bg-white/[0.05]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
+                {item.question}
+                <span className="font-mono text-emerald-400 transition-transform group-open:rotate-45">
+                  +
+                </span>
+              </summary>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-400">{item.answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Cta() {
   return (
     <section className="relative overflow-hidden border-t border-white/5 py-24">
@@ -695,17 +812,17 @@ function Cta() {
       <div className="relative mx-auto max-w-2xl px-6 text-center">
         <ShieldCheckIcon className="mx-auto size-10 text-emerald-400" />
         <h2 className="mt-6 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          Ready to wire up your assistant?
+          Put your Cronometer data to work.
         </h2>
         <p className="mt-4 text-base leading-relaxed text-zinc-400">
-          Add the connector, sign in once, and turn today&apos;s remaining macros into a meal you can
-          actually eat.
+          Connect in the browser for the shortest path—no local install required. Prefer control?
+          Run the same open-source Worker on your own Cloudflare account.
         </p>
         <a
           href="#setup"
           className="mt-8 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
         >
-          Connect your client
+          Connect Cronometer
           <ArrowRightIcon className="size-4" />
         </a>
       </div>
@@ -735,12 +852,15 @@ function Footer() {
           Open source on GitHub
           <ArrowRightIcon className="size-3.5" />
         </a>
-        <p className="max-w-3xl text-xs leading-relaxed text-zinc-600">
-          Unofficial integration — not affiliated with or endorsed by Cronometer.com. The login
-          wire format is independently implemented against Cronometer&apos;s private web endpoints,
-          which may change without notice. Access — read and write — is granted only by you, per
-          client, via OAuth.
-        </p>
+          <p className="max-w-3xl text-xs leading-relaxed text-zinc-500">
+            Independent, open source, and built to turn nutrition data into useful answers.
+          </p>
+          <p className="max-w-3xl text-xs leading-relaxed text-zinc-600">
+            Unofficial integration — not affiliated with or endorsed by Cronometer.com. The login
+            wire format is independently implemented against Cronometer&apos;s private web endpoints,
+            which may change without notice. Access — read and write — is granted only by you, per
+            client, via OAuth.
+          </p>
       </div>
     </footer>
   );
@@ -753,12 +873,14 @@ export default function HomePage() {
       <main>
         <Hero />
         <OpenSource />
+        <Problem />
         <UseCases />
         <Capabilities />
         <Tools />
         <Features />
         <Setup />
         <Security />
+        <Faq />
         <Cta />
       </main>
       <Footer />

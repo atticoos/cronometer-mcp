@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 const productionUrl = new URL("https://cronometer-mcp.dev");
-const title = "Cronometer MCP — Let AI tailor your macros";
+const title = "Cronometer MCP — Talk to your Cronometer data from your AI assistant";
 const socialDescription =
-  "Open-source tools that turn what you logged and what remains into your next meal, custom foods, and a macro plan built around your goals.";
+  "The open-source connector that lets ChatGPT, Claude, Cursor, and other AI assistants use your food log, nutrition, biometrics, and fasting history—in plain language.";
 
 function firstHeaderValue(value: string | null) {
   return value?.split(",", 1)[0]?.trim();
@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase,
     title,
     description:
-      "An open-source Cronometer MCP connector that helps AI decide what to eat next, create custom foods, and plan macros around your goals.",
+      "An open-source Cronometer MCP connector that lets AI assistants read and write your food log, nutrition, biometrics, and fasting history in plain language.",
     alternates: { canonical: productionUrl },
     icons: { icon: "/favicon.svg" },
     openGraph: {
