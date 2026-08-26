@@ -1,3 +1,17 @@
-# This first OAuth slice does not require application secrets.
-# Cronometer credentials are entered by the user during authorization and are
-# never written to this file or stored by the Worker.
+# Copy to `.dev.vars` for local `wrangler dev` and fill in real values.
+# NEVER commit the real `.dev.vars` (it is gitignored).
+#
+# Production values are set with:
+#   npx wrangler secret put OTEL_EXPORTER_OTLP_ENDPOINT
+#   npx wrangler secret put OTEL_EXPORTER_OTLP_HEADERS
+
+# Grafana Cloud OTLP trace endpoint (full path, including /v1/traces).
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-<region>.grafana.net/otlp/v1/traces
+
+# OTLP export headers. Format: "key=value,key2=value2" (values may contain '=').
+# For Grafana Cloud: base64 of "<instance-id>:<token>" from the stack's
+# OpenTelemetry setup page, sent as basic auth.
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64-of-instance-id-colon-token>
+
+# Optional: override the traced service name (defaults to "cronometer-mcp").
+# OTEL_SERVICE_NAME=cronometer-mcp
