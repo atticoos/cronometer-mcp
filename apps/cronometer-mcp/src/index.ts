@@ -1,3 +1,4 @@
+import { instrument } from "@microlabs/otel-cf-workers";
 import {
   OAuthProvider,
   type OAuthHelpers,
@@ -6,6 +7,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { z } from "zod";
 import { authHandler } from "./auth";
+import { instrumentToolRegistration } from "./observability";
 import {
   CronometerExportError,
   exportCronometerData,
@@ -22,7 +24,9 @@ type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 const RECONNECT_MESSAGE = "Reconnect this MCP connection to Cronometer first.";
 
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "Cronometer MCP", version: "0.3.0" });
+  const server = instrumentToolRegistration(
+    new McpServer({ name: "Cronometer MCP", version: "0.3.0" }),
+  );
 
 
   server.registerTool(
@@ -138,7 +142,23 @@ const mcpHandler = {
   },
 } satisfies ExportedHandler<RuntimeEnv>;
 
-export default new OAuthProvider<RuntimeEnv>({
+function parseOtlpHeaders(raw: string | undefined): Record<string, string> {
+  if (!raw) return {};
+  return Object.fromEntries(
+    raw
+      .split(",")
+      .map((pair) => {
+        const eq = pair.indexOf("=");
+        return eq === -1 ? undefined : [pair.slice(0, eq), pair.slice(eq + 1)];
+      })
+      .filter((entry): entry is [string, string] => entry !== undefined)
+      .map(([key, value]) => [key.trim(), value.trim()]),
+  );
+}
+
+// Bind fetch explicitly: the OTel instrumentation invokes handler.fetch without
+// a receiver, and OAuthProvider.fetch depends on internal instance state.
+const oauthProvider = new OAuthProvider<RuntimeEnv>({
   apiHandler: mcpHandler,
   apiRoute: "/mcp",
   authorizeEndpoint: "/authorize",
@@ -148,3 +168,15 @@ export default new OAuthProvider<RuntimeEnv>({
   scopesSupported: ["cronometer:read"],
   tokenEndpoint: "/oauth/token",
 });
+
+export default instrument(
+  { fetch: oauthProvider.fetch.bind(oauthProvider) },
+  (env) => ({
+    exporter: {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      url: env?.OTEL_EXPORTER_OTLP_ENDPOINT,
+      headers: parseOtlpHeaders(env?.OTEL_EXPORTER_OTLP_HEADERS),
+    },
+    service: { name: env?.OTEL_SERVICE_NAME ?? "cronometer-mcp" },
+  }),
+);
