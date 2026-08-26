@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import DemoTabs from "./components/demo-tabs";
 import {
   AppleIcon,
   ArrowRightIcon,
@@ -328,73 +329,6 @@ function Nav() {
   );
 }
 
-const DINNER_SUGGESTIONS = [
-  {
-    name: "Salmon, rice & broccoli",
-    history: "logged 6 times · last Tuesday",
-    macros: "40P · 45C · 14F",
-  },
-  {
-    name: "Chicken & veggie stir-fry",
-    history: "logged 4 times",
-    macros: "38P · 40C · 12F",
-  },
-  {
-    name: "Turkey chili",
-    history: "logged 3 times · last week",
-    macros: "34P · 42C · 10F",
-  },
-];
-
-function TerminalCard() {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/50 shadow-2xl shadow-emerald-950/50 ring-1 ring-white/5 backdrop-blur">
-      <div className="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
-        <span className="size-3 rounded-full bg-red-500/70" />
-        <span className="size-3 rounded-full bg-yellow-500/70" />
-        <span className="size-3 rounded-full bg-green-500/70" />
-        <span className="ml-3 font-mono text-xs text-zinc-500">chatgpt · tuesday, 6:47 pm</span>
-      </div>
-      <div className="space-y-4 p-5 font-mono text-[13px] leading-relaxed">
-        <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-sky-300">you ›</p>
-          <p className="mt-0.5 text-zinc-300">
-            What should I make for dinner? Long day, low energy.
-          </p>
-        </div>
-        <p className="px-1 text-[11px] leading-relaxed text-zinc-600">
-          cronometer-mcp · checking today’s remaining macros and dinners you’ve logged before
-        </p>
-        <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-          <p className="text-emerald-300">assistant ›</p>
-          <p className="mt-0.5 text-zinc-300">
-            You have 610 kcal left — 48 g protein, 52 g carbs, 22 g fat. All three of these fit,
-            and you’ve cooked every one of them before:
-          </p>
-          <div className="mt-3 space-y-3 border-t border-white/5 pt-3 text-xs">
-            {DINNER_SUGGESTIONS.map((suggestion) => (
-              <div key={suggestion.name} className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-zinc-200">{suggestion.name}</p>
-                  <p className="mt-0.5 text-[11px] text-zinc-500">{suggestion.history}</p>
-                </div>
-                <p className="shrink-0 text-zinc-500">{suggestion.macros}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 border-t border-white/5 pt-3 text-xs text-zinc-400">
-            Pick one and I’ll log it for tonight.
-          </p>
-          <p className="mt-3 flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400">
-            <CheckIcon className="size-3.5 shrink-0" />
-            Every suggestion comes from meals already in your log
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Hero() {
   return (
     <section id="top" className="relative overflow-hidden">
@@ -440,7 +374,7 @@ function Hero() {
             GET <span className="text-zinc-400">{ENDPOINT}</span>
           </p>
         </div>
-        <TerminalCard />
+        <DemoTabs />
       </div>
       <div className="relative mx-auto max-w-6xl px-6 pb-20">
         <div className="grid grid-cols-2 divide-white/10 rounded-2xl border border-white/10 bg-white/[0.02] sm:grid-cols-4 sm:divide-x">
