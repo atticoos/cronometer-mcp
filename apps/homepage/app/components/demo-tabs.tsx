@@ -3,21 +3,21 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckIcon, RefreshIcon } from "./icons";
 
-const DINNER_SUGGESTIONS = [
+const PRE_WORKOUT_SUGGESTIONS = [
   {
-    name: "Salmon, rice & broccoli",
-    history: "logged 6 times · last Tuesday",
-    macros: "40P · 45C · 14F",
+    name: "Greek yogurt, banana & honey",
+    history: "logged 7 times · 5 min",
+    macros: "24P · 42C · 1F",
   },
   {
-    name: "Chicken & veggie stir-fry",
-    history: "logged 4 times",
-    macros: "38P · 40C · 12F",
+    name: "Oats, banana & whey",
+    history: "logged 5 times · 10 min",
+    macros: "28P · 55C · 5F",
   },
   {
-    name: "Turkey chili",
-    history: "logged 3 times · last week",
-    macros: "34P · 42C · 10F",
+    name: "Turkey toast with honey",
+    history: "logged 3 times · 8 min",
+    macros: "25P · 48C · 4F",
   },
 ];
 
@@ -279,16 +279,16 @@ function TimedReveal({ children, onDone }: { children: ReactNode; onDone?: () =>
   return <>{children}</>;
 }
 
-const DINNER_SCENARIO: ChatItem[] = [
+const PRE_WORKOUT_SCENARIO: ChatItem[] = [
   {
     role: "user",
-    id: "dinner-question",
+    id: "pre-workout-question",
     delay: 600,
-    text: "What should I make for dinner? Long day, low energy.",
+    text: "I’m feeling sluggish and heading to the gym in a couple hours. What’s a light meal or snack that’ll fuel me?",
   },
   {
     role: "tool",
-    id: "dinner-tools",
+    id: "pre-workout-tools",
     delay: 900,
     calls: [
       {
@@ -299,7 +299,7 @@ const DINNER_SCENARIO: ChatItem[] = [
       {
         name: "cronometer-mcp",
         args: "get_daily_nutrition",
-        result: "1790 kcal · 134P / 179C / 60F",
+        result: "1480 kcal · 110P / 145C / 50F",
       },
       {
         name: "cronometer-mcp",
@@ -310,19 +310,19 @@ const DINNER_SCENARIO: ChatItem[] = [
   },
   {
     role: "assistant",
-    id: "dinner-answer",
+    id: "pre-workout-answer",
     delay: 1150,
     typing: true,
     segments: [
       {
         kind: "text",
-        text: "You have 610 kcal left — 46g protein, 61g carbs, 20g fat. All three of these fit, and you’ve cooked every one of them before:",
+        text: "You’re at 1,480 of 2,400 kcal, with 70g protein, 95g carbs, and 30g fat left. Since you’re training in about two hours, I’d go light: carbs for energy, some protein, and not much fat. These all fit:",
       },
       {
         kind: "block",
         node: (
           <div className="space-y-3 border-t border-white/5 pt-3 text-xs">
-            {DINNER_SUGGESTIONS.map((suggestion) => (
+            {PRE_WORKOUT_SUGGESTIONS.map((suggestion) => (
               <div key={suggestion.name} className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-zinc-200">{suggestion.name}</p>
@@ -337,14 +337,14 @@ const DINNER_SCENARIO: ChatItem[] = [
       {
         kind: "text",
         className: "border-t border-white/5 pt-3 text-xs text-zinc-500",
-        text: "Pick one and I’ll log it for tonight.",
+        text: "The yogurt and banana is the lightest option. Pick one and I’ll log it as your pre-workout meal.",
       },
       {
         kind: "block",
         node: (
           <p className="flex items-center gap-1.5 border-t border-white/5 pt-3 text-xs text-emerald-400/90">
             <CheckIcon className="size-3.5 shrink-0" />
-            Every suggestion comes from meals already in your log
+            Matched to today’s remaining macros and your meal history
           </p>
         ),
       },
@@ -732,6 +732,12 @@ function ChatFeed({ items }: { items: readonly ChatItem[] }) {
 
 const TABS = [
   {
+    id: "pre-workout",
+    label: "Pre-workout fuel",
+    title: "chatgpt · tuesday, 4:47 pm",
+    items: PRE_WORKOUT_SCENARIO,
+  },
+  {
     id: "quick-log",
     label: "Log my day",
     title: "chatgpt · thursday, 9:12 pm",
@@ -748,12 +754,6 @@ const TABS = [
     label: "Weekly plan",
     title: "chatgpt · sunday, 4:37 pm",
     items: WEEK_SCENARIO,
-  },
-  {
-    id: "dinner",
-    label: "Dinner tonight",
-    title: "chatgpt · tuesday, 6:47 pm",
-    items: DINNER_SCENARIO,
   },
 ] as const;
 
@@ -774,7 +774,7 @@ function ChatWindow({ title, children }: { title: string; children: ReactNode })
 }
 
 export default function DemoTabs() {
-  const [activeTab, setActiveTab] = useState<TabId>("quick-log");
+  const [activeTab, setActiveTab] = useState<TabId>("pre-workout");
   const active = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
