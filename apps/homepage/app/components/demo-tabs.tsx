@@ -89,13 +89,18 @@ const DINNER_SCENARIO: ChatItem[] = [
       <ToolGroup>
         <ToolCall
           name="cronometer-mcp"
-          args="get_remaining_macros"
-          result="610 kcal · 48P / 52C / 22F left today"
+          args="get_macro_targets"
+          result="2400 kcal · 180P / 240C / 80F"
         />
         <ToolCall
           name="cronometer-mcp"
-          args="find_prior_dinners"
-          result="12 dinners you’ve logged before"
+          args="get_daily_nutrition"
+          result="1790 kcal · 134P / 179C / 60F"
+        />
+        <ToolCall
+          name="cronometer-mcp"
+          args="get_meal_history"
+          result="84 meals"
         />
       </ToolGroup>
     ),
@@ -107,7 +112,7 @@ const DINNER_SCENARIO: ChatItem[] = [
     node: (
       <AssistantText>
         <p>
-          You have 610 kcal left — 48 g protein, 52 g carbs, 22 g fat. All three of these fit,
+          You have 610 kcal left — 46g protein, 61g carbs, 20g fat. All three of these fit,
           and you’ve cooked every one of them before:
         </p>
         <div className="space-y-3 border-t border-white/5 pt-3 text-xs">
@@ -146,13 +151,18 @@ const MACRO_SCENARIO: ChatItem[] = [
       <ToolGroup>
         <ToolCall
           name="apple-health"
-          args="get_body_metrics"
-          result="height · weight · four weeks of activity"
+          args="get_profile"
+          result="height · weight · 4 weeks of activity"
         />
         <ToolCall
           name="cronometer-mcp"
-          args="get_intake_history"
-          result="current targets · every logged day last month"
+          args="get_macro_targets"
+          result="2500 kcal · 180P / 265C / 80F"
+        />
+        <ToolCall
+          name="cronometer-mcp"
+          args="get_meal_history"
+          result="84 meals"
         />
       </ToolGroup>
     ),
@@ -250,7 +260,7 @@ const WEEK_SCENARIO: ChatItem[] = [
       <ToolCall
         name="cronometer-mcp"
         args="get_meal_history"
-        result="every meal you logged last month"
+        result="84 meal entries"
       />
     ),
   },
@@ -382,11 +392,10 @@ export default function DemoTabs() {
             role="tab"
             aria-selected={tab.id === active.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
-              tab.id === active.id
-                ? "bg-emerald-500 text-emerald-950"
-                : "text-zinc-400 hover:text-white"
-            }`}
+            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${tab.id === active.id
+              ? "bg-emerald-500 text-emerald-950"
+              : "text-zinc-400 hover:text-white"
+              }`}
           >
             {tab.label}
           </button>
