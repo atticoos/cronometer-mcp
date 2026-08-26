@@ -569,8 +569,12 @@ function ChatFeed({ items }: { items: readonly ChatItem[] }) {
     if (completedCount !== shownCount) return;
     if (shownCount >= items.length) return;
     const upcoming = items[shownCount];
+    const isFirst = shownCount === 0;
     const delay =
-      upcoming.delay ?? (shownCount === 0 ? FIRST_ITEM_FALLBACK_MS : DEFAULT_GAP_MS);
+      isFirst && upcoming.role === "user"
+        ? 0
+        : upcoming.delay ??
+          (isFirst ? FIRST_ITEM_FALLBACK_MS : DEFAULT_GAP_MS);
     const timer = window.setTimeout(() => {
       setShownCount((count) => count + 1);
     }, delay);
