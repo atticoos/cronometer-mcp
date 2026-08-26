@@ -295,13 +295,18 @@ const DINNER_SCENARIO: ChatItem[] = [
     calls: [
       {
         name: "cronometer-mcp",
-        args: "get_remaining_macros",
-        result: "610 kcal · 48P / 52C / 22F left today",
+        args: "get_macro_targets",
+        result: "2400 kcal · 180P / 240C / 80F",
       },
       {
         name: "cronometer-mcp",
-        args: "find_prior_dinners",
-        result: "12 dinners you’ve logged before",
+        args: "get_daily_nutrition",
+        result: "1790 kcal · 134P / 179C / 60F",
+      },
+      {
+        name: "cronometer-mcp",
+        args: "get_meal_history",
+        result: "84 meals",
       },
     ],
   },
@@ -313,7 +318,7 @@ const DINNER_SCENARIO: ChatItem[] = [
     segments: [
       {
         kind: "text",
-        text: "You have 610 kcal left — 48 g protein, 52 g carbs, 22 g fat. All three of these fit, and you’ve cooked every one of them before:",
+        text: "You have 610 kcal left — 46g protein, 61g carbs, 20g fat. All three of these fit, and you’ve cooked every one of them before:",
       },
       {
         kind: "block",
@@ -363,13 +368,18 @@ const MACRO_SCENARIO: ChatItem[] = [
     calls: [
       {
         name: "apple-health",
-        args: "get_body_metrics",
-        result: "height · weight · four weeks of activity",
+        args: "get_profile",
+        result: "height · weight · 4 weeks of activity",
       },
       {
         name: "cronometer-mcp",
-        args: "get_intake_history",
-        result: "current targets · every logged day last month",
+        args: "get_macro_targets",
+        result: "2500 kcal · 180P / 265C / 80F",
+      },
+      {
+        name: "cronometer-mcp",
+        args: "get_meal_history",
+        result: "84 meals",
       },
     ],
   },
@@ -476,7 +486,7 @@ const WEEK_SCENARIO: ChatItem[] = [
       {
         name: "cronometer-mcp",
         args: "get_meal_history",
-        result: "every meal you logged last month",
+        result: "84 meal entries",
       },
     ],
   },
