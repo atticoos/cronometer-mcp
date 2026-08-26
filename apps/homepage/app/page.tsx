@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import DemoTabs, { MacroPlanDemo } from "./components/demo-tabs";
+import EndpointCopy from "./components/endpoint-copy";
 import {
   AppleIcon,
   ArrowRightIcon,
@@ -432,9 +433,7 @@ function Hero() {
           <p className="mt-6 text-xs text-zinc-500">
             Independent, open-source connector for Cronometer.
           </p>
-          <p className="mt-2 break-all font-mono text-xs text-zinc-500">
-            GET <span className="text-zinc-400">{ENDPOINT}</span>
-          </p>
+          <EndpointCopy url={ENDPOINT} />
         </div>
         <DemoTabs />
       </div>

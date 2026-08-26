@@ -125,11 +125,27 @@ body {
   -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
 }
 
+@keyframes tooltip-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tooltip-pop {
+  animation: tooltip-pop 0.18s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-enter,
   .chat-dot,
   .chat-tool-line,
-  .marquee-track {
+  .marquee-track,
+  .tooltip-pop {
     animation: none;
   }
 
