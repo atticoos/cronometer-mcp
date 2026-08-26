@@ -8,7 +8,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "tsconfig.base.json"
-      - ".github/workflows/deploy-cronometer-mcp.yml"
+      - ".github/workflows/deploy-mcp.yml"
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -16,7 +16,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "tsconfig.base.json"
-      - ".github/workflows/deploy-cronometer-mcp.yml"
+      - ".github/workflows/deploy-mcp.yml"
   workflow_dispatch:
 
 permissions:
