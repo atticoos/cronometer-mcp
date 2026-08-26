@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { CheckIcon } from "./icons";
+import { CheckIcon, RefreshIcon } from "./icons";
 
 const DINNER_SUGGESTIONS = [
   {
@@ -638,6 +638,20 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+function ChatWindow({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/50 shadow-2xl shadow-emerald-950/50 ring-1 ring-white/5 backdrop-blur">
+      <div className="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
+        <span className="size-3 rounded-full bg-red-500/70" />
+        <span className="size-3 rounded-full bg-yellow-500/70" />
+        <span className="size-3 rounded-full bg-green-500/70" />
+        <span className="ml-3 font-mono text-xs text-zinc-500">{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function DemoTabs() {
   const [activeTab, setActiveTab] = useState<TabId>("dinner");
   const active = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
@@ -666,14 +680,66 @@ export default function DemoTabs() {
           </button>
         ))}
       </div>
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/50 shadow-2xl shadow-emerald-950/50 ring-1 ring-white/5 backdrop-blur">
-        <div className="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
-          <span className="size-3 rounded-full bg-red-500/70" />
-          <span className="size-3 rounded-full bg-yellow-500/70" />
-          <span className="size-3 rounded-full bg-green-500/70" />
-          <span className="ml-3 font-mono text-xs text-zinc-500">{active.title}</span>
-        </div>
+      <ChatWindow title={active.title}>
         <ChatFeed key={active.id} items={active.items} />
+      </ChatWindow>
+    </div>
+  );
+}
+
+export function MacroPlanDemo() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [started, setStarted] = useState(false);
+  const [playKey, setPlayKey] = useState(0);
+
+  useEffect(() => {
+    if (started) return;
+    const node = containerRef.current;
+    if (!node) return;
+    const viewportHeight = () =>
+      window.innerHeight || document.documentElement.clientHeight;
+    const ratioVisible = () => {
+      const rect = node.getBoundingClientRect();
+      const overlap =
+        Math.min(rect.bottom, viewportHeight()) - Math.max(rect.top, 0);
+      return overlap / Math.max(rect.height, 1);
+    };
+    if (ratioVisible() >= 0.25) {
+      setStarted(true);
+      return;
+    }
+    const check = () => {
+      if (ratioVisible() < 0.25) return;
+      setStarted(true);
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+  }, [started]);
+
+  return (
+    <div ref={containerRef}>
+      <ChatWindow title="claude · sunday morning">
+        {started ? (
+          <ChatFeed key={playKey} items={MACRO_SCENARIO} />
+        ) : (
+          <div aria-hidden="true" className="h-[26rem]" />
+        )}
+      </ChatWindow>
+      <div className="mt-3 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setPlayKey((key) => key + 1)}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-emerald-300"
+        >
+          <RefreshIcon className="size-3.5" />
+          Replay conversation
+        </button>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import DemoTabs from "./components/demo-tabs";
+import DemoTabs, { MacroPlanDemo } from "./components/demo-tabs";
 import {
   AppleIcon,
   ArrowRightIcon,
@@ -80,6 +80,52 @@ const USE_CASES: { icon: Icon; title: string; body: string; prompt: string; outc
     body: "Cronometer shows what remains. Your assistant turns those remaining calories and macros into a meal that fits your preferences, schedule, and training day.",
     prompt: "I lift in two hours. What can I eat with today’s remaining macros?",
     outcome: "A practical meal, not another dashboard",
+  },
+];
+
+const WEIGHT_LOSS_FLOW: { step: string; title: string; body: ReactNode }[] = [
+  {
+    step: "01",
+    title: "Ask in plain language",
+    body: (
+      <>
+        “I want to start losing weight. Can you set my macros?” No forms, no fields—the goal is
+        the whole request.
+      </>
+    ),
+  },
+  {
+    step: "02",
+    title: "Your assistant reads your history",
+    body: (
+      <>
+        <span className="font-mono text-emerald-300">get_macro_targets</span> and{" "}
+        <span className="font-mono text-emerald-300">get_meal_history</span> pull your current
+        targets and a month of logged meals. The math comes from your record—2,480 kcal eaten
+        against roughly 2,580 burned—not a generic formula.
+      </>
+    ),
+  },
+  {
+    step: "03",
+    title: "Review the proposal first",
+    body: (
+      <>
+        The plan lands as a review card—2,330 kcal · 150P / 275C / 70F, protein anchored near
+        1.8 g per kg, extra carbs on training days—with the reasoning spelled out.
+      </>
+    ),
+  },
+  {
+    step: "04",
+    title: "Your approval does the writing",
+    body: (
+      <>
+        Say the word and <span className="font-mono text-emerald-300">set_macro_targets</span>{" "}
+        updates Cronometer directly. Your assistant closes the loop with what your own log shows:
+        weekdays already fit—weekends are where you went over.
+      </>
+    ),
   },
 ];
 
@@ -464,11 +510,35 @@ function UseCases() {
   return (
     <section id="use-cases" className="border-t border-white/5 py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow="What you can do" title="Turn your food log into a useful conversation.">
-          Understand the trend, record the meal you actually had, and decide what comes next—all
-          from the same conversation.
+        <SectionHeading eyebrow="What you can do" title="Watch a goal become a plan.">
+          The weight-loss flow, start to finish: ask in plain language, get targets built from
+          your own logged history, review before anything changes—and Cronometer updates only
+          after you approve.
         </SectionHeading>
-        <div className="mt-14 grid gap-5 lg:grid-cols-3">
+        <div className="mt-14 grid items-center gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-16">
+          <ol className="space-y-9">
+            {WEIGHT_LOSS_FLOW.map((step) => (
+              <li key={step.step} className="flex gap-5">
+                <p className="shrink-0 pt-0.5 font-mono text-sm font-semibold text-emerald-500/70">
+                  {step.step}
+                </p>
+                <div>
+                  <h3 className="text-base font-semibold text-white">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-400">{step.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <MacroPlanDemo />
+        </div>
+        <div className="mt-20 flex items-center gap-5">
+          <span className="h-px flex-1 bg-white/5" />
+          <p className="font-mono text-[11px] font-medium tracking-[0.28em] text-zinc-500 uppercase">
+            More you can ask
+          </p>
+          <span className="h-px flex-1 bg-white/5" />
+        </div>
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
           {USE_CASES.map((useCase, index) => (
             <article
               key={useCase.title}
