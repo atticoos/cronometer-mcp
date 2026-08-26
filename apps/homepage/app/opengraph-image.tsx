@@ -114,6 +114,9 @@ export default function OpenGraphImage() {
           <div
             style={{
               display: "flex",
+              maxWidth: 1060,
+              flexWrap: "wrap",
+              alignItems: "baseline",
               color: "white",
               fontSize: 62,
               fontWeight: 800,
