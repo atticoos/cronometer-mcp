@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckIcon } from "./icons";
 
 const DINNER_SUGGESTIONS = [
@@ -21,23 +21,80 @@ const DINNER_SUGGESTIONS = [
   },
 ];
 
-function DinnerScenario() {
+type ChatItem = {
+  id: string;
+  /** Milliseconds to wait after the previous item before this one appears. */
+  wait: number;
+  /** Show an assistant typing indicator while waiting for this item. */
+  typing?: boolean;
+  node: ReactNode;
+};
+
+function UserBubble({ children }: { children: ReactNode }) {
   return (
-    <>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-sky-300">you ›</p>
-        <p className="mt-0.5 text-zinc-300">
-          What should I make for dinner? Long day, low energy.
-        </p>
-      </div>
-      <p className="px-1 text-[11px] leading-relaxed text-zinc-600">
-        cronometer-mcp · checking today’s remaining macros and dinners you’ve logged before
-      </p>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-emerald-300">assistant ›</p>
-        <p className="mt-0.5 text-zinc-300">
-          You have 610 kcal left — 48 g protein, 52 g carbs, 22 g fat. All three of these fit, and
-          you’ve cooked every one of them before:
+    <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
+      <p className="text-sky-300">you ›</p>
+      <p className="mt-0.5 text-zinc-300">{children}</p>
+    </div>
+  );
+}
+
+function AssistantBubble({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
+      <p className="text-emerald-300">assistant ›</p>
+      <div className="mt-0.5 text-zinc-300">{children}</div>
+    </div>
+  );
+}
+
+function ToolNote({ lines }: { lines: string[] }) {
+  return (
+    <div className="space-y-1 px-1 text-[11px] leading-relaxed text-zinc-600">
+      {lines.map((line) => (
+        <p key={line}>{line}</p>
+      ))}
+    </div>
+  );
+}
+
+function StatusLine({ children }: { children: ReactNode }) {
+  return (
+    <p className="flex items-center gap-1.5 px-1 text-xs text-emerald-400">
+      <CheckIcon className="size-3.5 shrink-0" />
+      {children}
+    </p>
+  );
+}
+
+const DINNER_SCENARIO: ChatItem[] = [
+  {
+    id: "dinner-question",
+    wait: 600,
+    node: (
+      <UserBubble>What should I make for dinner? Long day, low energy.</UserBubble>
+    ),
+  },
+  {
+    id: "dinner-tools",
+    wait: 800,
+    node: (
+      <ToolNote
+        lines={[
+          "cronometer-mcp · checking today’s remaining macros and dinners you’ve logged before",
+        ]}
+      />
+    ),
+  },
+  {
+    id: "dinner-answer",
+    wait: 1500,
+    typing: true,
+    node: (
+      <AssistantBubble>
+        <p>
+          You have 610 kcal left — 48 g protein, 52 g carbs, 22 g fat. All three of these fit,
+          and you’ve cooked every one of them before:
         </p>
         <div className="mt-3 space-y-3 border-t border-white/5 pt-3 text-xs">
           {DINNER_SUGGESTIONS.map((suggestion) => (
@@ -57,30 +114,41 @@ function DinnerScenario() {
           <CheckIcon className="size-3.5 shrink-0" />
           Every suggestion comes from meals already in your log
         </p>
-      </div>
-    </>
-  );
-}
+      </AssistantBubble>
+    ),
+  },
+];
 
-function MacroPlanScenario() {
-  return (
-    <>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-sky-300">you ›</p>
-        <p className="mt-0.5 text-zinc-300">I want to start losing weight. Can you set my macros?</p>
-      </div>
-      <p className="px-1 text-[11px] leading-relaxed text-zinc-600">
-        apple-health · height, weight, and four weeks of activity
-      </p>
-      <p className="-mt-2 px-1 text-[11px] leading-relaxed text-zinc-600">
-        cronometer-mcp · current targets and every logged day last month
-      </p>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-emerald-300">assistant ›</p>
-        <p className="mt-0.5 text-zinc-300">
-          You’ve eaten about 2,480 kcal a day against roughly 2,580 burned, so your weight has held
-          steady. Easing down to 2,330 is a gentle deficit — closer to half a pound a week — and
-          leaves your training days untouched.
+const MACRO_SCENARIO: ChatItem[] = [
+  {
+    id: "macro-question",
+    wait: 600,
+    node: (
+      <UserBubble>I want to start losing weight. Can you set my macros?</UserBubble>
+    ),
+  },
+  {
+    id: "macro-tools",
+    wait: 800,
+    node: (
+      <ToolNote
+        lines={[
+          "apple-health · height, weight, and four weeks of activity",
+          "cronometer-mcp · current targets and every logged day last month",
+        ]}
+      />
+    ),
+  },
+  {
+    id: "macro-proposal",
+    wait: 1700,
+    typing: true,
+    node: (
+      <AssistantBubble>
+        <p>
+          You’ve eaten about 2,480 kcal a day against roughly 2,580 burned, so your weight has
+          held steady. Easing down to 2,330 is a gentle deficit — closer to half a pound a week —
+          and leaves your training days untouched.
         </p>
         <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3 text-xs">
           <div className="flex items-center justify-between gap-3">
@@ -95,28 +163,42 @@ function MacroPlanScenario() {
           </p>
         </div>
         <p className="mt-3 text-zinc-400">Want me to make these your targets in Cronometer?</p>
-      </div>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-sky-300">you ›</p>
-        <p className="mt-0.5 text-zinc-300">Yes — do it.</p>
-      </div>
-      <p className="flex items-center gap-1.5 px-1 text-xs text-emerald-400">
-        <CheckIcon className="size-3.5 shrink-0" />
-        Cronometer updated · 2,330 kcal · 150P / 275C / 70F
-      </p>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-emerald-300">assistant ›</p>
-        <p className="mt-0.5 text-zinc-300">
-          Done. Weekdays already average under this — weekends are where you went over.
-        </p>
-      </div>
+      </AssistantBubble>
+    ),
+  },
+  {
+    id: "macro-confirm",
+    wait: 900,
+    node: <UserBubble>Yes — do it.</UserBubble>,
+  },
+  {
+    id: "macro-write",
+    wait: 800,
+    node: (
+      <StatusLine>Cronometer updated · 2,330 kcal · 150P / 275C / 70F</StatusLine>
+    ),
+  },
+  {
+    id: "macro-answer",
+    wait: 1300,
+    typing: true,
+    node: (
+      <AssistantBubble>
+        Done. Weekdays already average under this — weekends are where you went over.
+      </AssistantBubble>
+    ),
+  },
+  {
+    id: "macro-footnote",
+    wait: 700,
+    node: (
       <p className="flex items-center gap-1.5 px-1 pb-1 text-[11px] text-zinc-500">
         <CheckIcon className="size-3 shrink-0 text-emerald-500" />
         Built from your Apple Health activity and a full month of logged meals
       </p>
-    </>
-  );
-}
+    ),
+  },
+];
 
 const WEEK_PLAN = [
   { day: "mon", meals: "Overnight oats & whey · chicken rice bowl · turkey chili", kcal: "2,340" },
@@ -128,21 +210,32 @@ const WEEK_PLAN = [
   { day: "sun", meals: "Overnight oats & whey · turkey wrap · turkey chili", kcal: "2,280" },
 ];
 
-function WeeklyPlanScenario() {
-  return (
-    <>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-sky-300">you ›</p>
-        <p className="mt-0.5 text-zinc-300">
-          Plan my meals for next week. I don’t want to think about it after Monday.
-        </p>
-      </div>
-      <p className="px-1 text-[11px] leading-relaxed text-zinc-600">
-        cronometer-mcp · macro targets · every meal you logged last month
-      </p>
-      <div className="rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/5">
-        <p className="text-emerald-300">assistant ›</p>
-        <p className="mt-0.5 text-zinc-300">
+const WEEK_SCENARIO: ChatItem[] = [
+  {
+    id: "week-question",
+    wait: 600,
+    node: (
+      <UserBubble>
+        Plan my meals for next week. I don’t want to think about it after Monday.
+      </UserBubble>
+    ),
+  },
+  {
+    id: "week-tools",
+    wait: 800,
+    node: (
+      <ToolNote
+        lines={["cronometer-mcp · macro targets · every meal you logged last month"]}
+      />
+    ),
+  },
+  {
+    id: "week-answer",
+    wait: 1700,
+    typing: true,
+    node: (
+      <AssistantBubble>
+        <p>
           I built this from the meals you already eat on repeat — every day lands within ~25 kcal
           of your 2,330 target:
         </p>
@@ -162,15 +255,89 @@ function WeeklyPlanScenario() {
           <CheckIcon className="size-3.5 shrink-0" />
           Built from the meals you already eat on repeat
         </p>
-      </div>
-    </>
+      </AssistantBubble>
+    ),
+  },
+];
+
+function TypingIndicator() {
+  return (
+    <div
+      aria-hidden="true"
+      className="chat-enter inline-flex items-center gap-1.5 rounded-xl bg-white/[0.03] px-3.5 py-3 ring-1 ring-white/5"
+    >
+      {[0, 1, 2].map((dot) => (
+        <span
+          key={dot}
+          className="chat-dot size-1.5 rounded-full bg-zinc-400"
+          style={{ animationDelay: `${dot * 160}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ChatFeed({ items }: { items: readonly ChatItem[] }) {
+  const [shownCount, setShownCount] = useState(0);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef(0);
+
+  const done = shownCount >= items.length;
+
+  useEffect(() => {
+    if (done) return;
+    const wait = items[shownCount]?.wait ?? 800;
+    const timer = window.setTimeout(() => setShownCount((count) => count + 1), wait);
+    return () => window.clearTimeout(timer);
+  }, [shownCount, done, items]);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const instant = shownCount <= prevCountRef.current;
+    scroller.scrollTo({
+      top: scroller.scrollHeight,
+      behavior: instant ? "auto" : "smooth",
+    });
+    prevCountRef.current = shownCount;
+  }, [shownCount]);
+
+  const pendingTyping = !done && shownCount > 0 && items[shownCount]?.typing === true;
+
+  return (
+    <div
+      ref={scrollerRef}
+      className="chat-scroll h-[26rem] space-y-4 overflow-y-auto p-5 font-mono text-[13px] leading-relaxed"
+    >
+      {items.slice(0, shownCount).map((item) => (
+        <div key={item.id} className="chat-enter">
+          {item.node}
+        </div>
+      ))}
+      {pendingTyping ? <TypingIndicator /> : null}
+    </div>
   );
 }
 
 const TABS = [
-  { id: "dinner", label: "Dinner tonight", title: "chatgpt · tuesday, 6:47 pm", body: DinnerScenario },
-  { id: "macros", label: "Macro plan", title: "claude · sunday morning", body: MacroPlanScenario },
-  { id: "week", label: "Weekly plan", title: "chatgpt · sunday, 4:37 pm", body: WeeklyPlanScenario },
+  {
+    id: "dinner",
+    label: "Dinner tonight",
+    title: "chatgpt · tuesday, 6:47 pm",
+    items: DINNER_SCENARIO,
+  },
+  {
+    id: "macros",
+    label: "Macro plan",
+    title: "claude · sunday morning",
+    items: MACRO_SCENARIO,
+  },
+  {
+    id: "week",
+    label: "Weekly plan",
+    title: "chatgpt · sunday, 4:37 pm",
+    items: WEEK_SCENARIO,
+  },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -210,9 +377,7 @@ export default function DemoTabs() {
           <span className="size-3 rounded-full bg-green-500/70" />
           <span className="ml-3 font-mono text-xs text-zinc-500">{active.title}</span>
         </div>
-        <div className="space-y-4 p-5 font-mono text-[13px] leading-relaxed">
-          <active.body />
-        </div>
+        <ChatFeed key={active.id} items={active.items} />
       </div>
     </div>
   );
