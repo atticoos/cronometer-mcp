@@ -1,4 +1,4 @@
-name: Deploy cronometer-mcp
+name: Deploy mcp
 
 on:
   push:
@@ -24,7 +24,7 @@ permissions:
   deployments: write
 
 concurrency:
-  group: deploy-cronometer-mcp-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: deploy-mcp-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
