@@ -139,8 +139,10 @@ function Caret({ tone }: { tone: "sky" | "emerald" }) {
 function UserLine({ text, onDone }: { text: string; onDone?: () => void }) {
   const { typed, isTyping } = useTypewriter(text, onDone);
   return (
-    <p className="text-zinc-100">
-      <span className="mr-2 text-sky-400/70">you ›</span>
+    <p className="w-full rounded-xl rounded-tl-sm border border-emerald-500/15 bg-emerald-500/[0.06] px-3 py-1.5 text-zinc-100">
+      <span className="mr-2 select-none font-semibold text-emerald-400/80">
+        $
+      </span>
       {typed}
       {isTyping ? <Caret tone="sky" /> : null}
     </p>
