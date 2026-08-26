@@ -73,9 +73,32 @@ body {
   background: transparent;
 }
 
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee-scroll 40s linear infinite;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.marquee-mask {
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-enter,
-  .chat-dot {
+  .chat-dot,
+  .marquee-track {
     animation: none;
   }
 
