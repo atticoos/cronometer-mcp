@@ -363,7 +363,6 @@ const PRE_WORKOUT_SCENARIO: ChatItem[] = [
       },
       {
         kind: "text",
-        className: "border-t border-white/5 pt-3 text-xs text-zinc-500",
         text: "The yogurt and banana is the lightest option. Pick one and I’ll log it as your pre-workout meal.",
       },
     ],
@@ -475,7 +474,6 @@ const MACRO_SCENARIO: ChatItem[] = [
       },
       {
         kind: "text",
-        className: "text-xs text-zinc-500",
         text: "Want me to make these your targets in Cronometer?",
       },
     ],
@@ -610,7 +608,6 @@ const WEEK_SCENARIO: ChatItem[] = [
       },
       {
         kind: "text",
-        className: "border-t border-white/5 pt-3 text-xs text-zinc-500",
         text: "Want a grocery list to match?",
       },
       {
@@ -654,7 +651,7 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
     role: "user",
     id: "quicklog-question",
     delay: 600,
-    text: "Log today's meals: protein & oat breakfast, chicken rice bowl at lunch, a greek yogurt bowl in the afternoon, and turkey chili dinner."
+    text: "Log today's meals: protein & oat breakfast, chicken rice bowl at lunch, and turkey chili dinner. Same snack as yesterday."
   },
   {
     role: "tool",
@@ -664,13 +661,8 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
       {
         name: "cronometer-mcp",
         args: "get_meal_history",
-        result: "every meal you logged last month",
-      },
-      {
-        name: "cronometer-mcp",
-        args: "resolve_meals",
-        result: "3 of 3 matched · servings reused from your log",
-      },
+        result: "58 meals logged this month",
+      }
     ],
   },
   {
@@ -681,7 +673,7 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
     segments: [
       {
         kind: "text",
-        text: "All three matched meals already in your log — no searching or weighing needed:",
+        text: "Found 4 meals you've logged recently:",
       },
       {
         kind: "block",
@@ -701,7 +693,6 @@ const QUICK_LOG_SCENARIO: ChatItem[] = [
       },
       {
         kind: "text",
-        className: "border-t border-white/5 pt-3 text-xs text-zinc-500",
         text: "Want me to add all four to today’s diary?",
       },
     ],
@@ -909,8 +900,8 @@ export default function DemoTabs() {
             aria-selected={tab.id === active.id}
             onClick={() => setActiveTab(tab.id)}
             className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${tab.id === active.id
-                ? "bg-emerald-500 text-emerald-950"
-                : "text-zinc-400 hover:text-white"
+              ? "bg-emerald-500 text-emerald-950"
+              : "text-zinc-400 hover:text-white"
               }`}
           >
             {tab.label}
