@@ -842,6 +842,12 @@ function ChatFeed({ items }: { items: readonly ChatItem[] }) {
 
 const TABS = [
   {
+    id: "macros",
+    label: "Macro plan",
+    title: "claude · sunday morning",
+    items: MACRO_SCENARIO,
+  },
+  {
     id: "ideal-meal",
     label: "Ideal meal",
     title: "chatgpt · tuesday, 4:47 pm",
@@ -852,12 +858,6 @@ const TABS = [
     label: "Log my day",
     title: "chatgpt · thursday, 9:12 pm",
     items: QUICK_LOG_SCENARIO,
-  },
-  {
-    id: "macros",
-    label: "Macro plan",
-    title: "claude · sunday morning",
-    items: MACRO_SCENARIO,
   },
   {
     id: "week",
@@ -884,7 +884,7 @@ function ChatWindow({ title, children }: { title: string; children: ReactNode })
 }
 
 export default function DemoTabs() {
-  const [activeTab, setActiveTab] = useState<TabId>("ideal-meal");
+  const [activeTab, setActiveTab] = useState<TabId>("macros");
   const active = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
