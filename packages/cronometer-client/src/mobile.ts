@@ -15,6 +15,26 @@
  */
 
 import { CronometerAuthenticationError } from "./cronometer";
+import type {
+  AuthBlock,
+  AddFoodResponse,
+  AddServingResponse,
+  CopyDiaryResponse,
+  FindFoodResponse,
+  GetBiometricsResponse,
+  GetDiaryResponse,
+  GetFastingStatsResponse,
+  GetFastingWithDateRangeResponse,
+  GetFoodResponse,
+  GetFoodsResponse,
+  GetMetricsResponse,
+  GetNutrientsResponse,
+  GetNutritionScoresResponse,
+  GetProfileResponse,
+  LoginBody,
+  ServingInput,
+  SetCompleteResponse,
+} from "./generated/schemas";
 
 const MOBILE_BASE_URL = "https://mobile.cronometer.com";
 const UPSTREAM_TIMEOUT_MS = 30_000;
@@ -130,7 +150,7 @@ export async function authenticateCronometerMobile(
     auth: { userId: null, token: null, ...APP_AUTH },
     lastSeen: 0,
     config: { call_version: 2 },
-  };
+  } satisfies LoginBody;
 
   const response = await postJson("/api/v2/login", payload, fetcher);
   const data = await readJsonResponse(response, "login");
@@ -159,7 +179,7 @@ export async function authenticateCronometerMobile(
 // Request helpers
 // ---------------------------------------------------------------------------
 
-function authBlock(session: CronometerMobileSession): JsonRecord {
+function authBlock(session: CronometerMobileSession): AuthBlock {
   return { userId: session.userId, token: session.sessionKey, ...APP_AUTH };
 }
 
@@ -181,13 +201,16 @@ async function postJson(endpoint: string, body: unknown, fetcher: Fetcher): Prom
  * Send a v2 POST request with the JSON auth block injected. Expired sessions
  * surface as CronometerMobileError("session") -- there are no stored
  * credentials to re-login with, so callers must prompt for reconnection.
+ *
+ * `T` should be the operation's response type from ./generated/schemas so
+ * spec drift surfaces as a compile error at the call site.
  */
-async function requestV2(
+async function requestV2<T extends JsonRecord = JsonRecord>(
   session: CronometerMobileSession,
   endpoint: string,
   payload: JsonRecord,
   fetcher: Fetcher,
-): Promise<JsonRecord> {
+): Promise<T> {
   const body = { ...payload, auth: authBlock(session), lastSeen: 0 };
   const response = await postJson(endpoint, body, fetcher);
 
@@ -200,7 +223,7 @@ async function requestV2(
   if (result === "FAIL" || result === "FAILURE") {
     throw new CronometerMobileError("session");
   }
-  return data.raw;
+  return data.raw as T;
 }
 
 function v3Headers(session: CronometerMobileSession): Record<string, string> {
@@ -366,7 +389,7 @@ export async function searchFoods(
   query: string,
   fetcher: Fetcher = fetch,
 ): Promise<JsonRecord[]> {
-  const data = await requestV2(
+  const data = await requestV2<FindFoodResponse>(
     session,
     "/api/v2/find_food",
     {
@@ -385,7 +408,7 @@ export async function getFood(
   foodId: number,
   fetcher: Fetcher = fetch,
 ): Promise<JsonRecord> {
-  return requestV2(session, "/api/v2/get_food", { config: { call_version: 1 }, id: foodId }, fetcher);
+  return requestV2<GetFoodResponse>(session, "/api/v2/get_food", { config: { call_version: 1 }, id: foodId }, fetcher);
 }
 
 async function getFoodsInternal(
@@ -394,7 +417,7 @@ async function getFoodsInternal(
   fetcher: Fetcher,
 ): Promise<JsonRecord[]> {
   if (foodIds.length === 0) return [];
-  const data = await requestV2(
+  const data = await requestV2<GetFoodsResponse>(
     session,
     "/api/v2/get_foods",
     { config: { call_version: 1 }, ids: foodIds },
@@ -439,9 +462,9 @@ export async function addServing(
     translationId: options.translationId ?? 0,
     type: "Serving",
     userId: session.userId,
-  };
+  } satisfies ServingInput;
 
-  return requestV2(session, "/api/v2/add_serving", { config: { call_version: 2 }, serving }, fetcher);
+  return requestV2<AddServingResponse>(session, "/api/v2/add_serving", { config: { call_version: 2 }, serving }, fetcher);
 }
 
 export async function getDiary(
@@ -449,7 +472,7 @@ export async function getDiary(
   date?: string,
   fetcher: Fetcher = fetch,
 ): Promise<JsonRecord> {
-  return requestV2(
+  return requestV2<GetDiaryResponse>(
     session,
     "/api/v2/get_diary",
     { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
@@ -491,7 +514,7 @@ export async function markDayComplete(
   complete = true,
   fetcher: Fetcher = fetch,
 ): Promise<JsonRecord> {
-  return requestV2(
+  return requestV2<SetCompleteResponse>(
     session,
     "/api/v2/set_complete",
     { complete, config: { call_version: 1 }, day: formatDay(date, session.timezone) },
@@ -507,7 +530,7 @@ export async function copyDay(
 ): Promise<JsonRecord> {
   const to = formatDay(toDate, session.timezone);
   const from = formatDay(fromDate ?? shiftedDay(to, -1), session.timezone);
-  return requestV2(
+  return requestV2<CopyDiaryResponse>(
     session,
     "/api/v2/copy",
     { config: { call_version: 1 }, diaryGroupNumber: null, from, to },
@@ -524,7 +547,7 @@ export async function getNutrients(
   date?: string,
   fetcher: Fetcher = fetch,
 ): Promise<JsonRecord> {
-  return requestV2(
+  return requestV2<GetNutrientsResponse>(
     session,
     "/api/v2/get_nutrients",
     { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
@@ -568,7 +591,7 @@ export async function getNutritionScores(
     .map((entry) => entry.servingId)
     .filter((id): id is number => typeof id === "number");
 
-  return requestV2(
+  return requestV2<GetNutritionScoresResponse>(
     session,
     "/api/v2/get_nutrition_scores",
     {
@@ -817,7 +840,7 @@ export async function getMacroTargets(
   session: CronometerMobileSession,
   fetcher: Fetcher = fetch,
 ): Promise<MacroTargets> {
-  const profile = await requestV2(
+  const profile = await requestV2<GetProfileResponse>(
     session,
     "/api/v2/get_profile",
     { config: { call_version: 1 } },
@@ -872,7 +895,7 @@ export async function getFastingHistory(
 ): Promise<JsonRecord> {
   const end = formatDay(endDate, session.timezone);
   const start = formatDay(startDate ?? shiftedDay(end, -30), session.timezone);
-  return requestV2(
+  return requestV2<GetFastingWithDateRangeResponse>(
     session,
     "/api/v2/get_fasting_with_date_range",
     { config: { call_version: 1 }, end, start },
@@ -884,7 +907,7 @@ export async function getFastingStats(
   session: CronometerMobileSession,
   fetcher: Fetcher = fetch,
 ): Promise<JsonRecord> {
-  return requestV2(session, "/api/v2/get_fasting_stats", { config: { call_version: 1 } }, fetcher);
+  return requestV2<GetFastingStatsResponse>(session, "/api/v2/get_fasting_stats", { config: { call_version: 1 } }, fetcher);
 }
 
 // ---------------------------------------------------------------------------
@@ -895,7 +918,7 @@ export async function listBiometrics(
   session: CronometerMobileSession,
   fetcher: Fetcher = fetch,
 ): Promise<JsonRecord[]> {
-  const data = await requestV2(session, "/api/v2/get_metrics", { config: { call_version: 1 } }, fetcher);
+  const data = await requestV2<GetMetricsResponse>(session, "/api/v2/get_metrics", { config: { call_version: 1 } }, fetcher);
   return new JsonResponse(data).array("metrics");
 }
 
@@ -909,7 +932,7 @@ export async function getBiometrics(
 ): Promise<JsonRecord> {
   const end = formatDay(endDate, session.timezone);
   const start = formatDay(startDate ?? shiftedDay(end, -30), session.timezone);
-  return requestV2(
+  return requestV2<GetBiometricsResponse>(
     session,
     "/api/v2/get_biometrics",
     { config: { call_version: 1 }, end, metricId, start, unitId },
@@ -980,7 +1003,7 @@ export async function createCustomFood(
     nutrients.push({ amount: round(amount * scale), id });
   }
 
-  const data = await requestV2(
+  const data = await requestV2<AddFoodResponse>(
     session,
     "/api/v2/add_food",
     {
@@ -1154,7 +1177,7 @@ export async function createRecipe(
     { amount: 1, id: 0, name: "full recipe", type: "Weight", value: totalGrams },
   ];
 
-  const data = await requestV2(
+  const data = await requestV2<AddFoodResponse>(
     session,
     "/api/v2/add_food",
     {
