@@ -1,5 +1,5 @@
 {
-  "name": "cronometer-api",
+  "name": "@cronometer-mcp/cronometer-client",
   "version": "0.0.1",
   "private": true,
   "description": "Client for Cronometer's private web (GWT) and mobile JSON APIs.",

@@ -1,5 +1,5 @@
 {
-  "name": "cronometer-mcp-tools",
+  "name": "@cronometer-mcp/core",
   "version": "0.0.1",
   "private": true,
   "description": "Shared Cronometer MCP tool definitions, usable from any MCP server host.",
@@ -23,7 +23,7 @@
     "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {
-    "cronometer-api": "*",
+    "@cronometer-mcp/cronometer-client": "*",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

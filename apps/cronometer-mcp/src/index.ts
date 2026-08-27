@@ -8,7 +8,7 @@ import {
   authPropsSchema,
   registerCronometerTools,
   type AuthContext,
-} from "cronometer-mcp-tools";
+} from "@cronometer-mcp/core";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { authHandler } from "./auth";
 import { instrumentToolRegistration } from "./observability";

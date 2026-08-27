@@ -4,8 +4,8 @@ import {
   CronometerExportError,
   exportCronometerData,
   type CronometerExportType,
-} from "cronometer-api";
-import * as mobile from "cronometer-api";
+} from "@cronometer-mcp/cronometer-client";
+import * as mobile from "@cronometer-mcp/cronometer-client";
 import {
   authPropsSchema,
   type AuthContext,
