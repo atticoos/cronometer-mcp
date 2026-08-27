@@ -1,9 +1,9 @@
 ---
-name: capture-cronometer
-description: Capture and reverse-engineer the Cronometer Android app's private API using a rooted emulator and mitmproxy, then upsert discovered endpoints into specs/cronometer-mobile.yaml. Use when asked to capture Cronometer traffic, re-run the MITM rig, observe API requests from app actions, check if the API changed after an app update, or update/maintain the Cronometer API spec.
+name: cronometer-api-discovery
+description: Discover and reverse-engineer the Cronometer Android app's private API using a rooted emulator and mitmproxy, then upsert discovered endpoints into specs/cronometer-mobile.yaml. Use when asked to discover Cronometer API endpoints, capture Cronometer traffic, re-run the MITM rig, observe API requests from app actions, check if the API changed after an app update, or update/maintain the Cronometer API spec.
 ---
 
-# Capturing the Cronometer Mobile API
+# Cronometer API Discovery
 
 Reverse-engineers the private API at `https://mobile.cronometer.com/api/v2/` by
 running the Android app in a rooted emulator and decrypting its traffic with
@@ -43,8 +43,8 @@ step 5.
 | Piece | Location | Purpose |
 |---|---|---|
 | Emulator AVD | `Pixel8Rooted` (google_apis image, NOT google_apis_playstore) | Rootable Android 15 |
-| SNI router | `skills/capture-cronometer/scripts/sni_router.py` | Accepts tunneled :9090, sniffs ClientHello SNI, chains CONNECT to mitmproxy :18081 |
-| Flow dumper | `skills/capture-cronometer/scripts/dump_cronometer_flows.py` | mitmdump script printing cronometer.com requests/responses from a flow file |
+| SNI router | `skills/cronometer-api-discovery/scripts/sni_router.py` | Accepts tunneled :9090, sniffs ClientHello SNI, chains CONNECT to mitmproxy :18081 |
+| Flow dumper | `skills/cronometer-api-discovery/scripts/dump_cronometer_flows.py` | mitmdump script printing cronometer.com requests/responses from a flow file |
 | CA cert | `~/.mitmproxy/mitmproxy-ca-cert.pem` | SHA1 old subject hash name `c8750f0d.0` |
 | Flow store | `/tmp/opencode/cronomer-flows3.mitm` | All captured flows; re-readable with `mitmdump -nr` |
 | Captured dump | `/tmp/opencode/cronomer_api_dump2.txt` | Latest human-readable request/response dump |
@@ -85,7 +85,7 @@ several pieces do NOT survive reboots.
    ```
 5. **Host processes** — `pgrep -lf 'sni_router|mitmdump'`. Start if missing:
    ```bash
-   nohup python3 skills/capture-cronometer/scripts/sni_router.py > /tmp/opencode/sni_router.log 2>&1 & disown
+   nohup python3 skills/cronometer-api-discovery/scripts/sni_router.py > /tmp/opencode/sni_router.log 2>&1 & disown
    nohup mitmdump --listen-port 18081 -w /tmp/opencode/cronomer-flows3.mitm > /tmp/opencode/mitmdump3.log 2>&1 & disown
    ```
    Always `nohup ... & disown` — plain background jobs die when the shell call ends.
@@ -119,7 +119,7 @@ activity — do not wait on a silent capture.
 ## Step 3: Extract flows
 
 ```bash
-mitmdump -n -r /tmp/opencode/cronomer-flows3.mitm -s skills/capture-cronometer/scripts/dump_cronometer_flows.py > /tmp/opencode/dump.txt 2>&1
+mitmdump -n -r /tmp/opencode/cronomer-flows3.mitm -s skills/cronometer-api-discovery/scripts/dump_cronometer_flows.py > /tmp/opencode/dump.txt 2>&1
 grep -E '^(GET|POST|PUT|DELETE) ' /tmp/opencode/dump.txt
 ```
 

@@ -12,7 +12,7 @@ Android app in a rooted emulator with mitmproxy. Procedures live in
 skill-aware agents):
 
 - `skills/setup-avd/SKILL.md` — one-time environment bootstrap (new machine, missing/rootless AVD)
-- `skills/capture-cronometer/SKILL.md` — per-session MITM rig restore, traffic capture, flow extraction
+- `skills/cronometer-api-discovery/SKILL.md` — per-session MITM rig restore, traffic capture, flow extraction
 - `specs/cronometer-mobile.yaml` — the OpenAPI contract maintained from captures
 
 If asked to capture Cronometer traffic, check whether the API changed, or
