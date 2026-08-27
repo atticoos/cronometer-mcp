@@ -6,8 +6,8 @@ import {
 import {
   authenticateCronometer,
   CronometerAuthenticationError,
-} from "./cronometer";
-import { authenticateCronometerMobile } from "./mobile";
+  authenticateCronometerMobile,
+} from "@cronometer-mcp/cronometer-client";
 
 const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
