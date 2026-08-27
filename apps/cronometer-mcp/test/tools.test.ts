@@ -32,7 +32,6 @@ describe("registered tool surface", () => {
       "get_food_details",
       "get_food_log",
       "get_macro_targets",
-      "get_nutrition_scores",
       "list_biometrics",
       "mark_day_complete",
       "remove_food_entry",

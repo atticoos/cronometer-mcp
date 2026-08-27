@@ -346,22 +346,6 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
   );
 
   server.registerTool(
-    "get_nutrition_scores",
-    {
-      annotations: READ_ONLY_ANNOTATIONS,
-      description:
-        "Category scores (All Targets, Vitamins, Minerals, Electrolytes, Antioxidants, Immune Support, " +
-        "Metabolism, Bone Health) with the actual consumed amount and confidence level for each tracked nutrient.",
-      inputSchema: z.object({ date: optionalDateString }),
-    },
-    async ({ date }) =>
-      withMobileSession(getAuthContext, async (session) => ({
-        date: date ?? mobile.formatToday(session.timezone),
-        scores: await mobile.getNutritionScores(session, date),
-      })),
-  );
-
-  server.registerTool(
     "search_foods",
     {
       annotations: READ_ONLY_ANNOTATIONS,
