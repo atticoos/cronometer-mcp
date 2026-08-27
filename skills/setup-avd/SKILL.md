@@ -1,13 +1,13 @@
 ---
 name: setup-avd
-description: Bootstrap the Cronometer reverse-engineering environment from scratch on a new Mac — install Android emulator tooling, create the rootable Pixel8Rooted AVD, install the system CA, and sideload the Cronometer APK. Use when setting up a new machine, when the AVD/emulator is missing, when adb root fails, or when rebuilding the emulator rig after a wipe. NOT for per-session restores (use the capture-cronometer skill for that).
+description: Bootstrap the Cronometer reverse-engineering environment from scratch on a new Mac — install Android emulator tooling, create the rootable Pixel8Rooted AVD, install the system CA, and sideload the Cronometer APK. Use when setting up a new machine, when the AVD/emulator is missing, when adb root fails, or when rebuilding the emulator rig after a wipe. NOT for per-session restores (use the cronometer-api-discovery skill for that).
 ---
 
 # Setting up the Android Emulator Rig from Scratch
 
 One-time bootstrap for the Cronometer API capture environment on an
 Apple Silicon Mac. For restoring a session on an existing rig, see the
-`capture-cronometer` skill instead.
+`cronometer-api-discovery` skill instead.
 
 End state: a rooted Android 15 emulator (`Pixel8Rooted`) running the
 Cronometer app, with the mitmproxy CA trusted at the OS level and the
@@ -112,7 +112,7 @@ adb shell chmod 644 /system/etc/security/cacerts/$HASH.0
 
 # (b) Conscrypt APEX store — this is the one apps actually read on Android 14+.
 #     /apex is read-only, so overlay it with tmpfs (this does NOT survive reboot;
-#     the capture-cronometer skill re-applies it each session):
+#     the cronometer-api-discovery skill re-applies it each session):
 adb shell su 0 sh -c "
   rm -rf /data/local/tmp/ca-copy && mkdir -p /data/local/tmp/ca-copy
   cp /apex/com.android.conscrypt/cacerts/* /data/local/tmp/ca-copy/
@@ -160,6 +160,6 @@ adb shell monkey -p com.cronometer.android.gold -c android.intent.category.LAUNC
 sleep 5 && adb shell pidof com.cronometer.android.gold   # PID = running
 ```
 
-Then hand off to the `capture-cronometer` skill for the traffic-redirection
+Then hand off to the `cronometer-api-discovery` skill for the traffic-redirection
 rules (iptables, adb reverse, sni_router, mitmdump) and the session restore
 procedure. Log in via the app UI (or let a capture run collect the login flow).
