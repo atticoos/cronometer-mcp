@@ -9,6 +9,7 @@
     "deploy": "npm run deploy --workspace cronometer-mcp-worker",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "codegen": "npm run codegen --workspace @cronometer-mcp/cronometer-client",
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {

@@ -50,7 +50,7 @@ paths:
               properties:
                 email: { type: string }
                 password: { type: string }
-                timezone: { type: string, examples: ["America/Toronto"] }
+                timezone: { type: [string, "null"], description: "Send null to avoid overwriting the account's server-side zone", examples: ["America/Toronto"] }
                 userCode: { type: [string, "null"], description: "2FA code when prompted" }
                 build: { type: string, examples: ["4.44.3 b2686-a"] }
                 device: { type: string }
@@ -2005,8 +2005,15 @@ components:
         flavour: { type: string, examples: ["free", "gold"] }
 
     AuthBlockNullable:
-      allOf:
-        - $ref: "#/components/schemas/AuthBlock"
+      type: object
+      required: [userId, token, api, os, build, flavour]
+      properties:
+        userId: { type: [integer, "null"] }
+        token: { type: [string, "null"] }
+        api: { type: integer, examples: [3] }
+        os: { type: string, examples: [Android] }
+        build: { type: string, examples: ["2686"] }
+        flavour: { type: string, examples: [free, gold] }
       description: Same shape but userId/token may be null (login).
 
     AuthOnlyBody:

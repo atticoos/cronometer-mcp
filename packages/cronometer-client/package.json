@@ -18,13 +18,17 @@
     "node": ">=20"
   },
   "scripts": {
+    "codegen": "KUBB_DISABLE_TELEMETRY=1 kubb generate",
     "build": "tsc -p .",
     "lint": "eslint src test --max-warnings 0",
     "test": "vitest run",
     "typecheck": "tsc -p . --noEmit"
   },
   "devDependencies": {
+    "@kubb/adapter-oas": "^5.0.3",
+    "@kubb/plugin-ts": "^5.0.0",
     "@types/node": "^26.2.0",
+    "kubb": "^5.0.3",
     "typescript": "6.0.3",
     "vitest": "^4.1.8"
   }
