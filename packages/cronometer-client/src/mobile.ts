@@ -727,23 +727,137 @@ export async function enrichDiaryServings(
 // Macro targets
 // ---------------------------------------------------------------------------
 
+/**
+ * There is no dedicated macro-target read endpoint: the Android Targets screen
+ * loads its state from get_profile and carries it in `prefs` (array of
+ * single-key string objects). Edits made on other clients (e.g. web) arrive as
+ * check_messages notifications, after which the app refetches get_profile.
+ *
+ * `get_macro_schedules` / `get_macro_target_templates` exist for the Gold macro
+ * scheduler surface but are not called by the Targets screen, so this client
+ * does not use them.
+ */
+const TARGET_PREF_KEY_PREFIXES = ["targets.", "macro", "calories."];
+
+/** Targeting mode derived from prefs; "grams" is also the unflagged default. */
+export type MacroTargetsMode = "percent" | "grams";
+
+export interface MacroTargetRange {
+  /** Upper bound of a ranged target, when one is set. */
+  max: number | null;
+  value: number;
+}
+
+export interface MacroTargets {
+  /**
+   * Carb subtypes subtracted from displayed carb counts (server booleans are
+   * strings; null means the account has no stored preference).
+   */
+  carbsExcludedFrom: {
+    allulose: boolean | null;
+    fiber: boolean | null;
+    fructose: boolean | null;
+    netCarbs: boolean | null;
+    sugarAlcohol: boolean | null;
+  };
+  energy: {
+    /** Percentage of burned calories added on top of the goal (e.g. 0.2). */
+    activityBurnPercent: number | null;
+    customTargetKcal: number | null;
+    includeActivityBurn: boolean | null;
+  };
+  /** Fixed gram targets with optional range bounds. */
+  fixedGrams: {
+    fats: MacroTargetRange | null;
+    netCarbs: MacroTargetRange | null;
+    protein: MacroTargetRange | null;
+  };
+  mode: MacroTargetsMode;
+  percentSplit: {
+    carbs: number | null;
+    fat: number | null;
+    protein: number | null;
+  };
+  /** Raw target-related pref key/values, exactly as returned by get_profile. */
+  prefs: Record<string, string>;
+}
+
+function prefMap(entries: JsonRecord[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const entry of entries) {
+    for (const [key, value] of Object.entries(entry)) {
+      if (typeof value === "string") {
+        map[key] = value;
+      } else if (typeof value === "number" || typeof value === "boolean") {
+        map[key] = String(value);
+      }
+    }
+  }
+  return map;
+}
+
+function prefNumber(prefs: Record<string, string>, key: string): number | undefined {
+  const value = Number(prefs[key]);
+  return prefs[key] !== undefined && prefs[key] !== "" && Number.isFinite(value) ? value : undefined;
+}
+
+function prefBoolean(prefs: Record<string, string>, key: string): boolean | undefined {
+  if (prefs[key] === "true") return true;
+  if (prefs[key] === "false") return false;
+  return undefined;
+}
+
+function prefRange(prefs: Record<string, string>, baseKey: string): MacroTargetRange | null {
+  const value = prefNumber(prefs, baseKey);
+  if (value === undefined) return null;
+  return { max: prefNumber(prefs, `${baseKey}.max`) ?? null, value };
+}
+
 export async function getMacroTargets(
   session: CronometerMobileSession,
   fetcher: Fetcher = fetch,
-): Promise<{ schedules: JsonRecord; templates: JsonRecord }> {
-  const schedules = await requestV2(
+): Promise<MacroTargets> {
+  const profile = await requestV2(
     session,
-    "/api/v2/get_macro_schedules",
+    "/api/v2/get_profile",
     { config: { call_version: 1 } },
     fetcher,
   );
-  const templates = await requestV2(
-    session,
-    "/api/v2/get_macro_target_templates",
-    { config: { call_version: 1 } },
-    fetcher,
-  );
-  return { schedules, templates };
+
+  const allPrefs = prefMap(new JsonResponse(profile).array("prefs"));
+  const prefs: Record<string, string> = {};
+  for (const [key, value] of Object.entries(allPrefs)) {
+    if (TARGET_PREF_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      prefs[key] = value;
+    }
+  }
+
+  return {
+    carbsExcludedFrom: {
+      allulose: prefBoolean(prefs, "targets.macros.allulose") ?? null,
+      fiber: prefBoolean(prefs, "targets.macros.fiber") ?? null,
+      fructose: prefBoolean(prefs, "targets.macros.fructose") ?? null,
+      netCarbs: prefBoolean(prefs, "targets.macros.netcarbs") ?? null,
+      sugarAlcohol: prefBoolean(prefs, "targets.macros.sugaralcohol") ?? null,
+    },
+    energy: {
+      activityBurnPercent: prefNumber(prefs, "calories.activity") ?? null,
+      customTargetKcal: prefNumber(prefs, "targets.custom.energy.target") ?? null,
+      includeActivityBurn: prefBoolean(prefs, "calories.goal") ?? null,
+    },
+    fixedGrams: {
+      fats: prefRange(prefs, "targets.fixed.fats"),
+      netCarbs: prefRange(prefs, "targets.fixed.net.carbs"),
+      protein: prefRange(prefs, "targets.fixed.protein"),
+    },
+    mode: prefBoolean(prefs, "targets.macros.percent") === true ? "percent" : "grams",
+    percentSplit: {
+      carbs: prefNumber(prefs, "macroCarbs") ?? null,
+      fat: prefNumber(prefs, "macroLipids") ?? null,
+      protein: prefNumber(prefs, "macroProtein") ?? null,
+    },
+    prefs,
+  };
 }
 
 // ---------------------------------------------------------------------------

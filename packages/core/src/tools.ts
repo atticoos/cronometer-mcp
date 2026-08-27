@@ -559,12 +559,17 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
     {
       annotations: READ_ONLY_ANNOTATIONS,
       description:
-        "Get current macro targets including the weekly schedule (which template applies to each day) " +
-        "and all saved macro target templates with their values.",
+        "Get the user's current macro and energy targets from their Cronometer profile: " +
+        "fixed gram targets (protein, net carbs, fat — with optional upper bounds), the " +
+        "percent-based macro split, the active targeting mode (grams vs percent), energy goal " +
+        "settings, which carb subtypes are excluded from carb counts, and raw target pref values.",
       inputSchema: z.object({}),
     },
     async () =>
-      withMobileSession(getAuthContext, async (session) => await mobile.getMacroTargets(session)),
+      withMobileSession(getAuthContext, async (session) => {
+        const targets = await mobile.getMacroTargets(session);
+        return { ...targets };
+      }),
   );
 
   server.registerTool(

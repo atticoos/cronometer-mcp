@@ -10,6 +10,7 @@ import {
   getBiometrics,
   getConsumedNutrients,
   getDiary,
+  getMacroTargets,
   mealGroupForHour,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
@@ -314,5 +315,80 @@ describe("getBiometrics", () => {
 
     const payload = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
     expect(payload).toMatchObject({ end: "2026-8-20", metricId: 1, start: "2026-7-21", unitId: 1 });
+  });
+});
+
+describe("getMacroTargets", () => {
+  it("reads targets from get_profile prefs (captured payload shape)", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        result: "SUCCESS",
+        prefs: [
+          { "targets.fixed.protein": "211.0" },
+          { "targets.fixed.protein.max": "260.0" },
+          { "targets.fixed.fats": "62.0" },
+          { "targets.fixed.fats.max": "80.0" },
+          { "targets.fixed.net.carbs": "376.0" },
+          { "targets.fixed.net.carbs.max": "380.0" },
+          { macroProtein: "25.0" },
+          { macroCarbs: "45.0" },
+          { macroLipids: "30.0" },
+          { "targets.macros.percent": "false" },
+          { "targets.custom.energy.target": "2900.0" },
+          { "calories.goal": "true" },
+          { "calories.activity": "0.2" },
+          { "targets.macros.netcarbs": "true" },
+          { "targets.macros.fructose": "true" },
+          { "targets.macros.sugaralcohol": "false" },
+          { "targets.macros.fiber": "false" },
+          { "targets.macros.allulose": "true" },
+          { weightUnit: "Pounds" },
+        ],
+      }),
+    );
+
+    const targets = await getMacroTargets(session, fetcher);
+
+    expect(fetcher.mock.calls[0][0]).toBe("https://mobile.cronometer.com/api/v2/get_profile");
+    expect(targets.mode).toBe("grams");
+    expect(targets.fixedGrams.protein).toEqual({ max: 260, value: 211 });
+    expect(targets.fixedGrams.fats).toEqual({ max: 80, value: 62 });
+    expect(targets.fixedGrams.netCarbs).toEqual({ max: 380, value: 376 });
+    expect(targets.percentSplit).toEqual({ carbs: 45, fat: 30, protein: 25 });
+    expect(targets.energy).toEqual({
+      activityBurnPercent: 0.2,
+      customTargetKcal: 2900,
+      includeActivityBurn: true,
+    });
+    expect(targets.carbsExcludedFrom).toEqual({
+      allulose: true,
+      fiber: false,
+      fructose: true,
+      netCarbs: true,
+      sugarAlcohol: false,
+    });
+    // only target-related keys are passed through
+    expect(targets.prefs["weightUnit"]).toBeUndefined();
+    expect(targets.prefs["targets.fixed.protein"]).toBe("211.0");
+  });
+
+  it("reports percent mode and null fields for accounts without stored targets", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ result: "SUCCESS", prefs: [{ "targets.macros.percent": "true" }] }),
+      );
+
+    const targets = await getMacroTargets(session, fetcher);
+
+    expect(targets.mode).toBe("percent");
+    expect(targets.fixedGrams).toEqual({ fats: null, netCarbs: null, protein: null });
+    expect(targets.percentSplit).toEqual({ carbs: null, fat: null, protein: null });
+    expect(targets.energy).toEqual({
+      activityBurnPercent: null,
+      customTargetKcal: null,
+      includeActivityBurn: null,
+    });
+    expect(targets.prefs).toEqual({ "targets.macros.percent": "true" });
   });
 });
