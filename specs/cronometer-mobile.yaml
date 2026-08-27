@@ -718,6 +718,1273 @@ paths:
           description: Analytics settings
           content: { application/json: { schema: { type: object, additionalProperties: true } } }
 
+  /api/v2/find_food:
+    post:
+      tags: [foods]
+      operationId: findFood
+      summary: Food database search (tabbed search screen)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query, sources, tab]
+              properties:
+                query: { type: string, examples: ["greek yogurt"] }
+                sources: { type: array, items: { type: string }, examples: [["All"]] }
+                tab: { type: string, examples: ["ALL"], description: "Search tab: ALL, FAVORITES, CUSTOM, COMMON, SUPPLEMENTS" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Ranked food results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  foods:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        measureId: { type: integer }
+                        measureDisplayName: { type: string }
+                        translationId: { type: integer }
+                        score: { type: integer }
+                        src: { type: integer, description: "Data source code (8=NCCDB observed)" }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/add_serving:
+    post:
+      tags: [diary]
+      operationId: addServing
+      summary: Log a food serving (also used for water via the special water food id)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        The app logs both food and water through this endpoint. Water is a
+        synthetic food (observed foodId 27536487 on a fresh account) with
+        grams = millilitres.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serving]
+              properties:
+                serving: { $ref: "#/components/schemas/ServingInput" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Entry stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/add_food:
+    post:
+      tags: [foods]
+      operationId: addFood
+      summary: Create a custom food or recipe (recipe = has `ingredients` array)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        Observed from the Create Food flow. Measures: first entry is the
+        user serving, the app then appends g (id 1) and oz (id 2) Weight
+        measures. Nutrient ids: 208 energy kcal, 203 protein, 204 fat,
+        205 carbs, 291 fiber, 269 sugar, 307 sodium, 606 saturated fat,
+        -1205 net carbs; negative mirror ids (-203/-204/-205/-221) are
+        required duplicates of macro rows.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data: { $ref: "#/components/schemas/FoodInput" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Food created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  id: { type: integer, description: "New food id" }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/copy:
+    post:
+      tags: [diary]
+      operationId: copyDiary
+      summary: Copy all diary entries from one day to another
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        Returns the created entries. Same-day copy returns the existing
+        entries unchanged. Copied Note and Biometric entries cannot be
+        deleted via DELETE /api/v3/user/{userId}/diary-entries (400).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from: { $ref: "#/components/schemas/V2Date" }
+                to: { $ref: "#/components/schemas/V2Date" }
+                diaryGroupNumber: { type: [integer, "null"], examples: [null] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Entries created on the target day
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entriesForDay:
+                    type: array
+                    items: { $ref: "#/components/schemas/DiaryEntry" }
+
+  /api/v2/set_complete:
+    post:
+      tags: [diary]
+      operationId: setComplete
+      summary: Mark a day complete/incomplete (diary checkmark)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day, complete]
+              properties:
+                day: { $ref: "#/components/schemas/V2Date" }
+                complete: { type: boolean }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Ack
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_nutrients:
+    post:
+      tags: [foods]
+      operationId: getNutrients
+      summary: Nutrient definition catalog (id, name, unit, category, sort order)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                day: { $ref: "#/components/schemas/V2Date", description: "Observed optional" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: All tracked nutrients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nutrients:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        pid: { type: integer, description: "Parent nutrient id" }
+                        name: { type: string }
+                        unit: { type: string }
+                        category: { type: string }
+                        sortKey: { type: integer }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_nutrition_scores:
+    post:
+      tags: [diary]
+      operationId: getNutritionScores
+      summary: Nutrient adequacy scores for selected diary servings
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        startDay/endDay use 1900-1-1 sentinel values in app traffic.
+        supplements is the STRING "true"/"false".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [servingIds]
+              properties:
+                servingIds: { type: array, items: { type: integer } }
+                startDay: { type: string, examples: ["1900-1-1"] }
+                endDay: { type: string, examples: ["1900-1-1"] }
+                supplements: { type: string, examples: ["true"] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Score categories with per-nutrient components
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scores:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title: { type: string }
+                        score: { type: number }
+                        components:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              nutrientId: { type: integer }
+                              amount: { type: number }
+                              confidence: { type: number }
+                              type: { type: string, examples: ["Target"] }
+
+  /api/v2/get_metrics:
+    post:
+      tags: [diary]
+      operationId: getMetrics
+      summary: Biometric metric catalog (id, name, units, category image)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Metric definitions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metrics:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        image: { type: string }
+                        legacy: { type: boolean }
+                        units:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id: { type: integer }
+                              name: { type: string }
+                              conversionFactor: { type: number }
+
+  /api/v2/get_biometrics:
+    post:
+      tags: [diary]
+      operationId: getBiometrics
+      summary: Biometric readings for one metric over a date range
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metricId, unitId, start, end]
+              properties:
+                metricId: { type: integer, examples: [1] }
+                unitId: { type: integer, examples: [1] }
+                start: { $ref: "#/components/schemas/V2Date" }
+                end: { $ref: "#/components/schemas/V2Date" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Metric readings
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+
+  /api/v2/get_fasting_stats:
+    post:
+      tags: [misc]
+      operationId: getFastingStats
+      summary: Aggregate fasting statistics
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fastingStats:
+                    type: object
+                    properties:
+                      completedFasts: { type: integer }
+                      totalHoursFasting: { type: number }
+                      last7FastsAvgInHours: { type: number }
+                      longestFastInHours: { type: number }
+
+  /api/v2/get_fasting_with_date_range:
+    post:
+      tags: [misc]
+      operationId: getFastingWithDateRange
+      summary: Fasts recorded between two dates
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start, end]
+              properties:
+                start: { $ref: "#/components/schemas/V2Date" }
+                end: { $ref: "#/components/schemas/V2Date" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Fasts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fasts: { type: array, items: { type: object, additionalProperties: true } }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/find_activity_V2:
+    post:
+      tags: [diary]
+      operationId: findActivityV2
+      summary: Exercise/activity search (Add Exercise screen)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query: { type: string, examples: ["run", "running"] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Matching activities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activities:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer, examples: [1265] }
+                        name: { type: string, examples: ["Running General"] }
+                        image: { type: string, examples: ["activity_Running_General.png"] }
+                        legacy: { type: boolean }
+                        cals: { type: number, description: "kcal/min/kg burn coefficient" }
+
+  /api/v2/all_legacy_activities:
+    post:
+      tags: [diary]
+      operationId: allLegacyActivities
+      summary: Full legacy activity catalog (~124KB; ids 1..N with burn coefficients)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Legacy activities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activities:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        legacy: { type: boolean, examples: [true] }
+                        cals: { type: number }
+
+  /api/v2/get_activity_forest:
+    post:
+      tags: [diary]
+      operationId: getActivityForest
+      summary: Activity category tree (group id/name/image map shown on Add Exercise)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: groupsMap keyed by group id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groupsMap:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string, examples: ["Individual Sport"] }
+                        image: { type: string }
+                        imagePath: { type: string }
+
+  /api/v2/recent_exercise_list:
+    post:
+      tags: [diary]
+      operationId: recentExerciseList
+      summary: Recently logged exercises
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resultSetLimit: { type: integer, examples: [10] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Recent exercises
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exercises: { type: array, items: { type: object, additionalProperties: true } }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/recent_biometric_list:
+    post:
+      tags: [diary]
+      operationId: recentBiometricList
+      summary: Recently logged biometrics
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Recent biometrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  biometrics: { type: array, items: { type: object, additionalProperties: true } }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/add_exercise:
+    post:
+      tags: [diary]
+      operationId: addExercise
+      summary: Log an exercise entry
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exercise]
+              properties:
+                exercise:
+                  type: object
+                  required: [day, activityId, minutes, type]
+                  properties:
+                    type: { type: string, examples: ["Exercise"] }
+                    userId: { type: integer }
+                    day: { $ref: "#/components/schemas/V2Date" }
+                    order: { type: integer, description: "Diary group slot ((group<<16)|n)" }
+                    activityId: { type: integer, examples: [1265] }
+                    activitySpecId: { type: integer, examples: [233] }
+                    exerciseId: { type: [integer, "null"], description: "null to create" }
+                    minutes: { type: number, examples: [15.0] }
+                    weight: { type: number, description: "Body weight (lb observed) used for burn" }
+                    calories: { type: number, description: "Negative kcal burned, e.g. -83.35" }
+                    calorieOverride: { type: boolean }
+                    name: { type: [string, "null"] }
+                    source: { type: [string, "null"] }
+                    externalId: { type: [string, "null"] }
+                    meta: { type: [object, "null"] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, description: "New exercise entry id" }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/add_biometric:
+    post:
+      tags: [diary]
+      operationId: addBiometric
+      summary: Log a biometric reading
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        meta is a JSON STRING (not an object) on the wire. Weight logging
+        (metricId 1) carries a composite of blood-pressure values in meta.
+        Response echoes profile height/weight for metricId 1.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [biometric]
+              properties:
+                biometric:
+                  type: object
+                  required: [day, metricId, unitId, amount, type]
+                  properties:
+                    type: { type: string, examples: ["Biometric"] }
+                    userId: { type: integer }
+                    day: { $ref: "#/components/schemas/V2Date" }
+                    order: { type: integer }
+                    biometricId: { type: [integer, "null"], description: "null to create" }
+                    metricId: { type: integer, examples: [1] }
+                    unitId: { type: integer, examples: [1] }
+                    amount: { type: number }
+                    meta: { type: string, description: "Stringified JSON, may be empty object" }
+                    source: { type: [string, "null"] }
+                    externalId: { type: [string, "null"] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, description: "New biometric entry id" }
+                  heightInCM: { type: number }
+                  weightInKG: { type: number }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_macros:
+    post:
+      tags: [misc]
+      operationId: getMacros
+      summary: Daily macro grams over a range (Charts screen)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start, end, type]
+              properties:
+                start: { $ref: "#/components/schemas/V2Date" }
+                end: { $ref: "#/components/schemas/V2Date" }
+                type: { type: string, examples: ["All"] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Per-day macro values
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        day: { type: string, examples: ["2026-08-27"] }
+                        values:
+                          type: array
+                          description: "[protein_kcal, carbs_kcal, fat_kcal, alcohol_kcal] observed (kcal)"
+                          items: { type: number }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_chart_data:
+    post:
+      tags: [misc]
+      operationId: getChartData
+      summary: Generic chart series (weight, nutrients, scores)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start, end, dayType, chartDataType]
+              properties:
+                start: { $ref: "#/components/schemas/V2Date" }
+                end: { $ref: "#/components/schemas/V2Date" }
+                nutrientId: { type: [integer, "null"] }
+                metricId: { type: [integer, "null"], examples: [1] }
+                scoreId: { type: [integer, "null"] }
+                dayType: { type: string, examples: ["All"] }
+                chartDataType:
+                  type: string
+                  examples: ["BIOMETRIC"]
+                  description: "BIOMETRIC observed; NUTRIENT/SCORE variants inferred"
+                ignoreEmptyTimestamps: { type: boolean }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Chart points
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        day: { type: string }
+                        value: { type: number }
+                  sources: { type: array, items: { type: object } }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_body_snapshots:
+    post:
+      tags: [misc]
+      operationId: getBodySnapshots
+      summary: Progress photo snapshots (paged)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                offset: { type: integer, examples: [0] }
+                limit: { type: integer, examples: [6] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  body_snapshots: { type: array, items: { type: object, additionalProperties: true } }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_all_time_stats:
+    post:
+      tags: [misc]
+      operationId: getAllTimeStats
+      summary: All-time logging counts as of a day
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day]
+              properties:
+                day: { $ref: "#/components/schemas/V2Date" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allTimeStats:
+                    type: object
+                    properties:
+                      biometrics: { type: integer }
+                      servings: { type: integer }
+                      exercises: { type: integer }
+                      fasts: { type: integer }
+                      day: { type: string }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_calendar_info:
+    post:
+      tags: [misc]
+      operationId: getCalendarInfo
+      summary: Per-day flags (what was logged) for a month view
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startDay, endDay]
+              properties:
+                startDay: { $ref: "#/components/schemas/V2Date" }
+                endDay: { $ref: "#/components/schemas/V2Date" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Calendar flags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  calendarInfo:
+                    type: object
+                    properties:
+                      daysWithData:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            day: { type: string }
+                            loggedFood: { type: boolean }
+                            loggedExercise: { type: boolean }
+                            loggedBiometric: { type: boolean }
+                            loggedNote: { type: boolean }
+                            complete: { type: boolean }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_menstrual_cycle_days:
+    post:
+      tags: [misc]
+      operationId: getMenstrualCycleDays
+      summary: Menstrual cycle days over a range (empty for accounts without data)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start, end]
+              properties:
+                start: { $ref: "#/components/schemas/V2Date" }
+                end: { $ref: "#/components/schemas/V2Date" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Cycle days
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  menstrualCycleDays: { type: array, items: { type: object, additionalProperties: true } }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/get_sleep_score:
+    post:
+      tags: [misc]
+      operationId: getSleepScore
+      summary: Sleep score for one day
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        Only the no-data shape has been observed:
+        {"messages":[],"No sleep scores available":"No sleep score found"}.
+        The with-data shape is inferred.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day]
+              properties:
+                day: { $ref: "#/components/schemas/V2Date" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Score or explicit no-data marker
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+
+  /api/v2/get_user_share_items:
+    post:
+      tags: [misc]
+      operationId: getUserShareItems
+      summary: Pro clients, friends, and research enrollments (Sharing screen)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Share items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pros: { type: array, items: { type: object } }
+                  friends: { type: array, items: { type: object } }
+                  enrollments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string, examples: ["MERCOLA", "GRASSROOTS"] }
+                        enrolled: { type: boolean }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/set_dayinfo_meta:
+    post:
+      tags: [diary]
+      operationId: setDayInfoMeta
+      summary: Write per-day metadata bag
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day, meta]
+              properties:
+                day: { $ref: "#/components/schemas/V2Date" }
+                meta: { type: object, additionalProperties: true }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Stored meta echoed back
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  meta: { type: object }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Invalidate the current session
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firebaseToken: { type: [string, "null"] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Ack
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/check_email:
+    post:
+      tags: [auth]
+      operationId: checkEmail
+      summary: Email deliverability/existence precheck (signup + login screens)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+                anticsrf: { type: string, description: '"Flutter-<flavour>-<version>-<build>;<uuid>"' }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Deliverability verdict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["deliverable"] }
+                  email: { type: string }
+
+  /api/v2/signup:
+    post:
+      tags: [auth]
+      operationId: signup
+      summary: Create an account (also used to detect email collisions)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        Observed when the app retried a stale onboarding signup against an
+        existing email; response FAIL explains the email-in-use error.
+        Passwords appear in this body in plaintext.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [firstName, email, password]
+              properties:
+                firstName: { type: string }
+                email: { type: string }
+                password: { type: string }
+                gender: { type: string, examples: ["Male", "Female"] }
+                reproduction: { type: string, examples: ["Normal"] }
+                year: { type: string, examples: ["1980"] }
+                month: { type: string, examples: ["January"] }
+                day: { type: string, examples: ["1"] }
+                weight: { type: string, examples: ["200.0"] }
+                weight-unit: { type: string, examples: ["Pounds"] }
+                height-unit: { type: string, examples: ["Inches"] }
+                height-cm: { type: string, examples: ["177"] }
+                weightGoal: { type: string, examples: ["-0.25"] }
+                adCampaignAttribution: { type: [string, "null"] }
+                calorie-unit: { type: boolean }
+                timezone: { type: string, examples: ["EDT"] }
+                build: { type: string, examples: ["4.44.3 b2686-a"] }
+                device: { type: string }
+                firebaseToken: { type: [string, "null"] }
+                locale: { type: string, examples: ["en_US"] }
+                emailMe: { type: boolean }
+                personalizeAds: { type: boolean }
+                skipDefaults: { type: boolean }
+                accountCreationType: { type: string, examples: ["MOBILE_ACCOUNT_CREATED"] }
+                termsVersion: { type: string, examples: ["3"] }
+                auth: { $ref: "#/components/schemas/AuthBlockNullable" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Result (SUCCESS with session, or FAIL with error)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS", "FAIL"] }
+                  error: { type: string, examples: ["This email is already in use by another account"] }
+
+  /api/v2/reset_password:
+    post:
+      tags: [auth]
+      operationId: resetPassword
+      summary: Email a password-reset link
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        Side effect: sends a password-reset email to the account owner.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Ack
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+
+  /api/v2/subscription_details:
+    post:
+      tags: [misc]
+      operationId: subscriptionDetails
+      summary: Gold IAP product identifiers for the Play billing flow
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Product ids
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  promos: { type: [object, "null"] }
+                  products:
+                    type: object
+                    properties:
+                      yearlyProductId: { type: string, examples: ["gold_2023"] }
+                      monthlyProductId: { type: string, examples: ["gold_2023"] }
+                  pro_products:
+                    type: object
+                    properties:
+                      proMonthlyId: { type: string, examples: ["pro_monthly"] }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/mobile_log_entry:
+    post:
+      tags: [misc]
+      operationId: mobileLogEntry
+      summary: Client-side error/analytics log beacon
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobileLogEntry]
+              properties:
+                mobileLogEntry:
+                  type: object
+                  properties:
+                    logLevel: { type: string, examples: ["ERROR"] }
+                    mesg: { type: string }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Ack
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/show_progressive_onboarding:
+    post:
+      tags: [auth]
+      operationId: showProgressiveOnboarding
+      summary: Whether the account should see progressive onboarding
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Flag
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  showProgressiveOnboarding: { type: boolean }
+
+  /photoupload:
+    post:
+      tags: [diary]
+      operationId: photoupload
+      summary: Create/edit diary Note entries and upload diary photos (multipart, ROOT path — not under /api)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        multipart/form-data with fields: action ("diaryImage" observed),
+        sessionKey (auth by session, no auth block), noteId (0 = create),
+        day (YYYY-M-D), order (diary slot), deleteExistingPhoto, noteText.
+        The photo file part was not exercised. Server adds a User-Agent
+        "Dart/3.8 (dart:io)" style request; the response is the stored
+        Note entry.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [action, sessionKey, noteId, day, order]
+              properties:
+                action: { type: string, examples: ["diaryImage"] }
+                sessionKey: { type: string }
+                noteId: { type: integer, description: "0 to create" }
+                day: { type: string, examples: ["2026-8-27"] }
+                order: { type: integer }
+                deleteExistingPhoto: { type: boolean }
+                noteText: { type: string }
+      responses:
+        "200":
+          description: Stored Note entry
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  noteId: { type: integer }
+                  text: { type: string }
+                  userId: { type: integer }
+                  day: { type: string, examples: ["2026-08-27"] }
+                  order: { type: integer }
+                  meta: { type: object }
+
+  /api/v3/user/{userId}/targets:
+    get:
+      tags: [targets]
+      operationId: getV3Targets
+      summary: Per-nutrient target rows (v3 header auth; loaded after target edits)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Target rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer, description: "Nutrient id (negative ids are derived, e.g. -1205 net carbs)" }
+                    min: { type: [number, "null"] }
+                    max: { type: [number, "null"] }
+                    vis: { type: boolean, description: "Visible on targets UI" }
+                    custom: { type: boolean }
+
+  /api/v3/user/{userId}/diary-entries:
+    delete:
+      tags: [diary]
+      operationId: deleteDiaryEntries
+      summary: Delete Serving and Exercise diary entries (v3 header auth)
+      x-confidence: verified
+      x-observed-at: 2026-08-27
+      x-notes: >-
+        Returns 204 on success. Entries of type Note or Biometric are
+        REJECTED with 400 "Not able to deserialize data provided." — only
+        Serving and Exercise shapes deserialize. Full objects returned by
+        get_diary work for Serving/Exercise; minimal
+        {type, <entryTypeId>, userId, day} shapes also work.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [diaryEntries]
+              properties:
+                diaryEntries:
+                  type: array
+                  items: { $ref: "#/components/schemas/DiaryEntry" }
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Unsupported entry types included
+
 components:
   schemas:
     CallConfig:
@@ -781,3 +2048,70 @@ components:
         externalId: { type: string }
         meta: { type: object, additionalProperties: true }
       additionalProperties: true
+
+    ServingInput:
+      type: object
+      description: Request body of add_serving. Captured from food logging and water logging.
+      required: [type, day, foodId, grams]
+      properties:
+        type: { type: string, examples: ["Serving"] }
+        userId: { type: integer }
+        day: { $ref: "#/components/schemas/V2Date" }
+        time: { type: [string, "null"], description: "H:mm:ss when timestamp enabled" }
+        foodId: { type: integer, description: "Water uses a synthetic food id (27536487 observed; grams = ml)" }
+        grams: { type: number }
+        measureId: { type: [integer, "null"] }
+        translationId: { type: [integer, "null"] }
+        servingId: { type: [integer, "null"] }
+        offset: { type: [integer, "null"] }
+        order: { type: integer, description: "(diaryGroup<<16)|n" }
+        source: { type: [string, "null"] }
+
+    FoodInput:
+      type: object
+      description: Request body of add_food (custom food or recipe). Captured 2026-08-27.
+      required: [name, nutrients, measures]
+      properties:
+        id: { type: integer, description: "0 to create" }
+        name: { type: string }
+        category: { type: integer }
+        owner: { type: [object, "null"] }
+        retired: { type: [object, "null"] }
+        source: { type: [string, "null"] }
+        defaultMeasureId: { type: integer }
+        comments: { type: [string, "null"] }
+        alternateId: { type: [string, "null"] }
+        labelType: { type: string, examples: ["AMERICAN_2016"] }
+        measures:
+          type: array
+          description: "First entry is the user serving; app appends g (id 1) and oz (id 2) Weight measures"
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              value: { type: number, description: "Grams per unit" }
+              amount: { type: number }
+              type: { type: string, examples: ["Weight", "Atomic", "Recipe"] }
+        nutrients:
+          type: array
+          description: "Macro rows use positive ids plus required negative mirrors (-203/-204/-205/-221); 208 energy kcal, 203 protein, 204 fat, 205 carbs, 291 fiber, 269 sugar, 307 sodium, 606 sat fat, -1205 net carbs"
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              amount: { type: number }
+        ingredients:
+          type: array
+          description: "Presence makes the food a recipe (client-side knowledge; not observed live this session)"
+          items:
+            type: object
+            properties:
+              foodId: { type: integer }
+              grams: { type: number }
+              measureId: { type: integer }
+              translationId: { type: integer }
+              id: { type: integer }
+              value: { type: number }
+        properties: { type: object, additionalProperties: { type: string } }
+        foodTags: { type: array, items: { type: string } }
