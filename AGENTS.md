@@ -15,5 +15,13 @@ skill-aware agents):
 - `skills/cronometer-api-discovery/SKILL.md` — per-session MITM rig restore, traffic capture, flow extraction
 - `specs/cronometer-mobile.yaml` — the OpenAPI contract maintained from captures
 
+# Linear issue creation
+
+Before opening a Linear issue:
+
+- Call `linear_list_projects` (and `linear_list_teams` if the team is unclear) and check for a project relevant to the issue. Only create issues with no project when there is genuinely no relevant project.
+- When a relevant project exists, pass `project` on create. Never create an issue into a project-less state and move it afterward.
+- If two projects are plausible, ask the user which one to use rather than guessing.
+
 If asked to capture Cronometer traffic, check whether the API changed, or
 update the API spec, read the relevant skill file first.
