@@ -366,6 +366,29 @@ paths:
       summary: User profile and settings
       x-confidence: verified
       x-observed-at: 2026-08-26
+      x-notes: >-
+        Primary read source for macro targets/goals — there is NO dedicated
+        macro-targets endpoint. Opening the app Targets screen fires exactly
+        this call (plus claim_message); targets state is carried in prefs[].
+        Settings changed on another client (e.g. web) arrive as
+        check_messages long-poll notifications; the client claims them and
+        refetches get_profile. Verified target-related pref keys (values are
+        strings):
+        targets.fixed.protein / .protein.max / .fats / .fats.max /
+        .net.carbs / .net.carbs.max (grams, max = upper range bound);
+        macroProtein / macroCarbs / macroLipids (percent split);
+        targets.macros.percent ("false" = grams mode),
+        targets.macros.fixedvalues.grams, targets.macros.macros.grams;
+        targets.custom.energy.target (kcal), calories.goal,
+        calories.activity (activity factor); subtraction toggles
+        targets.macros.{netcarbs,fructose,sugaralcohol,fiber,allulose};
+        targets.view, macroIndex, macro.keto.level.
+        props[] includes MACRO_SCHEDULER_UPGRADE flag.
+        Computed per-day target totals additionally appear in diary summaries
+        (targets_percent/highlighted_targets) and in login diaries[].summary.
+        The macro SCHEDULING surface (get_macro_schedules /
+        get_macro_target_templates) is separate — see those paths; the app
+        does not call them when merely opening Targets on a free account.
       requestBody:
         required: true
         content:
@@ -380,7 +403,128 @@ paths:
       responses:
         "200":
           description: Profile
-          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  id: { type: integer }
+                  email: { type: string }
+                  firstName: { type: string }
+                  gender: { type: string, examples: ["Male"] }
+                  birthdate: { type: string, format: date }
+                  age: { type: integer }
+                  user_type: { type: string, examples: ["free"] }
+                  status: { type: string, examples: ["Normal"] }
+                  timezone: { type: string, examples: ["America/New_York"] }
+                  weightInKG: { type: number }
+                  weightDate: { type: string, format: date }
+                  JWTSignature: { type: string, description: "Braze JWT for SDK init" }
+                  uuid: { type: string }
+                  version: { type: integer }
+                  localization:
+                    type: object
+                    properties:
+                      language: { type: string, examples: ["en_US"] }
+                  prefs:
+                    type: array
+                    description: >-
+                      Array of single-key objects carrying all client settings;
+                      macro-target keys documented in x-notes
+                    items:
+                      type: object
+                      additionalProperties: { type: string }
+                  props:
+                    type: array
+                    description: Server-side feature flags (single-key objects, string values)
+                    items:
+                      type: object
+                      additionalProperties: { type: string }
+                  weightHistory:
+                    type: object
+                    description: Biometric history series (metricId/unitId/userId + data[])
+                  bodyfatHistory: { type: object }
+                  favouritesV2:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        translationId: { type: integer }
+                        foodId: { type: integer }
+
+  /api/v2/get_macro_schedules:
+    post:
+      tags: [targets]
+      operationId: getMacroSchedules
+      summary: Macro target schedules (which template applies to each weekday)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      x-notes: >-
+        Verified by direct replay with a live session (200). The app itself does
+        NOT call this when opening the Targets screen; content appears to be
+        Gold-tier macro-scheduling data. Free account without schedules returns
+        {"schedules":[],"messages":[]}. Element shape unobserved (empty array).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Schedules (possibly empty)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schedules:
+                    type: array
+                    description: Element shape not yet observed (free account has none)
+                    items: { type: object, additionalProperties: true }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+              example:
+                schedules: []
+                messages: []
+
+  /api/v2/get_macro_target_templates:
+    post:
+      tags: [targets]
+      operationId: getMacroTargetTemplates
+      summary: Saved macro target templates
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      x-notes: >-
+        Verified by direct replay with a live session (200). The app itself does
+        NOT call this when opening the Targets screen. Free account without
+        saved templates returns {"templates":[],"messages":[{"id":<n>,
+        "type":"DATA_CHANGED"}]}. Template element shape unobserved.
+        Observed message type DATA_CHANGED here (vs get_profile-style claimable
+        messages on check_messages).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Templates (possibly empty)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    description: Element shape not yet observed (no templates saved)
+                    items: { type: object, additionalProperties: true }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+              example:
+                templates: []
+                messages:
+                  - id: 19228570870
+                    type: DATA_CHANGED
 
   /api/v2/get_pro_client_prefs:
     post:
@@ -406,6 +550,12 @@ paths:
       summary: Poll in-app messages/coach threads (app polls this frequently)
       x-confidence: verified
       x-observed-at: 2026-08-26
+      x-notes: >-
+        Also acts as the settings-change push channel: when targets/prefs are
+        edited from another client (e.g. web), this poll surfaces messages
+        whose numeric IDs look timestamp-based; the app then POSTs claim_message
+        for each ID and refetches get_profile. Message payloads carry no target
+        data themselves — the refetch is authoritative.
       requestBody:
         required: true
         content:
@@ -599,6 +749,16 @@ components:
         auth: { $ref: "#/components/schemas/AuthBlock" }
         lastSeen: { type: integer }
         config: { $ref: "#/components/schemas/CallConfig" }
+
+    MessagesArray:
+      type: array
+      description: Server notification messages; observed fields id (int) and type (string, e.g. DATA_CHANGED)
+      items:
+        type: object
+        properties:
+          id: { type: integer }
+          type: { type: string, examples: ["DATA_CHANGED"] }
+        additionalProperties: true
 
     V2Date:
       type: string
