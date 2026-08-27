@@ -6,6 +6,7 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "npm run dev --workspace cronometer-mcp-worker",
+    "inspector": "npx @modelcontextprotocol/inspector@latest",
     "deploy": "npm run deploy --workspace cronometer-mcp-worker",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "npm run typecheck --workspaces --if-present",
