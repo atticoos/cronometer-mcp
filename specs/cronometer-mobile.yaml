@@ -1,0 +1,623 @@
+# Cronometer Mobile API — OpenAPI 3.1
+#
+# Reverse-engineered from observed traffic of the official Android app
+# (com.cronometer.android.gold, 4.44.3 b2686) via MITM capture.
+# This is an UNDOCUMENTED, UNOFFICIAL API. Cronometer can change it at any
+# time without notice. Field optionality is inferred from single samples.
+#
+# Convention:
+#   x-confidence: verified   — request AND response captured live
+#   x-confidence: inferred   — shape guessed from partial evidence
+#   x-observed-at: date of capture
+openapi: 3.1.0
+info:
+  title: Cronometer Mobile API
+  version: 0.1.0
+  description: |
+    Private mobile API. All v2 POST bodies embed an auth block
+    (except login/check_user, which establish it). Dates use the
+    non-padded format `YYYY-M-D` in v2 bodies.
+servers:
+  - url: https://mobile.cronometer.com
+tags:
+  - name: auth
+  - name: diary
+  - name: foods
+  - name: targets
+  - name: misc
+
+paths:
+  /api/v2/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Authenticate and receive session token + full account/diary snapshot
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      x-notes: >-
+        No auth required. Response is very large (~100KB) and includes
+        localization, profile, macro templates, and full diary entries.
+        The session token for subsequent calls is returned in this body
+        and echoed in every later auth block (also usable as the
+        x-crono-session header for v3 GETs).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, timezone, auth]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                timezone: { type: string, examples: ["America/Toronto"] }
+                userCode: { type: [string, "null"], description: "2FA code when prompted" }
+                build: { type: string, examples: ["4.44.3 b2686-a"] }
+                device: { type: string }
+                firebaseToken: { type: [string, "null"] }
+                features: { type: object }
+                auth: { $ref: "#/components/schemas/AuthBlockNullable" }
+                lastSeen: { type: integer }
+                config:
+                  type: object
+                  properties:
+                    call_version: { type: integer, examples: [2] }
+      responses:
+        "200":
+          description: Session established; profile + diary snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Full snapshot; top-level keys observed include localization, logEverythingToCrashlytics, birthdate, gender, timezone, diaries. Session token is returned here.
+                additionalProperties: true
+
+  /api/v2/check_user:
+    post:
+      tags: [auth]
+      operationId: checkUser
+      summary: Check whether an email has an account (pre-login)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Account existence info
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_diary:
+    post:
+      tags: [diary]
+      operationId: getDiary
+      summary: Full diary for one day (servings, biometrics, exercises, notes, summary)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day, auth]
+              properties:
+                day: { $ref: "#/components/schemas/V2Date" }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Diary document
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    description: consumed/macros/burned/targets_percent/highlighted_targets as seen in login response diaries[].summary
+                    additionalProperties: true
+                  template: { type: object, additionalProperties: true }
+                  diary:
+                    type: array
+                    description: Mixed entry list — food servings, biometrics, exercises, notes. Discriminate on `type`.
+                    items: { $ref: "#/components/schemas/DiaryEntry" }
+                additionalProperties: true
+
+  /api/v2/get_report:
+    post:
+      tags: [diary]
+      operationId: getReport
+      summary: Nutrition report over a date range
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start, end, type, auth]
+              properties:
+                start: { $ref: "#/components/schemas/V2Date" }
+                end: { $ref: "#/components/schemas/V2Date" }
+                type: { type: string, examples: ["All"] }
+                supplements: { type: boolean }
+                allTime: { type: boolean }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Report data
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_food:
+    post:
+      tags: [foods]
+      operationId: getFood
+      summary: Full food document (nutrients, measures) by ID
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, auth]
+              properties:
+                id: { type: integer }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Food document
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_foods:
+    post:
+      tags: [foods]
+      operationId: getFoods
+      summary: Batch food documents by IDs
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids, auth]
+              properties:
+                ids: { type: array, items: { type: integer } }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Food documents
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_myfoods:
+    post:
+      tags: [foods]
+      operationId: getMyFoods
+      summary: User's custom foods and recipes
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthOnlyBody"
+      responses:
+        "200":
+          description: Custom foods
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_recent_foods:
+    post:
+      tags: [foods]
+      operationId: getRecentFoods
+      summary: Recently logged foods
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthOnlyBody"
+      responses:
+        "200":
+          description: Recent foods
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_activity:
+    post:
+      tags: [diary]
+      operationId: getActivity
+      summary: Activity/exercise data
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, auth]
+              properties:
+                id: { type: integer, description: "0 observed; meaning unconfirmed" }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Activity data
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_streak:
+    post:
+      tags: [misc]
+      operationId: getStreak
+      summary: Logging streak as of a day
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day, auth]
+              properties:
+                day: { $ref: "#/components/schemas/V2Date" }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Streak info
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_fasting_with_limit:
+    post:
+      tags: [misc]
+      operationId: getFastingWithLimit
+      summary: Fasting history, paginated
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [limit, offset, auth]
+              properties:
+                limit: { type: integer, examples: [10] }
+                offset: { type: integer }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Fasting history page
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_dashboard_config:
+    post:
+      tags: [misc]
+      operationId: getDashboardConfig
+      summary: Home dashboard widget layout config
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Dashboard config
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_dashboard_energy_data:
+    post:
+      tags: [misc]
+      operationId: getDashboardEnergyData
+      summary: Energy chart data for a date range preset
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dateRangeInt, auth]
+              properties:
+                dateRangeInt: { type: integer, examples: [3], description: "Preset enum, values unconfirmed" }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Energy chart series
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_profile:
+    post:
+      tags: [misc]
+      operationId: getProfile
+      summary: User profile and settings
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth]
+              properties:
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Profile
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/get_pro_client_prefs:
+    post:
+      tags: [misc]
+      operationId: getProClientPrefs
+      summary: Pro/coach client preferences
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Pro client prefs
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/check_messages:
+    post:
+      tags: [misc]
+      operationId: checkMessages
+      summary: Poll in-app messages/coach threads (app polls this frequently)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthOnlyBody" }
+      responses:
+        "200":
+          description: Messages
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/claim_message:
+    post:
+      tags: [misc]
+      operationId: claimMessage
+      summary: Acknowledge a message by ID
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messageId, auth]
+              properties:
+                messageId: { type: integer }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Claim result
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v2/edit_target:
+    post:
+      tags: [targets]
+      operationId: editTarget
+      summary: Set one nutrient target (min/max range)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      x-notes: >-
+        One call per nutrient. Negative id values observed for fixed macro
+        targets (e.g. -1205). App follows with set_pref mirror writes and a
+        get_diary refresh. Response is {"result":"SUCCESS","messages":[]}.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, vis, cus, min, max, auth]
+              properties:
+                id: { type: integer, description: "Cronometer nutrient ID (negative = fixed macro targets)" }
+                vis: { type: boolean }
+                cus: { type: boolean, description: "custom target flag" }
+                min: { type: number }
+                max: { type: number }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Success envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  messages: { type: array, items: { type: string } }
+
+  /api/v2/set_pref:
+    post:
+      tags: [targets]
+      operationId: setPref
+      summary: Write a named preference key (string value)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      x-notes: "Observed keys: targets.fixed.protein (and analogous). Values are strings."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, val, auth]
+              properties:
+                key: { type: string }
+                val: { type: string }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Success envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  messages: { type: array, items: { type: string } }
+
+  /api/v2/add_braze_event_db:
+    post:
+      tags: [misc]
+      operationId: addBrazeEventDb
+      summary: Analytics event beacon (not useful for tooling; documented for completeness)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event, auth]
+              properties:
+                event: { type: string }
+                auth: { $ref: "#/components/schemas/AuthBlock" }
+                lastSeen: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Ack
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v3/user/{userId}/feature-flags:
+    get:
+      tags: [misc]
+      operationId: getFeatureFlags
+      summary: Feature flags (v3 header-auth style)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Flags
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /api/v3/user/{userId}/analytics:
+    get:
+      tags: [misc]
+      operationId: getAnalytics
+      summary: Analytics opt-in state (v3 header-auth style)
+      x-confidence: verified
+      x-observed-at: 2026-08-26
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Analytics settings
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+components:
+  schemas:
+    CallConfig:
+      type: object
+      properties:
+        call_version: { type: integer, examples: [1, 2] }
+
+    AuthBlock:
+      type: object
+      description: Embedded in every authenticated v2 body.
+      required: [userId, token, api, os, build, flavour]
+      properties:
+        userId: { type: integer }
+        token: { type: string, description: "session token from login" }
+        api: { type: integer, examples: [3] }
+        os: { type: string, examples: ["Android"] }
+        build: { type: string, examples: ["2686"] }
+        flavour: { type: string, examples: ["free", "gold"] }
+
+    AuthBlockNullable:
+      allOf:
+        - $ref: "#/components/schemas/AuthBlock"
+      description: Same shape but userId/token may be null (login).
+
+    AuthOnlyBody:
+      type: object
+      required: [auth]
+      properties:
+        auth: { $ref: "#/components/schemas/AuthBlock" }
+        lastSeen: { type: integer }
+        config: { $ref: "#/components/schemas/CallConfig" }
+
+    V2Date:
+      type: string
+      description: "Non-padded date: YYYY-M-D (e.g. 2026-8-26)"
+      examples: ["2026-8-26"]
+
+    DiaryEntry:
+      type: object
+      description: >-
+        Union; discriminate on `type` (observed: Biometric, plus food serving,
+        exercise, note variants not yet fully characterized).
+      required: [type]
+      properties:
+        type: { type: string }
+        amount: { type: number }
+        day: { type: string }
+        time: { type: string }
+        userId: { type: integer }
+        source: { type: string }
+        externalId: { type: string }
+        meta: { type: object, additionalProperties: true }
+      additionalProperties: true
