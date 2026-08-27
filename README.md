@@ -93,7 +93,7 @@ The Worker exposes authenticated MCP tools backed by the mobile API:
 
 - `connection_status` verifies that the MCP grant contains both Cronometer sessions.
 - Food log & diary: `get_food_log`, `add_food_entry`, `remove_food_entry`, `mark_day_complete`, `copy_day`.
-- Nutrition & food database: `get_daily_nutrition`, `get_nutrition_scores`, `search_foods`, `get_food_details`.
+- Nutrition & food database: `get_daily_nutrition`, `search_foods`, `get_food_details`.
 - Foods & recipes: `add_custom_food`, `add_recipe`.
 - Targets & tracking: `get_macro_targets`, `get_fasting_history`, `get_fasting_stats`, `list_biometrics`, `get_biometrics`.
 
