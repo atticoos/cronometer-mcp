@@ -7,7 +7,7 @@ Cronometer MCP is an unofficial [Model Context Protocol (MCP)](https://modelcont
 ## What you can do
 
 - **Review your nutrition:** see your food diary, calories consumed and remaining, and tracked macro and micronutrient totals.
-- **Log and manage meals:** search Cronometer's food database, add or remove diary entries, copy the previous day's entries, and mark days complete or incomplete.
+- **Log and manage meals:** search Cronometer's food database, add or delete food entries, copy the previous day's entries, and mark days complete or incomplete.
 - **Create foods and recipes:** save a custom food from nutrition information or build a recipe from ingredients.
 - **Explore your history:** retrieve macro targets, fasting history and statistics, and biometric trends such as weight or body fat.
 - **Retrieve exports:** access daily nutrition summaries, food servings, exercises, biometrics, and notes for a date range.
@@ -23,7 +23,7 @@ You need a Cronometer account and an MCP client that supports remote HTTP server
    https://mcp.cronometer-mcp.dev/mcp
    ```
 
-3. Complete the browser sign-in flow with your Cronometer username, password, and one-time code if required.
+3. Review the requested read and write access, then complete the browser sign-in flow with your Cronometer username, password, and one-time code if required.
 4. Return to your assistant and ask it to check the connection or retrieve today's food diary.
 
 Connection settings and tool permissions vary by client. If you need to run your own server, follow the [self-hosting guide](docs/development.md#deploy-to-cloudflare).
@@ -46,9 +46,9 @@ Available answers depend on what you track in Cronometer. Your assistant can use
 
 During sign-in, the MCP server receives your Cronometer credentials and exchanges them with Cronometer for sessions. Your password and one-time code are not stored or included in MCP tokens; upstream sessions are stored in encrypted OAuth grant properties. Use a server operator you trust with your account access.
 
-Data returned by tools becomes available to your assistant and is subject to that client's data handling policies. Write tools can change your Cronometer account, including removing diary entries. Review your client's tool permissions before allowing changes.
+Data returned by tools becomes available to your assistant and is subject to that client's data handling policies. Write tools can change your Cronometer account, including **deleting existing food entries**, creating custom foods and recipes, copying diary entries, and marking days complete or incomplete. Review your client's tool permissions before allowing changes.
 
-**Current permission limitation:** the sign-in screen describes access as “read-only,” and the OAuth scope is named `cronometer:read`, but the server also exposes write tools. This connection should be treated as having read and write capabilities.
+The sign-in screen requests read and write access. The OAuth scope is still named `cronometer:read` for compatibility with existing clients. Despite that legacy name, it does not enforce read-only access: an authorized connection has access to all the tools listed below. There is currently no read-only connection mode. You can revoke the MCP connection at any time.
 
 If a Cronometer session expires, reconnect through your MCP client and sign in again. The server does not retain your password to sign you back in automatically.
 

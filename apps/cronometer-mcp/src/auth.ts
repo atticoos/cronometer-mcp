@@ -13,7 +13,8 @@ const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
 const MAX_LOGIN_ATTEMPTS = 5;
 const CSRF_COOKIE = "__Host-CRONOMETER_CSRF";
-const READ_SCOPE = "cronometer:read";
+// Retained for OAuth client compatibility; this scope does not restrict tools to reads.
+const OAUTH_SCOPE = "cronometer:read";
 
 type AuthEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 
@@ -116,7 +117,7 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
 
     const subject = await sha256Hex(`cronometer:${webSession.userId}`);
     const requestedScopes = flow.oauthRequest.scope ?? [];
-    const grantedScopes = requestedScopes.filter((scope) => scope === READ_SCOPE);
+    const grantedScopes = requestedScopes.filter((scope) => scope === OAUTH_SCOPE);
     const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
       metadata: { provider: "cronometer" },
       props: {
@@ -198,7 +199,14 @@ function loginPage(options: {
 </head>
 <body><main>
   <h1>Connect your Cronometer account</h1>
-  <p><strong>${escapeHtml(options.clientName)}</strong> is requesting read-only access through Cronometer MCP.</p>
+  <p><strong>${escapeHtml(options.clientName)}</strong> is requesting read and write access to your Cronometer account through Cronometer MCP. This allows it to:</p>
+  <ul>
+    <li>Read your food diary, nutrition, targets, fasting history, and biometrics; search foods and view food details; and download CSV exports, including exercises and notes.</li>
+    <li>Add and delete food entries.</li>
+    <li>Create custom foods and recipes.</li>
+    <li>Copy diary entries from the previous day.</li>
+    <li>Mark diary days complete or incomplete.</li>
+  </ul>
   ${error}
   <form method="post" action="/authorize">
     <input type="hidden" name="flow_id" value="${escapeHtml(options.flowId)}">
@@ -211,7 +219,7 @@ function loginPage(options: {
     <input id="user_code" name="user_code" autocomplete="one-time-code" inputmode="numeric" maxlength="64" placeholder="000000">
     <button type="submit">Sign in and allow</button>
   </form>
-  <p class="privacy">Your password is sent directly to Cronometer for this sign-in and is never stored. You can revoke the MCP connection at any time.</p>
+  <p class="privacy">Your password is used only to sign in to Cronometer and is never stored. You can revoke the MCP connection at any time.</p>
 </main></body></html>`;
 
   const headers = authorizationSecurityHeaders(options.redirectUri);

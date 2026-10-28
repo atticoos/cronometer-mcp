@@ -60,6 +60,7 @@ const oauthProvider = new OAuthProvider<RuntimeEnv>({
   clientIdMetadataDocumentEnabled: true,
   clientRegistrationEndpoint: "/oauth/register",
   defaultHandler: authHandler,
+  // Legacy scope name retained for client compatibility; tools include reads and writes.
   scopesSupported: ["cronometer:read"],
   tokenEndpoint: "/oauth/token",
 });
