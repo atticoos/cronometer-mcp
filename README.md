@@ -1,104 +1,83 @@
 # Cronometer MCP
 
-A Cloudflare Worker that exposes Cronometer data to MCP clients. Data tools use Cronometer's mobile REST API (the same JSON endpoints as the Android app); CSV exports use Cronometer's private web/GWT endpoints because no public API exists.
+Connect your AI assistant to Cronometer to review your nutrition, log meals, and explore your tracking history in conversation.
 
-## Authentication design
+Cronometer MCP is an unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives compatible assistants access to your Cronometer account. It supports reading your data and making changes to your food diary, custom foods, and recipes.
 
-The Worker has three trust boundaries:
+## What you can do
 
-1. It is an OAuth 2.1 authorization server for ChatGPT and other MCP clients. `@cloudflare/workers-oauth-provider` handles discovery, dynamic client registration, PKCE, token exchange, refresh, revocation, and bearer validation.
-2. During authorization, the user submits their Cronometer username, password, and optional one-time code to the Worker. The Worker immediately exchanges them with **two** upstream sessions:
-   - a **mobile session** via `POST mobile.cronometer.com/api/v2/login`, which returns a `sessionKey` used by all JSON data tools (v2 requests carry an `auth` block; v3 requests use an `x-crono-session` header), and
-   - a **web/GWT session** via the private web login, kept solely to mint short-lived export nonces for CSV downloads.
-3. Neither session outlives its upstream lifetime: both are stored in the OAuth grant's encrypted `props`, and the password and one-time code are never stored or included in an MCP token.
+- **Review your nutrition:** see your food diary, calories consumed and remaining, and tracked macro and micronutrient totals.
+- **Log and manage meals:** search Cronometer's food database, add or remove diary entries, copy the previous day's entries, and mark days complete or incomplete.
+- **Create foods and recipes:** save a custom food from nutrition information or build a recipe from ingredients.
+- **Explore your history:** retrieve macro targets, fasting history and statistics, and biometric trends such as weight or body fat.
+- **Retrieve exports:** access daily nutrition summaries, food servings, exercises, biometrics, and notes for a date range.
 
-Because credentials are never persisted, an expired upstream session cannot be silently refreshed -- affected tools return a reconnect instruction and the MCP connection must be re-authorized through `/authorize`. Note that deploying this refactor changes the stored props shape, so existing connections must reconnect once after upgrade.
+## Connect your assistant
 
-The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT), which reverse-engineered the endpoints from the Cronometer Android app. The export wire format was independently implemented with
-[`jrmycanady/gocronometer`](https://github.com/jrmycanady/gocronometer) as a protocol reference.
-Cronometer's private GWT permutation and request format can change without notice. The reference
-project is GPL-2.0; review licensing before copying any additional implementation code from it.
+You need a Cronometer account and an MCP client that supports remote HTTP servers with OAuth authentication.
 
-## Local development
+1. Add a remote MCP server in your assistant's MCP connection settings.
+2. Enter the server URL:
 
-```sh
-npm install
-npm run cf-typegen
-npm test
-npm run dev
-```
+   ```text
+   https://mcp.cronometer-mcp.dev/mcp
+   ```
 
-Connect an MCP client to `http://localhost:8787/mcp`. Local KV data is maintained by Wrangler.
+3. Complete the browser sign-in flow with your Cronometer username, password, and one-time code if required.
+4. Return to your assistant and ask it to check the connection or retrieve today's food diary.
 
-## Deploy to Cloudflare
+Connection settings and tool permissions vary by client. If you need to run your own server, follow the [self-hosting guide](docs/development.md#deploy-to-cloudflare).
 
-Wrangler can provision the `OAUTH_KV` namespace declared in `wrangler.jsonc` on first deploy:
+**About the npm package:** `npx cronometer-mcp` currently runs a placeholder server with only a status tool. Use the remote server described here for Cronometer data tools. See the [package README](packages/cronometer-mcp/README.md) for its current status.
 
-```sh
-npm run deploy
-```
+## Try asking
 
-Then connect ChatGPT to:
+- “What have I eaten today, and how many calories do I have left?”
+- “Show my protein, fiber, and sodium totals for yesterday.”
+- “Find cooked brown rice and log 150 grams for lunch today.”
+- “Create a recipe from 200 grams of chicken breast and 150 grams of cooked rice.”
+- “How has my weight changed over the last 30 days?”
+- “Summarize my fasting history for the past month.”
+- “Retrieve my daily nutrition summaries for the last seven days.”
 
-```text
-https://cronometer-mcp.<your-workers-subdomain>.workers.dev/mcp
-```
+Available answers depend on what you track in Cronometer. Your assistant can use food search and serving details to identify foods before logging them.
 
-The first connection opens `/authorize`, where the user signs into Cronometer and grants read-only access.
+## Account access and privacy
 
-## Secrets
+During sign-in, the MCP server receives your Cronometer credentials and exchanges them with Cronometer for sessions. Your password and one-time code are not stored or included in MCP tokens; upstream sessions are stored in encrypted OAuth grant properties. Use a server operator you trust with your account access.
 
-Secrets are set per environment with Wrangler and never committed. Local development uses
-`.dev.vars` (copy `.dev.vars.example` and fill in real values; it is gitignored):
+Data returned by tools becomes available to your assistant and is subject to that client's data handling policies. Write tools can change your Cronometer account, including removing diary entries. Review your client's tool permissions before allowing changes.
 
-```sh
-cp apps/cronometer-mcp/.dev.vars.example apps/cronometer-mcp/.dev.vars
-```
+**Current permission limitation:** the sign-in screen describes access as “read-only,” and the OAuth scope is named `cronometer:read`, but the server also exposes write tools. This connection should be treated as having read and write capabilities.
 
-Production secrets for the Worker are created once and survive all deploys (Wrangler,
-GitHub Actions, or manual):
+If a Cronometer session expires, reconnect through your MCP client and sign in again. The server does not retain your password to sign you back in automatically.
 
-```sh
-cd apps/cronometer-mcp
-npx wrangler secret put OTEL_EXPORTER_OTLP_ENDPOINT
-npx wrangler secret put OTEL_EXPORTER_OTLP_HEADERS
-```
+## Available tools
 
-`OTEL_EXPORTER_OTLP_ENDPOINT` is the full OTLP trace URL (for Grafana Cloud, including
-`/v1/traces`). `OTEL_EXPORTER_OTLP_HEADERS` uses the OTel env format
-`key=value,key2=value2`; for Grafana Cloud that is
-`Authorization=Basic <base64 of instance-id:token>` from the stack's OpenTelemetry setup
-page. Rotate by re-running `wrangler secret put`. Use `npx wrangler secret list` to
-verify what is configured; a missing value disables tracing rather than failing requests.
+| Area | Tools |
+| --- | --- |
+| Connection | `connection_status` |
+| Food diary | `get_food_log`, `add_food_entry`, `remove_food_entry`, `copy_day`, `mark_day_complete` |
+| Nutrition and food search | `get_daily_nutrition`, `search_foods`, `get_food_details` |
+| Custom foods and recipes | `add_custom_food`, `add_recipe` |
+| Targets | `get_macro_targets` |
+| Fasting | `get_fasting_history`, `get_fasting_stats` |
+| Biometrics | `list_biometrics`, `get_biometrics` |
+| Data exports | `get_cronometer_data` |
 
-## CI and deployments
+## Limits and troubleshooting
 
-GitHub Actions runs linting and tests for the Worker workspace on pull requests and on `main`.
-Pull requests from branches in this repository upload the app as Cloudflare preview versions;
-merges to `main` deploy it to production.
+- **Expired connection:** reconnect the MCP server in your client and complete sign-in again.
+- **Missing nutrients:** daily nutrition totals include nutrients with targets set in your Cronometer account.
+- **Dates:** tools accept `YYYY-MM-DD` dates. Diary tools with an optional date default to today in your account's timezone.
+- **Copying a day:** `copy_day` adds the previous day's entries to the destination date and keeps existing entries. Repeating it can create duplicates.
+- **Export limits:** each export covers at most 31 inclusive days and returns up to 1,000 rows. Shorten the range if a result is truncated. Exports count toward Cronometer's limited daily export allowance (roughly 10 per day); the mobile data tools do not use that allowance.
+- **Service changes:** this project uses Cronometer's private mobile and web APIs. Changes to those APIs may temporarily break features.
 
-Configure these GitHub Actions secrets before enabling deployments:
+## Development and self-hosting
 
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN` with Cloudflare Workers edit access, scoped to the deployment account
+See the [development guide](docs/development.md) for local setup, Cloudflare deployment, authentication details, secrets, and CI configuration. The mobile API contract is maintained in [`specs/cronometer-mobile.yaml`](specs/cronometer-mobile.yaml).
 
-The deploy jobs use per-app GitHub environments (for example, `production-cronometer-mcp`),
-so approvals and environment-scoped secrets can be configured independently if needed. Preview
-URLs are attached to the GitHub deployment and shown in the workflow run summary. Forked pull
-requests do not receive deployment credentials and skip the preview job.
+## Acknowledgments
 
-## Current scope
-
-The Worker exposes authenticated MCP tools backed by the mobile API:
-
-- `connection_status` verifies that the MCP grant contains both Cronometer sessions.
-- Food log & diary: `get_food_log`, `add_food_entry`, `remove_food_entry`, `mark_day_complete`, `copy_day`.
-- Nutrition & food database: `get_daily_nutrition`, `search_foods`, `get_food_details`.
-- Foods & recipes: `add_custom_food`, `add_recipe`.
-- Targets & tracking: `get_macro_targets`, `get_fasting_history`, `get_fasting_stats`, `list_biometrics`, `get_biometrics`.
-
-In addition, `get_cronometer_data` retrieves raw CSV exports (daily nutrition summaries, food servings, exercises, biometrics, or notes) for an inclusive date range of up to 31 days via the web session.
-
-Each CSV export consumes one of Cronometer's limited daily exports (roughly 10 per day), so clients should request only the dataset and dates they need; the mobile tools are not subject to that limit. Export responses preserve the CSV's column order and values, and return at most 1,000 rows; shorten the date range if a result is marked as truncated.
-
-The Worker never returns or logs Cronometer credentials, sessions, or export nonces. An expired upstream session produces a reconnect instruction instead.
+The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT). The CSV export protocol was independently implemented using [`jrmycanady/gocronometer`](https://github.com/jrmycanady/gocronometer) as a reference. See the [development guide](docs/development.md#authentication-design) for implementation and licensing notes.
