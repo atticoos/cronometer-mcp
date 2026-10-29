@@ -44,7 +44,7 @@ Then connect ChatGPT to:
 https://cronometer-mcp.<your-workers-subdomain>.workers.dev/mcp
 ```
 
-The first connection opens `/authorize`, where the user signs into Cronometer and authorizes the connection. The server includes both read and write tools; the current sign-in screen and OAuth scope still use read-only wording.
+The first connection opens `/authorize`, where the user signs into Cronometer and grants read and write access. The consent screen lists the available capabilities, including deletion of food entries. See [account access and privacy](../README.md#account-access-and-privacy) for the permissions and the legacy `cronometer:read` scope name.
 
 ## Secrets
 
