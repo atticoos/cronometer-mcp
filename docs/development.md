@@ -96,27 +96,30 @@ npm run dev --workspace cronometer-mcp-web
 npm run build --workspace cronometer-mcp-web
 ```
 
-Cloudflare builds and deploys the website through the [Pages Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/).
-Configure the Pages project with these settings.
+The website uses [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/).
+The [Wrangler configuration](../apps/web/wrangler.jsonc) points to the static Next.js export
+in `apps/web/out` and has no script entry point. [Static asset requests use zero Workers compute](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/).
+
+Connect the `cronometer-mcp-web` Worker to Git under **Settings → Build** and configure
+[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
 
 | Setting | Value |
 | --- | --- |
-| Project name | `cronometer-mcp-web` |
+| Worker name | `cronometer-mcp-web` |
 | Git repository | `atticoos/cronometer-mcp` |
 | Production branch | `main` |
 | Root directory | Repository root |
-| Build command | `npm run build:pages --workspace cronometer-mcp-web` |
-| Build output directory | `apps/web/out` |
+| Build command | `npm run build --workspace cronometer-mcp-web` |
+| Deploy command | `npm exec -- wrangler deploy --config apps/web/wrangler.jsonc` |
+| Preview command | `npm exec -- wrangler versions upload --config apps/web/wrangler.jsonc` |
 | Build environment variable | `NODE_VERSION=24` |
 | Build watch paths | `apps/web/*`, `package.json`, `package-lock.json` |
 
-The build checks the static export for a Worker entry point and checks the project root for
-Pages Functions. [Static Pages requests use zero Workers compute](https://developers.cloudflare.com/pages/functions/pricing/).
 Cloudflare builds branch previews with analytics disabled. GitHub Actions runs website lint
 and tests.
 
-For the first cutover, verify the production deployment on `cronometer-mcp-web.pages.dev`
-before moving `cronometer-mcp.dev` from the homepage Worker to the Pages project's custom
-domains. Disable deployments from the old website repository after the cutover. The MCP
-endpoint at `mcp.cronometer-mcp.dev` is managed by the separate Worker deployment.
+For the cutover, verify the asset deployment on its `workers.dev` URL before moving
+`cronometer-mcp.dev` from the old homepage Worker to the `cronometer-mcp-web` Worker's
+custom domains. Disable builds for the old Pages project and website repository when retiring
+them. The MCP endpoint at `mcp.cronometer-mcp.dev` is managed by its own Worker.
 
