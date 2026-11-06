@@ -5,6 +5,7 @@ next-env.d.ts
 .dev.vars
 worker-configuration.d.ts
 dist/
+apps/web/out/
 .vinext/
 coverage/
 *.log

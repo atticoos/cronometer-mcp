@@ -87,3 +87,36 @@ so approvals and environment-scoped secrets can be configured independently if n
 URLs are attached to the GitHub deployment and shown in the workflow run summary. Forked pull
 requests do not receive deployment credentials and skip the preview job.
 
+## Website
+
+The homepage lives in [apps/web](../apps/web). From the repository root:
+
+```sh
+npm run dev --workspace cronometer-mcp-web
+npm run build --workspace cronometer-mcp-web
+```
+
+Cloudflare builds and deploys the website through the [Pages Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/).
+Configure the Pages project with these settings.
+
+| Setting | Value |
+| --- | --- |
+| Project name | `cronometer-mcp-web` |
+| Git repository | `atticoos/cronometer-mcp` |
+| Production branch | `main` |
+| Root directory | Repository root |
+| Build command | `npm run build:pages --workspace cronometer-mcp-web` |
+| Build output directory | `apps/web/out` |
+| Build environment variable | `NODE_VERSION=24` |
+| Build watch paths | `apps/web/*`, `package.json`, `package-lock.json` |
+
+The build checks the static export for a Worker entry point and checks the project root for
+Pages Functions. [Static Pages requests use zero Workers compute](https://developers.cloudflare.com/pages/functions/pricing/).
+Cloudflare builds branch previews with analytics disabled. GitHub Actions runs website lint
+and tests.
+
+For the first cutover, verify the production deployment on `cronometer-mcp-web.pages.dev`
+before moving `cronometer-mcp.dev` from the homepage Worker to the Pages project's custom
+domains. Disable deployments from the old website repository after the cutover. The MCP
+endpoint at `mcp.cronometer-mcp.dev` is managed by the separate Worker deployment.
+
