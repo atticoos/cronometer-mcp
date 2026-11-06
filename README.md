@@ -14,6 +14,9 @@ Cronometer MCP is an unofficial [Model Context Protocol (MCP)](https://modelcont
 
 ## Connect your assistant
 
+- [Set up Cronometer MCP in ChatGPT](https://cronometer-mcp.dev/setup/chatgpt)
+- [Set up Cronometer MCP in Claude](https://cronometer-mcp.dev/setup/claude)
+
 You need a Cronometer account and an MCP client that supports remote HTTP servers with OAuth authentication.
 
 1. Add a remote MCP server in your assistant's MCP connection settings.
