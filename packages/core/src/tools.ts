@@ -84,7 +84,7 @@ function mobileErrorMessage(error: unknown): string {
  * stays decoupled from any particular MCP transport or auth mechanism.
  */
 export function registerCronometerTools(server: McpServer, options: CronometerToolOptions): void {
-  const { getAuthContext, oauth } = options;
+  const { getAuthContext, oauth, onError } = options;
   const authMetadata = oauth
     ? { _meta: { securitySchemes: [{ type: "oauth2", scopes: oauth.scopes }] } }
     : {};
@@ -107,6 +107,9 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
     } catch (error) {
       if (error instanceof mobile.CronometerMobileError && error.reason === "session") {
         return authError(SESSION_EXPIRED_MESSAGE);
+      }
+      if (!(error instanceof mobile.CronometerMobileError) || error.reason === "upstream") {
+        onError?.(error, "mobile");
       }
       return toolError(mobileErrorMessage(error));
     }
@@ -188,8 +191,10 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       } catch (error) {
         if (error instanceof CronometerExportError) {
           if (error.reason === "session") return authError(SESSION_EXPIRED_MESSAGE);
+          if (error.reason === "format" || error.reason === "upstream") onError?.(error, "export");
           return toolError(exportErrorMessage(error.reason));
         }
+        onError?.(error, "export");
         return toolError("Cronometer data retrieval failed. Try again later.");
       }
     },

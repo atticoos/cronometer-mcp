@@ -17,6 +17,7 @@
     "@cloudflare/workers-oauth-provider": "0.10.2",
     "@microlabs/otel-cf-workers": "^1.0.0-rc.52",
     "@modelcontextprotocol/server": "2.0.0",
+    "@sentry/cloudflare": "^11.11.0",
     "agents": "^0.20.1",
     "@cronometer-mcp/cronometer-client": "*",
     "@cronometer-mcp/core": "*",

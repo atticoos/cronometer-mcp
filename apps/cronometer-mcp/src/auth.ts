@@ -8,6 +8,7 @@ import {
   CronometerAuthenticationError,
   authenticateCronometerMobile,
 } from "@cronometer-mcp/cronometer-client";
+import { captureException } from "@sentry/cloudflare";
 
 const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
@@ -139,6 +140,9 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
       status: 302,
     });
   } catch (error) {
+    if (!(error instanceof CronometerAuthenticationError) || error.reason === "session") {
+      captureException(error, { tags: { "cronometer.operation": "authorize" } });
+    }
     const attempts = flow.attempts + 1;
     await env.OAUTH_KV.put(flowKey, JSON.stringify({ ...flow, attempts }), {
       expirationTtl: FLOW_TTL_SECONDS,

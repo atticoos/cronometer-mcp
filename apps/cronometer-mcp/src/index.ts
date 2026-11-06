@@ -10,8 +10,10 @@ import {
   type AuthContext,
 } from "@cronometer-mcp/core";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
+import { captureException, withSentry } from "@sentry/cloudflare";
 import { authHandler, OAUTH_SCOPE } from "./auth";
 import { instrumentToolRegistration } from "./observability";
+import { sentryOptions } from "./sentry";
 
 type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 const MCP_ROUTE = "/mcp";
@@ -22,6 +24,9 @@ export function createServer(reauthorize?: () => Promise<string | undefined>): M
   );
 
   registerCronometerTools(server, {
+    onError: (error, operation) => {
+      captureException(error, { tags: { "cronometer.operation": operation } });
+    },
     getAuthContext: (): AuthContext | null => {
       const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
       return parsed.success ? parsed.data : null;
@@ -75,8 +80,6 @@ function parseOtlpHeaders(raw: string | undefined): Record<string, string> {
   );
 }
 
-// Bind fetch explicitly: the OTel instrumentation invokes handler.fetch without
-// a receiver, and OAuthProvider.fetch depends on internal instance state.
 const oauthProvider = new OAuthProvider<RuntimeEnv>({
   apiHandler: mcpHandler,
   apiRoute: MCP_ROUTE,
@@ -89,8 +92,17 @@ const oauthProvider = new OAuthProvider<RuntimeEnv>({
   tokenEndpoint: "/oauth/token",
 });
 
+const fetchWithOAuth = oauthProvider.fetch.bind(oauthProvider);
+const sentryWorker = withSentry(sentryOptions, { fetch: fetchWithOAuth });
+
 export default instrument(
-  { fetch: oauthProvider.fetch.bind(oauthProvider) },
+  {
+    fetch(request: Request, env: RuntimeEnv, ctx: ExecutionContext) {
+      return env.SENTRY_DSN
+        ? sentryWorker.fetch(request, env, ctx)
+        : fetchWithOAuth(request, env, ctx);
+    },
+  },
   (env) => ({
     exporter: {
       url: env?.OTEL_EXPORTER_OTLP_ENDPOINT,

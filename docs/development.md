@@ -71,6 +71,19 @@ npx wrangler secret put OTEL_EXPORTER_OTLP_HEADERS
 page. Rotate by re-running `wrangler secret put`. Use `npx wrangler secret list` to
 verify what is configured; a missing value disables tracing rather than failing requests.
 
+## Sentry error reporting
+
+Use the DSN from the Cronometer MCP project in Sentry to enable error reporting
+for the Worker. Set it in Cloudflare with `npx wrangler secret put SENTRY_DSN`
+from `apps/cronometer-mcp`. For local testing, set `SENTRY_DSN` and
+`SENTRY_ENVIRONMENT=development` in the Worker's `.dev.vars`.
+Preview deployments label their events `preview`.
+
+Sentry receives uncaught Worker exceptions and unexpected MCP tool and sign-in
+failures. Events include stack locations and, when available, the tool or
+operation name. Exception messages, request details, and breadcrumbs are
+excluded. OpenTelemetry continues to export traces separately.
+
 ## CI and deployments
 
 GitHub Actions runs linting and tests for the Worker workspace on pull requests and on `main`.
