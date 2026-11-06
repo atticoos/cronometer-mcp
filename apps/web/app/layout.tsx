@@ -3,16 +3,18 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { productionUrl, siteName } from "./site";
 
-const previewPrNumber = process.env.PREVIEW_PR_NUMBER;
+const pagesBranch = process.env.CF_PAGES_BRANCH;
+const isPreview = Boolean(pagesBranch && pagesBranch !== "main");
+const previewUrl = isPreview ? process.env.CF_PAGES_URL : undefined;
 const title = `${siteName} — Connect Cronometer to ChatGPT and Claude`;
 const description =
   "Connect Cronometer to ChatGPT, Claude, Cursor, and other MCP clients. Review nutrition, track macros, and log food with this open-source connector.";
 
 export const metadata: Metadata = {
-  metadataBase: process.env.PREVIEW_SITE_URL ? new URL(process.env.PREVIEW_SITE_URL) : productionUrl,
-  title: previewPrNumber ? `${title} (PR #${previewPrNumber})` : title,
+  metadataBase: previewUrl ? new URL(previewUrl) : productionUrl,
+  title: isPreview ? `${title} (Preview)` : title,
   description,
-  robots: previewPrNumber ? { index: false, follow: false } : undefined,
+  robots: isPreview ? { index: false, follow: false } : undefined,
   alternates: { canonical: productionUrl },
   icons: { icon: "/favicon.svg" },
   openGraph: {
@@ -42,7 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       </head>
       <body>
         {children}
-        {previewPrNumber ? null : (
+        {isPreview ? null : (
           <script
             defer
             src="https://cloud.umami.is/script.js"

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
+    "build:pages": "npm run build && test -f out/index.html && test ! -e out/_worker.js && test ! -e ../../functions",
     "lint": "biome ci . && eslint app tests --max-warnings 0",
     "format": "biome format --write .",
     "format:check": "biome format .",
@@ -24,7 +25,6 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "tailwindcss": "^4.1.0",
-    "typescript": "6.0.3",
-    "wrangler": "^4.126.0"
+    "typescript": "6.0.3"
   }
 }

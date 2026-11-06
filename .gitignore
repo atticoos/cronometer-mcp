@@ -5,7 +5,7 @@ next-env.d.ts
 .dev.vars
 worker-configuration.d.ts
 dist/
-apps/cronometer-mcp-website/out/
+apps/web/out/
 .vinext/
 coverage/
 *.log

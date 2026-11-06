@@ -4,8 +4,8 @@
 /opengraph-image
   Content-Type: image/png
 
-https://cronometer-homepage.pages.dev/*
+https://:project.pages.dev/*
   X-Robots-Tag: noindex, nofollow
 
-https://:deployment.cronometer-homepage.pages.dev/*
+https://:deployment.:project.pages.dev/*
   X-Robots-Tag: noindex, nofollow

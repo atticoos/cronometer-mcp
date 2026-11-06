@@ -19,11 +19,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/cronometer-mcp-website/tests/**/*.mjs"],
+    files: ["apps/web/tests/**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["apps/cronometer-mcp-website/app/**/*.{ts,tsx}"],
+    files: ["apps/web/app/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
     rules: reactHooks.configs["recommended-legacy"].rules,
   },

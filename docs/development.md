@@ -89,24 +89,33 @@ requests do not receive deployment credentials and skip the preview job.
 
 ## Website
 
-The homepage lives in [apps/cronometer-mcp-website](../apps/cronometer-mcp-website). From the repository root:
+The homepage lives in [apps/web](../apps/web). From the repository root:
 
 ```sh
 npm run dev --workspace cronometer-mcp-website
 npm run build --workspace cronometer-mcp-website
 ```
 
-The build writes a static Next.js export to `apps/cronometer-mcp-website/out`, including the
-homepage HTML, browser scripts, and social image. [The website workflow](../.github/workflows/deploy-website.yml)
-uploads only that export to Cloudflare Pages. It checks for Pages Functions and a `_worker.js`
-entry point before uploading. [Cloudflare serves static Pages requests without Workers usage](https://developers.cloudflare.com/pages/functions/pricing/).
+Cloudflare builds and deploys the website through the [Pages Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/).
+Configure the Pages project with these settings.
 
-The workflow targets the `cronometer-homepage` Pages project with `main` as its production
-branch. Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_PAGES_API_TOKEN` in GitHub Actions.
-The token needs Cloudflare Pages Edit access for the deployment account. Same-repository pull
-requests deploy to a `pr-<number>` Pages preview with analytics disabled.
+| Setting | Value |
+| --- | --- |
+| Project name | `cronometer-mcp-web` |
+| Git repository | `atticoos/cronometer-mcp` |
+| Production branch | `main` |
+| Root directory | Repository root |
+| Build command | `npm run build:pages --workspace cronometer-mcp-website` |
+| Build output directory | `apps/web/out` |
+| Build environment variable | `NODE_VERSION=24` |
+| Build watch paths | `apps/web/*`, `package.json`, `package-lock.json` |
 
-For the first cutover, verify the production deployment on `cronometer-homepage.pages.dev`
+The build checks the static export for a Worker entry point and checks the project root for
+Pages Functions. [Static Pages requests use zero Workers compute](https://developers.cloudflare.com/pages/functions/pricing/).
+Cloudflare builds branch previews with analytics disabled. GitHub Actions runs website lint
+and tests.
+
+For the first cutover, verify the production deployment on `cronometer-mcp-web.pages.dev`
 before moving `cronometer-mcp.dev` from the homepage Worker to the Pages project's custom
 domains. Disable deployments from the old website repository after the cutover. The MCP
 endpoint at `mcp.cronometer-mcp.dev` is managed by the separate Worker deployment.
