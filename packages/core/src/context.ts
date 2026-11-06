@@ -24,4 +24,8 @@ export type GetAuthContext = () => AuthContext | null;
 
 export interface CronometerToolOptions {
   getAuthContext: GetAuthContext;
+  oauth?: {
+    scopes: string[];
+    reauthorize: () => Promise<string | undefined>;
+  };
 }

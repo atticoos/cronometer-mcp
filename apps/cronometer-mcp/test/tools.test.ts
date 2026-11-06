@@ -43,6 +43,19 @@ describe("registered tool surface", () => {
     const { tools } = await client.listTools();
     for (const tool of tools) {
       expect(tool.inputSchema, `${tool.name} inputSchema`).toHaveProperty("type");
+      expect(tool._meta?.securitySchemes).toEqual([{ type: "oauth2", scopes: ["cronometer:read"] }]);
     }
+  });
+
+  it("falls back to a reconnect message without an authenticated HTTP request", async () => {
+    const result = await client.callTool({
+      name: "add_food_entry",
+      arguments: { foodId: 1, measureId: 1, grams: 100 },
+    });
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{ type: "text", text: expect.stringContaining("Reconnect") }],
+    });
+    expect(result._meta).toBeUndefined();
   });
 });

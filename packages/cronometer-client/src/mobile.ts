@@ -221,7 +221,11 @@ async function requestV2<T extends JsonRecord = JsonRecord>(
   const data = await readJsonResponse(response, endpoint);
   const result = data.get("result");
   if (result === "FAIL" || result === "FAILURE") {
-    throw new CronometerMobileError("session");
+    const message = data.string("error") ?? "";
+    const invalidSession =
+      (/\b(?:session|sessionKey|token)\b/i.test(message) && /\b(?:invalid|expired|missing)\b/i.test(message)) ||
+      /\b(?:unauthorized|not authenticated|not logged in)\b/i.test(message);
+    throw new CronometerMobileError(invalidSession ? "session" : "upstream");
   }
   return data.raw as T;
 }
@@ -244,12 +248,16 @@ async function requestV3(
   jsonBody?: unknown,
   fetcher: Fetcher = fetch,
 ): Promise<Response> {
-  return fetcher(`${MOBILE_BASE_URL}/api/v3/user/${session.userId}${path}`, {
+  const response = await fetcher(`${MOBILE_BASE_URL}/api/v3/user/${session.userId}${path}`, {
     body: jsonBody === undefined ? undefined : JSON.stringify(jsonBody),
     headers: v3Headers(session),
     method,
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
+  if (response.status === 401 || response.status === 403) {
+    throw new CronometerMobileError("session");
+  }
+  return response;
 }
 
 class JsonResponse {

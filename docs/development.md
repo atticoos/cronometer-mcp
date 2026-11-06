@@ -12,7 +12,7 @@ The Worker has three trust boundaries:
    - a **web/GWT session** via the private web login, kept solely to mint short-lived export nonces for CSV downloads.
 3. Neither session outlives its upstream lifetime: both are stored in the OAuth grant's encrypted `props`, and the password and one-time code are never stored or included in an MCP token.
 
-Because credentials are never persisted, an expired upstream session cannot be silently refreshed -- affected tools return a reconnect instruction and the MCP connection must be re-authorized through `/authorize`.
+When a tool detects an invalid Cronometer session, the HTTPS Worker revokes that OAuth grant and returns a tool-level authentication challenge. Clients that support the challenge can open `/authorize` from the tool call. Signing in there creates fresh mobile and web sessions. The Worker discards the password and one-time code, so renewing Cronometer sessions requires sign-in. An expired MCP access token can still be refreshed through `/oauth/token` while its grant is valid.
 
 The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT), which reverse-engineered the endpoints from the Cronometer Android app. The export wire format was independently implemented with
 [`jrmycanady/gocronometer`](https://github.com/jrmycanady/gocronometer) as a protocol reference.
