@@ -162,7 +162,8 @@ describe("Cronometer OAuth reauthorization", () => {
   it("rejects an expired MCP bearer before calling Cronometer and permits OAuth refresh", async () => {
     const clientId = await registerClient();
     const initial = await authorize(clientId);
-    const { keys: [key] } = await env.OAUTH_KV.list({ prefix: "token:" });
+    const [userId, grantId] = initial.access_token.split(":");
+    const { keys: [key] } = await env.OAUTH_KV.list({ prefix: `token:${userId}:${grantId}:` });
     const record = await env.OAUTH_KV.get<object>(key.name, "json");
     await env.OAUTH_KV.put(key.name, JSON.stringify({ ...record, expiresAt: 0 }));
     fetchUpstream.mockClear();
