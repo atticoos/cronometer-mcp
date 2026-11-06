@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ArrowRightIcon,
   CheckIcon,
   ClaudeIcon,
   CodeIcon,
@@ -18,6 +19,7 @@ import {
 } from "./icons";
 
 import { trackCta } from "../cta-analytics";
+import { setupClientNames, setupPaths } from "../site";
 
 type Icon = ComponentType<{ className?: string }>;
 
@@ -84,23 +86,22 @@ function buildGuides(endpoint: string): ClientGuide[] {
       kind: "Browser app",
       icon: OpenAIIcon,
       summary:
-        "Custom connectors live behind developer mode; works on any plan that has it.",
+        "Use ChatGPT on the web with access to custom MCP plugins.",
       steps: [
         <>
-          Open <Mono>Settings → Apps &amp; Connectors → Advanced settings</Mono> and
-          switch <Mono>Developer mode</Mono> on.
+          Open <Mono>Plugins</Mono>, select the plus button, and choose{" "}
+          <Mono>Add custom MCP server</Mono>.
         </>,
         <>
-          Back under Apps &amp; Connectors, choose <Mono>Create</Mono> next to Custom
-          connectors, name it <Said>Cronometer</Said>, and paste the endpoint URL.
+          Name it <Said>Cronometer</Said>, paste the endpoint URL, and select{" "}
+          <Mono>OAuth</Mono>.
         </>,
         <>
-          Click <Mono>Authenticate</Mono>—the Cronometer sign-in opens in a popup.
-          Enter your username, password, and one-time code, then approve access.
+          Create and install the plugin, then sign in to Cronometer when prompted.
         </>,
         <>
-          Enable Cronometer in the connector picker for your chat and ask{" "}
-          <Said>Which Cronometer account is connected?</Said>
+          Select Cronometer with <Mono>@</Mono> in a new chat and ask{" "}
+          <Said>Show me today’s Cronometer food diary.</Said>
         </>,
       ],
       snippet: { kind: "url", caption: "Connector URL", value: endpoint },
@@ -114,19 +115,18 @@ function buildGuides(endpoint: string): ClientGuide[] {
       summary: "Same flow in claude.ai and the Claude Desktop app.",
       steps: [
         <>
-          Open <Mono>Settings → Connectors</Mono> in claude.ai or the desktop app.
+          Open <Mono>Customize → Connectors</Mono> in Claude on the web or desktop.
         </>,
         <>
-          Scroll to Custom connectors and choose <Mono>Add custom connector</Mono>.
+          Select <Mono>Add</Mono> and choose the custom web connector option.
         </>,
         <>
-          Paste the endpoint URL below and save—Claude reads the tool manifest from
-          the server immediately.
+          Name it <Said>Cronometer</Said>, paste the endpoint URL, and select{" "}
+          <Mono>Sign in now</Mono>. Choose <Mono>Register automatically</Mono> if asked.
         </>,
         <>
-          When the OAuth window appears, sign in to Cronometer once. Then ask{" "}
-          <Said>What did I eat yesterday?</Said> in any chat with the connector
-          enabled.
+          Sign in to Cronometer. Enable it from the chat’s <Mono>+ → Connectors</Mono>{" "}
+          menu and ask <Said>Show me today’s Cronometer food diary.</Said>
         </>,
       ],
       snippet: { kind: "url", caption: "Connector URL", value: endpoint },
@@ -364,7 +364,7 @@ export default function SetupTabs({ endpoint }: { endpoint: string }) {
         aria-label={active.name}
         className="chat-enter mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
       >
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-white/5 px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-white/5 px-5 py-4 sm:px-6">
           <span
             className={`flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] ring-1 ring-white/10 ${
               active.iconClass ?? "text-zinc-200"
@@ -381,6 +381,19 @@ export default function SetupTabs({ endpoint }: { endpoint: string }) {
             </div>
             <p className="mt-0.5 text-xs text-zinc-500">{active.summary}</p>
           </div>
+          {/* Keep both guide destinations in the exported homepage. */}
+          {(Object.keys(setupPaths) as (keyof typeof setupPaths)[]).map((client) => (
+            <a
+              key={client}
+              href={setupPaths[client]}
+              className={active.id === client
+                ? "inline-flex items-center gap-2 rounded-full border border-emerald-400/30 px-3 py-2 text-xs font-semibold text-emerald-300 transition-colors hover:border-emerald-400/60 hover:bg-emerald-400/10 focus-visible:outline-emerald-300 sm:ml-auto"
+                : "hidden"}
+            >
+              Full setup guide<span className="sr-only"> for {setupClientNames[client]}</span>
+              <ArrowRightIcon className="size-3.5" />
+            </a>
+          ))}
         </div>
         <div className="grid lg:grid-cols-[1fr_minmax(300px,42%)]">
           <ol className="space-y-5 px-5 py-6 sm:px-6">
