@@ -1,0 +1,30 @@
+{
+  "name": "cronometer-mcp-website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "lint": "biome ci . && eslint app tests --max-warnings 0",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "node --test tests/*.test.mjs && npm run build",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "6.0.3",
+    "wrangler": "^4.126.0"
+  }
+}
