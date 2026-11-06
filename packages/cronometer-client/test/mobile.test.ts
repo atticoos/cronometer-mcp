@@ -116,10 +116,10 @@ describe("requestV2 auth handling", () => {
     });
   });
 
-  it("treats a FAIL body with HTTP 200 as an expired session", async () => {
+  it.each(["session expired", "Authentication Failed"])("treats a FAIL body with %s as an expired session", async (error) => {
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(jsonResponse({ error: "session expired", result: "FAIL" }));
+      .mockResolvedValueOnce(jsonResponse({ error, result: "FAIL" }));
     await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({ reason: "session" });
   });
 
