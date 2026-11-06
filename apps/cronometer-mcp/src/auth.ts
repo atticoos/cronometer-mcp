@@ -14,7 +14,7 @@ const FLOW_TTL_SECONDS = 10 * 60;
 const MAX_LOGIN_ATTEMPTS = 5;
 const CSRF_COOKIE = "__Host-CRONOMETER_CSRF";
 // Retained for OAuth client compatibility; this scope does not restrict tools to reads.
-const OAUTH_SCOPE = "cronometer:read";
+export const OAUTH_SCOPE = "cronometer:read";
 
 type AuthEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 

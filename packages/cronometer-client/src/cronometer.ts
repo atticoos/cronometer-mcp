@@ -335,7 +335,7 @@ function authorizationTokenBody(sessionNonce: string, userId: string): string {
 
 function parseAuthorizationToken(body: string): string {
   const quoted = /"(?:[^"\\]|\\.)*"/.exec(body)?.[0];
-  if (!quoted) throw new CronometerExportError("session");
+  if (!quoted) throw new CronometerExportError("format");
 
   try {
     const token: unknown = JSON.parse(quoted);

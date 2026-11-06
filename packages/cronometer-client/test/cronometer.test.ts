@@ -141,6 +141,19 @@ describe("exportCronometerData", () => {
       ),
     ).rejects.toMatchObject({ reason: "session" });
   });
+
+  it("distinguishes an unexpected export token response from a session rejection", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response("//EX[0,0]"));
+    await expect(
+      exportCronometerData(
+        { cookies: "sesnonce=session-secret", userId: "12345" },
+        "servings",
+        "2026-08-20",
+        "2026-08-20",
+        fetcher,
+      ),
+    ).rejects.toMatchObject({ reason: "format" });
+  });
 });
 
 describe("parseCronometerCsv", () => {

@@ -120,7 +120,14 @@ describe("requestV2 auth handling", () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(jsonResponse({ error: "session expired", result: "FAIL" }));
-    await expect(getDiary(session, undefined, fetcher)).rejects.toBeInstanceOf(CronometerMobileError);
+    await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({ reason: "session" });
+  });
+
+  it("does not treat an unrelated FAIL body as an expired session", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({ error: "Food not found", result: "FAIL" }),
+    );
+    await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({ reason: "upstream" });
   });
 
   it("surfaces upstream failures", async () => {
@@ -166,6 +173,16 @@ describe("deleteEntries (v3)", () => {
     const result = await deleteEntries(session, ["999"], undefined, fetcher);
     expect(result).toEqual({ count: 0, removed: [] });
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a v3 authentication rejection as an expired session", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ diary: [{ servingId: 101 }] }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+    await expect(deleteEntries(session, ["101"], undefined, fetcher)).rejects.toMatchObject({
+      reason: "session",
+    });
   });
 });
 

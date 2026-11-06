@@ -50,7 +50,7 @@ Data returned by tools becomes available to your assistant and is subject to tha
 
 The sign-in screen requests read and write access. The OAuth scope is still named `cronometer:read` for compatibility with existing clients. Despite that legacy name, it does not enforce read-only access: an authorized connection has access to all the tools listed below. There is currently no read-only connection mode. You can revoke the MCP connection at any time.
 
-If a Cronometer session expires, reconnect through your MCP client and sign in again. The server does not retain your password to sign you back in automatically.
+If a Cronometer session expires, follow the sign-in prompt from your MCP client, then retry the tool. The server discards your password after sign-in.
 
 ## Available tools
 
@@ -67,7 +67,7 @@ If a Cronometer session expires, reconnect through your MCP client and sign in a
 
 ## Limits and troubleshooting
 
-- **Expired connection:** reconnect the MCP server in your client and complete sign-in again.
+- **Expired connection:** if your client does not show a sign-in prompt, reconnect the MCP server in your client and sign in again.
 - **Missing nutrients:** daily nutrition totals include nutrients with targets set in your Cronometer account.
 - **Dates:** tools accept `YYYY-MM-DD` dates. Diary tools with an optional date default to today in your account's timezone.
 - **Copying a day:** `copy_day` adds the previous day's entries to the destination date and keeps existing entries. Repeating it can create duplicates.

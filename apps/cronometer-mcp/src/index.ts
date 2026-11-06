@@ -10,32 +10,56 @@ import {
   type AuthContext,
 } from "@cronometer-mcp/core";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
-import { authHandler } from "./auth";
+import { authHandler, OAUTH_SCOPE } from "./auth";
 import { instrumentToolRegistration } from "./observability";
 
 type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
+const MCP_ROUTE = "/mcp";
 
-export function createServer(): McpServer {
+export function createServer(reauthorize?: () => Promise<string | undefined>): McpServer {
   const server = instrumentToolRegistration(
     new McpServer({ name: "Cronometer MCP", version: "0.3.0" }),
   );
 
-  return (
-    registerCronometerTools(server, {
-      getAuthContext: (): AuthContext | null => {
-        const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
-        return parsed.success ? parsed.data : null;
-      },
-    }),
-    server
-  );
+  registerCronometerTools(server, {
+    getAuthContext: (): AuthContext | null => {
+      const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
+      return parsed.success ? parsed.data : null;
+    },
+    oauth: {
+      scopes: [OAUTH_SCOPE],
+      reauthorize: reauthorize ?? (async () => undefined),
+    },
+  });
+  return server;
 }
 
 const mcpHandler = {
   fetch(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Response | Promise<Response> {
-    return createMcpHandler(createServer)(request, env, ctx);
+    return createMcpHandler(() => createServer(() => reauthorize(request, env)))(request, env, ctx);
   },
 } satisfies ExportedHandler<RuntimeEnv>;
+
+async function reauthorize(request: Request, env: RuntimeEnv): Promise<string | undefined> {
+  const url = new URL(request.url);
+  const bearer = request.headers.get("Authorization");
+  if (url.protocol !== "https:" || url.pathname !== MCP_ROUTE || !bearer?.startsWith("Bearer ")) {
+    return;
+  }
+
+  // The provider validated the bearer before dispatch. Retire the grant whose
+  // upstream sessions are unusable so an OAuth refresh cannot keep reissuing it.
+  try {
+    const token = await env.OAUTH_PROVIDER.unwrapToken<unknown>(bearer.slice(7));
+    if (!token) return;
+    await env.OAUTH_PROVIDER.revokeGrant(token.grantId, token.userId);
+  } catch {
+    return;
+  }
+
+  const metadata = `${url.origin}/.well-known/oauth-protected-resource${MCP_ROUTE}`;
+  return `Bearer resource_metadata="${metadata}", error="invalid_token", error_description="Sign in to Cronometer again"`;
+}
 
 function parseOtlpHeaders(raw: string | undefined): Record<string, string> {
   if (!raw) return {};
@@ -55,13 +79,13 @@ function parseOtlpHeaders(raw: string | undefined): Record<string, string> {
 // a receiver, and OAuthProvider.fetch depends on internal instance state.
 const oauthProvider = new OAuthProvider<RuntimeEnv>({
   apiHandler: mcpHandler,
-  apiRoute: "/mcp",
+  apiRoute: MCP_ROUTE,
   authorizeEndpoint: "/authorize",
   clientIdMetadataDocumentEnabled: true,
   clientRegistrationEndpoint: "/oauth/register",
   defaultHandler: authHandler,
-  // Legacy scope name retained for client compatibility; tools include reads and writes.
-  scopesSupported: ["cronometer:read"],
+  resourceMetadata: { scopes_supported: [OAUTH_SCOPE] },
+  scopesSupported: [OAUTH_SCOPE],
   tokenEndpoint: "/oauth/token",
 });
 
