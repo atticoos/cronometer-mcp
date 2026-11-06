@@ -1,5 +1,6 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { McpServer } from "@modelcontextprotocol/server";
+import { captureException, withScope } from "@sentry/cloudflare";
 
 type ToolResult = { isError?: boolean } & Record<string, unknown>;
 type ToolHandler = (
@@ -41,7 +42,10 @@ export function instrumentToolRegistration(server: McpServer): McpServer {
         const keys = argKeys(args);
         if (keys) span.setAttribute("mcp.tool.arg_keys", keys);
         try {
-          const result = await handler(args, extra);
+          const result = await withScope((scope) => {
+            scope.setTag("mcp.tool.name", name);
+            return handler(args, extra);
+          });
           const failed = result?.isError === true;
           span.setAttribute("mcp.tool.outcome", failed ? "returned_error" : "success");
           span.setStatus({
@@ -50,6 +54,7 @@ export function instrumentToolRegistration(server: McpServer): McpServer {
           span.end();
           return result;
         } catch (error) {
+          captureException(error, { tags: { "mcp.tool.name": name } });
           span.setAttribute("mcp.tool.outcome", "thrown_error");
           span.recordException(error as Error);
           span.setStatus({

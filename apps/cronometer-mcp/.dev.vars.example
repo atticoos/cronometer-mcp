@@ -4,6 +4,11 @@
 # Production values are set with:
 #   npx wrangler secret put OTEL_EXPORTER_OTLP_ENDPOINT
 #   npx wrangler secret put OTEL_EXPORTER_OTLP_HEADERS
+#   npx wrangler secret put SENTRY_DSN
+
+# Optional: send MCP Worker error events to a Sentry project.
+# SENTRY_DSN=https://<key>@<ingest-host>/<project-id>
+# SENTRY_ENVIRONMENT=development
 
 # Grafana Cloud OTLP trace endpoint (full path, including /v1/traces).
 OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-<region>.grafana.net/otlp/v1/traces
