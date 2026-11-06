@@ -92,8 +92,8 @@ requests do not receive deployment credentials and skip the preview job.
 The homepage lives in [apps/web](../apps/web). From the repository root:
 
 ```sh
-npm run dev --workspace cronometer-mcp-website
-npm run build --workspace cronometer-mcp-website
+npm run dev --workspace cronometer-mcp-web
+npm run build --workspace cronometer-mcp-web
 ```
 
 Cloudflare builds and deploys the website through the [Pages Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/).
@@ -105,7 +105,7 @@ Configure the Pages project with these settings.
 | Git repository | `atticoos/cronometer-mcp` |
 | Production branch | `main` |
 | Root directory | Repository root |
-| Build command | `npm run build:pages --workspace cronometer-mcp-website` |
+| Build command | `npm run build:pages --workspace cronometer-mcp-web` |
 | Build output directory | `apps/web/out` |
 | Build environment variable | `NODE_VERSION=24` |
 | Build watch paths | `apps/web/*`, `package.json`, `package-lock.json` |
