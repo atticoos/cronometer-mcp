@@ -221,8 +221,9 @@ async function requestV2<T extends JsonRecord = JsonRecord>(
   const data = await readJsonResponse(response, endpoint);
   const result = data.get("result");
   if (result === "FAIL" || result === "FAILURE") {
-    const message = data.string("error") ?? "";
+    const message = data.string("error")?.trim() ?? "";
     const invalidSession =
+      message.toLowerCase() === "authentication failed" ||
       (/\b(?:session|sessionKey|token)\b/i.test(message) && /\b(?:invalid|expired|missing)\b/i.test(message)) ||
       /\b(?:unauthorized|not authenticated|not logged in)\b/i.test(message);
     throw new CronometerMobileError(invalidSession ? "session" : "upstream");

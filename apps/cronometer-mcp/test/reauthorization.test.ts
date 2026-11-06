@@ -38,7 +38,7 @@ beforeEach(() => {
         const { auth } = JSON.parse(String(init?.body));
         return auth.token === mobileSession
           ? Response.json({ result: "SUCCESS", servingId: 123 })
-          : Response.json({ result: "FAIL", error: "Session expired" });
+          : Response.json({ result: "FAIL", error: "Authentication Failed" });
       }
       default:
         throw new Error("Unexpected outbound request");
