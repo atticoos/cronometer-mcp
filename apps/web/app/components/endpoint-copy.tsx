@@ -35,7 +35,7 @@ export default function EndpointCopy({ url, placement = "hero" }: { url: string;
         type="button"
         onClick={copy}
         aria-label={`Copy ${url} to clipboard`}
-        className="group inline-flex max-w-full items-start gap-2 rounded-md py-0.5 text-left font-mono text-xs text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:ring-1 focus-visible:ring-emerald-500/50 focus-visible:outline-none"
+        className="group inline-flex max-w-full items-start gap-2 rounded-md py-0.5 text-left font-mono text-xs text-zinc-400 transition-colors hover:text-zinc-200 focus-visible:ring-1 focus-visible:ring-emerald-500/50 focus-visible:outline-none"
       >
         <span className="mt-px shrink-0">
           {copied ? (

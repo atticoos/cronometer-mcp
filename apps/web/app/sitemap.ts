@@ -1,8 +1,10 @@
 import type { MetadataRoute } from "next";
-import { productionUrl } from "./site";
+import { productionUrl, setupPaths } from "./site";
 
 export const dynamic = "force-static";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return [{ url: productionUrl.href }];
+  return ["/", ...Object.values(setupPaths)].map((path) => ({
+    url: new URL(path, productionUrl).href,
+  }));
 }

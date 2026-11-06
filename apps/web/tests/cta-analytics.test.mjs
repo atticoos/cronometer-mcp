@@ -134,6 +134,10 @@ test("setup URL surface and copy button are siblings without a bubbling tracking
       react: hookMocks,
       "./icons": {},
       "../cta-analytics": { trackCta: (...args) => calls.push(args) },
+      "../site": {
+        setupPaths: { chatgpt: "/setup/chatgpt", claude: "/setup/claude" },
+        setupClientNames: { chatgpt: "ChatGPT", claude: "Claude" },
+      },
     },
   ).default;
   const tree = SetupTabs({ endpoint: "https://example.test/mcp" });

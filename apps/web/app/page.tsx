@@ -1,9 +1,10 @@
 import type { ComponentType, ReactNode } from "react";
-import { productionUrl, siteName } from "./site";
+import { githubUrl as GITHUB_URL, mcpEndpoint as ENDPOINT, productionUrl, siteName } from "./site";
 import DemoTabs, { MacroPlanDemo } from "./components/demo-tabs";
 import CtaLink from "./components/cta-link";
 import EndpointCopy from "./components/endpoint-copy";
 import SetupTabs from "./components/setup-tabs";
+import SiteHeader from "./components/site-header";
 import {
   AppleIcon,
   ArrowRightIcon,
@@ -16,7 +17,6 @@ import {
   CursorIcon,
   DownloadIcon,
   GeminiIcon,
-  GitHubIcon,
   HeartPulseIcon,
   HermesIcon,
   LeafIcon,
@@ -32,13 +32,6 @@ import {
 } from "./components/icons";
 
 type Icon = ComponentType<{ className?: string }>;
-
-const NAV_LINKS = [
-  { label: "Use cases", href: "#use-cases" },
-  { label: "Capabilities", href: "#capabilities" },
-  { label: "Setup", href: "#setup" },
-  { label: "FAQ", href: "#faq" },
-];
 
 const PROBLEMS: { icon: Icon; title: string; body: string }[] = [
   {
@@ -258,9 +251,6 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
   },
 ];
 
-const ENDPOINT = "https://mcp.cronometer-mcp.dev/mcp";
-const GITHUB_URL = "https://github.com/atticoos/cronometer-mcp";
-
 function SectionHeading({
   eyebrow,
   title,
@@ -280,55 +270,6 @@ function SectionHeading({
         <p className="mt-4 text-base leading-relaxed text-zinc-400">{children}</p>
       ) : null}
     </div>
-  );
-}
-
-function Nav() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-white/5 bg-[#060a08]/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <a href="#top" className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
-            <LeafIcon className="size-[18px]" />
-          </span>
-          <span className="hidden font-mono text-sm font-semibold text-white sm:inline">
-            cronometer<span className="text-emerald-400">-mcp</span>
-          </span>
-        </a>
-        <nav className="hidden items-center gap-8 md:flex">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              {link.label}
-            </a>
-          ))}
-        </nav>
-        <div className="flex items-center gap-2">
-          <CtaLink
-            cta="view_github"
-            placement="header"
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="View Cronometer MCP on GitHub"
-            className="flex size-9 items-center justify-center rounded-full border border-white/10 text-zinc-400 transition-colors hover:border-white/25 hover:text-white"
-          >
-            <GitHubIcon className="size-[18px]" />
-          </CtaLink>
-          <CtaLink
-            cta="connect_cronometer"
-            placement="header"
-            href="#setup"
-            className="rounded-full bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-400 sm:px-4 sm:text-sm"
-          >
-            Connect Cronometer
-          </CtaLink>
-        </div>
-      </div>
-    </header>
   );
 }
 
@@ -664,7 +605,7 @@ function Setup() {
           </p>
           <span className="h-px flex-1 bg-white/5" />
         </div>
-        <div className="mt-10">
+        <div className="mt-8">
           <SetupTabs endpoint={ENDPOINT} />
         </div>
       </div>
@@ -777,7 +718,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen font-sans">
       <script type="application/ld+json">{JSON.stringify(website)}</script>
-      <Nav />
+      <SiteHeader onHomePage />
       <main>
         <Hero />
         <Problem />
