@@ -3,15 +3,14 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { productionUrl, siteName } from "./site";
 
-const pagesBranch = process.env.CF_PAGES_BRANCH;
-const isPreview = Boolean(pagesBranch && pagesBranch !== "main");
-const previewUrl = isPreview ? process.env.CF_PAGES_URL : undefined;
+const buildBranch = process.env.WORKERS_CI_BRANCH;
+const isPreview = Boolean(buildBranch && buildBranch !== "main");
 const title = `${siteName} — Connect Cronometer to ChatGPT and Claude`;
 const description =
   "Connect Cronometer to ChatGPT, Claude, Cursor, and other MCP clients. Review nutrition, track macros, and log food with this open-source connector.";
 
 export const metadata: Metadata = {
-  metadataBase: previewUrl ? new URL(previewUrl) : productionUrl,
+  metadataBase: productionUrl,
   title: isPreview ? `${title} (Preview)` : title,
   description,
   robots: isPreview ? { index: false, follow: false } : undefined,
