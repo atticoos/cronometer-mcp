@@ -87,4 +87,4 @@ The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Notices for ported third-party code are in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).

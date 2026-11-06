@@ -146,5 +146,9 @@ To publish a new listing version:
 1. Bump `version` in `server.json` (the registry rejects a version it already has). Keep `description` at 100 characters or fewer.
 2. Install the publisher: `brew install mcp-publisher`, or download a release from [modelcontextprotocol/registry](https://github.com/modelcontextprotocol/registry/releases).
 3. From the repository root, run `mcp-publisher login github` and sign in as `atticoos`.
-4. Run `mcp-publisher publish`.
-5. Confirm the listing: `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.atticoos/cronometer-mcp"`.
+4. Run `mcp-publisher validate`, then `mcp-publisher publish`.
+5. Confirm the listing shows the version you published:
+
+   ```sh
+   curl -s "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.atticoos%2Fcronometer-mcp/versions/latest" | jq -r '.server.version'
+   ```
