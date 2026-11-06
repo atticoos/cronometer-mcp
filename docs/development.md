@@ -136,3 +136,15 @@ For the cutover, verify the asset deployment on its `workers.dev` URL before mov
 custom domains. Disable builds for the old Pages project and website repository when retiring
 them. The MCP endpoint at `mcp.cronometer-mcp.dev` is managed by its own Worker.
 
+
+## MCP Registry listing
+
+[`server.json`](../server.json) describes the hosted server for the [official MCP Registry](https://registry.modelcontextprotocol.io) under the `io.github.atticoos/cronometer-mcp` name. Directories such as Glama and PulseMCP read from the registry, so it is the first place to update when the server's endpoint or description changes.
+
+To publish a new listing version:
+
+1. Bump `version` in `server.json` (the registry rejects a version it already has). Keep `description` at 100 characters or fewer.
+2. Install the publisher: `brew install mcp-publisher`, or download a release from [modelcontextprotocol/registry](https://github.com/modelcontextprotocol/registry/releases).
+3. From the repository root, run `mcp-publisher login github` and sign in as `atticoos`.
+4. Run `mcp-publisher publish`.
+5. Confirm the listing: `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.atticoos/cronometer-mcp"`.

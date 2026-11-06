@@ -84,3 +84,7 @@ See the [development guide](docs/development.md) for local setup, Cloudflare dep
 ## Acknowledgments
 
 The mobile API integration is a TypeScript port of [`rwestergren/cronometer-api-mcp`](https://github.com/rwestergren/cronometer-api-mcp) (MIT). The CSV export protocol was independently implemented using [`jrmycanady/gocronometer`](https://github.com/jrmycanady/gocronometer) as a reference. See the [development guide](docs/development.md#authentication-design) for implementation and licensing notes.
+
+## License
+
+[MIT](LICENSE)
