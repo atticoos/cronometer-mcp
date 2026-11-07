@@ -1,4 +1,8 @@
-import { instrument } from "@microlabs/otel-cf-workers";
+import {
+  BatchTraceSpanProcessor,
+  instrument,
+  OTLPExporter,
+} from "@microlabs/otel-cf-workers";
 import {
   OAuthProvider,
   type OAuthHelpers,
@@ -12,7 +16,11 @@ import {
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { captureException, withSentry } from "@sentry/cloudflare";
 import { authHandler, OAUTH_SCOPE } from "./auth";
-import { holdTraceUntilBodyDone, instrumentToolRegistration } from "./observability";
+import {
+  holdTraceUntilBodyDone,
+  instrumentToolRegistration,
+  RedactingSpanProcessor,
+} from "./observability";
 import { sentryOptions } from "./sentry";
 import { createToolCallLogSink } from "./tool-call-log";
 import { env as workerEnv, waitUntil } from "cloudflare:workers";
@@ -136,10 +144,16 @@ export default instrument(
     },
   },
   (env) => ({
-    exporter: {
-      url: env?.OTEL_EXPORTER_OTLP_ENDPOINT,
-      headers: parseOtlpHeaders(env?.OTEL_EXPORTER_OTLP_HEADERS),
-    },
+    // Auto-instrumented KV and fetch spans record storage keys and full URLs.
+    // Redact them before anything is queued for export.
+    spanProcessors: new RedactingSpanProcessor(
+      new BatchTraceSpanProcessor(
+        new OTLPExporter({
+          url: env?.OTEL_EXPORTER_OTLP_ENDPOINT,
+          headers: parseOtlpHeaders(env?.OTEL_EXPORTER_OTLP_HEADERS),
+        }),
+      ),
+    ),
     service: { name: env?.OTEL_SERVICE_NAME ?? "cronometer-mcp" },
     // MCP clients (e.g. ChatGPT) may send an unsampled traceparent, which the
     // default parent-based sampler would inherit — silently dropping every
