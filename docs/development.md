@@ -71,6 +71,20 @@ npx wrangler secret put OTEL_EXPORTER_OTLP_HEADERS
 page. Rotate by re-running `wrangler secret put`. Use `npx wrangler secret list` to
 verify what is configured; a missing value disables tracing rather than failing requests.
 
+To tie tool spans to an account, also set a random HMAC key:
+
+```sh
+openssl rand -hex 32 | npx wrangler secret put TELEMETRY_USER_ID_SECRET
+```
+
+Each `mcp.tool` span then carries `enduser.pseudo.id`, an HMAC-SHA-256 of the
+Cronometer user ID truncated to 32 hex characters. Cronometer user IDs are
+sequential, so the key is what keeps the ID from being reversed; never log or
+share it. Rotating the key changes every user's ID, which breaks per-user history
+across the rotation. Without the secret, spans carry no user identifier. Query it
+in Tempo with, for example,
+`{ span.mcp.tool.name != nil } | count_over_time() by (span.enduser.pseudo.id)`.
+
 ## Sentry error reporting
 
 Use the DSN from the Cronometer MCP project in Sentry to enable error reporting

@@ -24,9 +24,21 @@ function argKeys(args: unknown): string | undefined {
 /**
  * Wraps server.registerTool so every tool handler runs inside a
  * `mcp.tool.<name>` span with bounded, privacy-safe attributes.
- * Argument keys are recorded; argument values never are.
+ * Argument keys are recorded; argument values never are. The caller is
+ * identified only by a keyed pseudonym (see telemetry-user.ts).
  */
-export function instrumentToolRegistration(server: McpServer): McpServer {
+export interface ToolTelemetryOptions {
+  /**
+   * Resolves the pseudonymous ID of the user making the call, recorded as
+   * `enduser.pseudo.id`. Return undefined to leave the attribute off.
+   */
+  resolveUserId?: () => Promise<string | undefined>;
+}
+
+export function instrumentToolRegistration(
+  server: McpServer,
+  options: ToolTelemetryOptions = {},
+): McpServer {
   const tracer = trace.getTracer("cronometer-mcp");
   const registerTool = server.registerTool.bind(server) as RegisterTool;
 
@@ -42,6 +54,8 @@ export function instrumentToolRegistration(server: McpServer): McpServer {
         span.setAttribute("mcp.tool.name", name);
         const keys = argKeys(args);
         if (keys) span.setAttribute("mcp.tool.arg_keys", keys);
+        const userId = await options.resolveUserId?.().catch(() => undefined);
+        if (userId) span.setAttribute("enduser.pseudo.id", userId);
         try {
           const result = await withScope((scope) => {
             scope.setTag("mcp.tool.name", name);
@@ -71,6 +85,29 @@ export function instrumentToolRegistration(server: McpServer): McpServer {
   }) as RegisterTool as typeof server.registerTool;
 
   return server;
+}
+
+/**
+ * otel-cf-workers ends the root fetch span as soon as the handler returns a
+ * Response, then flushes the trace once every `ctx.waitUntil` promise settles,
+ * force-ending any span still open. MCP tool calls answer over a streamed
+ * (text/event-stream) body, so the handler returns before the tool finishes and
+ * the tool span used to be exported without its outcome.
+ *
+ * Registering the body's completion with `waitUntil` keeps the flush waiting
+ * until the stream has been fully written, which happens after the tool span
+ * has ended.
+ */
+export function holdTraceUntilBodyDone(
+  response: Response,
+  waitUntil: (promise: Promise<unknown>) => void,
+): Response {
+  if (!response.body) return response;
+  const { readable, writable } = new TransformStream();
+  // A client disconnect cancels the stream; the rejection only means the body
+  // ended early, which is still the end of the request.
+  waitUntil(response.body.pipeTo(writable).catch(() => undefined));
+  return new Response(readable, response);
 }
 
 const REDACTED = "[redacted]";

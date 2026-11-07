@@ -6,7 +6,11 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "
 import { trace } from "@opentelemetry/api";
 
 import { createServer } from "../src/index";
-import { RedactingSpanProcessor, redactSpanAttributes } from "../src/observability";
+import {
+  holdTraceUntilBodyDone,
+  RedactingSpanProcessor,
+  redactSpanAttributes,
+} from "../src/observability";
 
 const exporter = new InMemorySpanExporter();
 
@@ -45,6 +49,52 @@ describe("tool telemetry", () => {
       .filter((span) => span.name === "mcp.tool get_cronometer_data");
     expect(spans.length).toBeGreaterThan(0);
     expect(spans.at(-1)?.attributes["mcp.tool.outcome"]).toBe("returned_error");
+  });
+});
+
+describe("holdTraceUntilBodyDone", () => {
+  it("keeps the trace open until a streamed body has been fully read", async () => {
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({ start: (c) => void (controller = c) });
+    const original = new Response(body, {
+      status: 200,
+      headers: { "content-type": "text/event-stream", "mcp-session-id": "abc" },
+    });
+
+    const pending: Promise<unknown>[] = [];
+    const response = holdTraceUntilBodyDone(original, (promise) => pending.push(promise));
+    expect(pending).toHaveLength(1);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/event-stream");
+    expect(response.headers.get("mcp-session-id")).toBe("abc");
+
+    let settled = false;
+    void pending[0].then(() => (settled = true));
+    const text = response.text();
+
+    controller.enqueue(new TextEncoder().encode("event: message\ndata: {}\n\n"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+
+    controller.close();
+    await expect(text).resolves.toBe("event: message\ndata: {}\n\n");
+    await pending[0];
+    expect(settled).toBe(true);
+  });
+
+  it("settles when the client cancels the stream", async () => {
+    const body = new ReadableStream<Uint8Array>({ pull: () => new Promise(() => {}) });
+    const pending: Promise<unknown>[] = [];
+    const response = holdTraceUntilBodyDone(new Response(body), (p) => pending.push(p));
+    await response.body?.cancel();
+    await expect(pending[0]).resolves.toBeUndefined();
+  });
+
+  it("passes bodiless responses through untouched", () => {
+    const original = new Response(null, { status: 202 });
+    const pending: Promise<unknown>[] = [];
+    expect(holdTraceUntilBodyDone(original, (p) => pending.push(p))).toBe(original);
+    expect(pending).toHaveLength(0);
   });
 });
 

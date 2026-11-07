@@ -16,25 +16,38 @@ import {
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { captureException, withSentry } from "@sentry/cloudflare";
 import { authHandler, OAUTH_SCOPE } from "./auth";
-import { instrumentToolRegistration, RedactingSpanProcessor } from "./observability";
+import {
+  holdTraceUntilBodyDone,
+  instrumentToolRegistration,
+  RedactingSpanProcessor,
+} from "./observability";
 import { sentryOptions } from "./sentry";
+import { telemetryUserId } from "./telemetry-user";
 
 type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 const MCP_ROUTE = "/mcp";
 
-export function createServer(reauthorize?: () => Promise<string | undefined>): McpServer {
+export function createServer(
+  reauthorize?: () => Promise<string | undefined>,
+  telemetrySecret?: string,
+): McpServer {
+  const getAuthContext = (): AuthContext | null => {
+    const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
+    return parsed.success ? parsed.data : null;
+  };
   const server = instrumentToolRegistration(
     new McpServer({ name: "Cronometer MCP", version: "0.3.0" }),
+    {
+      resolveUserId: async () =>
+        telemetryUserId(telemetrySecret, getAuthContext()?.cronometerWebSession.userId),
+    },
   );
 
   registerCronometerTools(server, {
     onError: (error, operation) => {
       captureException(error, { tags: { "cronometer.operation": operation } });
     },
-    getAuthContext: (): AuthContext | null => {
-      const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
-      return parsed.success ? parsed.data : null;
-    },
+    getAuthContext,
     oauth: {
       scopes: [OAUTH_SCOPE],
       reauthorize: reauthorize ?? (async () => undefined),
@@ -44,8 +57,14 @@ export function createServer(reauthorize?: () => Promise<string | undefined>): M
 }
 
 const mcpHandler = {
-  fetch(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Response | Promise<Response> {
-    return createMcpHandler(() => createServer(() => reauthorize(request, env)))(request, env, ctx);
+  async fetch(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Promise<Response> {
+    const response = await createMcpHandler(() =>
+      createServer(() => reauthorize(request, env), env.TELEMETRY_USER_ID_SECRET),
+    )(request, env, ctx);
+    // Tool calls are POSTs answered over a stream. GET opens a long-lived
+    // notification stream, which must not hold the trace open.
+    if (request.method !== "POST") return response;
+    return holdTraceUntilBodyDone(response, (promise) => ctx.waitUntil(promise));
   },
 } satisfies ExportedHandler<RuntimeEnv>;
 
