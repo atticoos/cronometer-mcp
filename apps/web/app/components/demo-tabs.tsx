@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckIcon, RefreshIcon } from "./icons";
 
+import { trackCta } from "../cta-analytics";
+
 const PRE_WORKOUT_SUGGESTIONS = [
   {
     name: "Greek yogurt, banana & honey",
@@ -921,7 +923,11 @@ export default function DemoTabs() {
             type="button"
             role="tab"
             aria-selected={tab.id === active.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              if (tab.id === active.id) return;
+              trackCta("select_demo", "hero", { demo: tab.id });
+              setActiveTab(tab.id);
+            }}
             className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${tab.id === active.id
               ? "bg-emerald-500 text-emerald-950"
               : "text-zinc-400 hover:text-white"
@@ -985,7 +991,10 @@ export function MacroPlanDemo() {
       <div className="mt-3 flex items-center justify-end">
         <button
           type="button"
-          onClick={() => setPlayKey((key) => key + 1)}
+          onClick={() => {
+            trackCta("replay_demo", "use_cases", { demo: "macros" });
+            setPlayKey((key) => key + 1);
+          }}
           className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-emerald-300"
         >
           <RefreshIcon className="size-3.5" />

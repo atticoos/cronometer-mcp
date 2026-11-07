@@ -172,7 +172,10 @@ export default function PrivacyPage() {
             <p>
               The <Code>cronometer-mcp.dev</Code> website is a static site. It uses{" "}
               <Link href="https://umami.is/privacy">Umami</Link>, a privacy-focused analytics service that does not
-              use cookies, to count page views and clicks on buttons such as &ldquo;Connect Cronometer&rdquo;. It loads
+              use cookies, to count page views and interactions such as clicking &ldquo;Connect Cronometer&rdquo;, copying
+              the server URL or a setup command, choosing a client setup guide or an example chat, and following links
+              to a client app or its documentation. These events record which button was used and where on the page,
+              never what was copied or anything about your account. It loads
               fonts from Google Fonts, which means your browser requests them from Google. The website does not ask for
               or receive your Cronometer credentials.
             </p>

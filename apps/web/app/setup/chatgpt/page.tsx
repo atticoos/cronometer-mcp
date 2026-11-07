@@ -21,7 +21,7 @@ export default function ChatGPTSetupPage() {
       steps={
         <>
           <li>
-            Open <GuideLink href="https://chatgpt.com/plugins">ChatGPT Plugins</GuideLink>.
+            Open <GuideLink href="https://chatgpt.com/plugins" client="chatgpt">ChatGPT Plugins</GuideLink>.
             Select the plus button, then <strong>Add custom MCP server</strong>.
           </li>
           <li>

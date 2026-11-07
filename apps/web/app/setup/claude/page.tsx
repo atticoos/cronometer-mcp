@@ -30,7 +30,7 @@ export default function ClaudeSetupPage() {
         <>
           <li>
             Open <strong>Customize</strong>, then <strong>Connectors</strong> in{" "}
-            <GuideLink href="https://claude.ai/">Claude</GuideLink>. Select{" "}
+            <GuideLink href="https://claude.ai/" client="claude">Claude</GuideLink>. Select{" "}
             <strong>Add → Custom → Web</strong>. On some accounts the menu item is called{" "}
             <strong>Add custom connector</strong>.
           </li>

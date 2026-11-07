@@ -4,7 +4,13 @@ export type CtaName =
   | "view_github"
   | "explore_tool_manifest"
   | "copy_endpoint"
-  | "copy_setup";
+  | "copy_setup"
+  | "select_setup_client"
+  | "open_setup_guide"
+  | "open_client"
+  | "open_client_docs"
+  | "select_demo"
+  | "replay_demo";
 export type CtaPlacement =
   | "header"
   | "hero"
@@ -12,7 +18,9 @@ export type CtaPlacement =
   | "bottom"
   | "footer"
   | "setup"
-  | "setup_overview";
+  | "setup_overview"
+  | "setup_nav"
+  | "use_cases";
 
 type Payload = Record<string, unknown>;
 
@@ -24,14 +32,22 @@ declare global {
 
 // Activation only: never infer a successful connection or clipboard write.
 // No automatic data attributes: a single click handler covers mouse, touch and keyboard.
-export function trackCta(cta: CtaName, placement: CtaPlacement, client?: string) {
+// Fixed IDs only: the setup client or the demo conversation that was activated.
+export type CtaDetail = { client?: string; demo?: string };
+
+export function trackCta(cta: CtaName, placement: CtaPlacement, detail: CtaDetail = {}) {
   try {
     const pending = window.umami?.track((defaults) => ({
       website: defaults.website,
       hostname: defaults.hostname,
       url: window.location.pathname,
       name: "cta_activated",
-      data: { cta, placement, ...(client ? { client } : {}) },
+      data: {
+        cta,
+        placement,
+        ...(detail.client ? { client: detail.client } : {}),
+        ...(detail.demo ? { demo: detail.demo } : {}),
+      },
     }));
     // Analytics must never delay navigation or break the interaction.
     void Promise.resolve(pending).catch(() => {});
