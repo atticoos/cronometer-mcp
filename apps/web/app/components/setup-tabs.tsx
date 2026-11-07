@@ -19,6 +19,7 @@ import {
 } from "./icons";
 
 import { trackCta } from "../cta-analytics";
+import CtaLink from "./cta-link";
 import { setupClientNames, setupPaths } from "../site";
 
 type Icon = ComponentType<{ className?: string }>;
@@ -280,7 +281,7 @@ function SnippetBlock({ snippet, client }: { snippet: Snippet; client: string })
   const { copied, copy } = useCopy(snippet.value);
 
   function activateCopy() {
-    trackCta("copy_setup", "setup", client);
+    trackCta("copy_setup", "setup", { client });
     void copy();
   }
 
@@ -345,7 +346,11 @@ export default function SetupTabs({ endpoint }: { endpoint: string }) {
             type="button"
             role="tab"
             aria-selected={guide.id === active.id}
-            onClick={() => setActiveId(guide.id)}
+            onClick={() => {
+              if (guide.id === active.id) return;
+              trackCta("select_setup_client", "setup", { client: guide.id });
+              setActiveId(guide.id);
+            }}
             className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors sm:px-4 ${
               guide.id === active.id
                 ? "bg-emerald-500 text-emerald-950"
@@ -383,8 +388,11 @@ export default function SetupTabs({ endpoint }: { endpoint: string }) {
           </div>
           {/* Keep both guide destinations in the exported homepage. */}
           {(Object.keys(setupPaths) as (keyof typeof setupPaths)[]).map((client) => (
-            <a
+            <CtaLink
               key={client}
+              cta="open_setup_guide"
+              placement="setup"
+              client={client}
               href={setupPaths[client]}
               className={active.id === client
                 ? "inline-flex items-center gap-2 rounded-full border border-emerald-400/30 px-3 py-2 text-xs font-semibold text-emerald-300 transition-colors hover:border-emerald-400/60 hover:bg-emerald-400/10 focus-visible:outline-emerald-300 sm:ml-auto"
@@ -392,7 +400,7 @@ export default function SetupTabs({ endpoint }: { endpoint: string }) {
             >
               Full setup guide<span className="sr-only"> for {setupClientNames[client]}</span>
               <ArrowRightIcon className="size-3.5" />
-            </a>
+            </CtaLink>
           ))}
         </div>
         <div className="grid lg:grid-cols-[1fr_minmax(300px,42%)]">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import type { ReactNode } from "react";
+import CtaLink from "../components/cta-link";
 import EndpointCopy from "../components/endpoint-copy";
 import JsonLd from "../components/json-ld";
 import { ArrowRightIcon } from "../components/icons";
@@ -29,8 +30,23 @@ export function setupMetadata(client: Client, description: string): Metadata {
   };
 }
 
-export function GuideLink({ href, children }: { href: string; children: ReactNode }) {
-  return <a href={href} className={linkClass}>{children}</a>;
+// Links out to the client app or its docs, tracked as conversion intent.
+export function GuideLink({
+  href,
+  client,
+  cta = "open_client",
+  children,
+}: {
+  href: string;
+  client: Client;
+  cta?: "open_client" | "open_client_docs";
+  children: ReactNode;
+}) {
+  return (
+    <CtaLink cta={cta} placement="setup" client={client} href={href} className={linkClass}>
+      {children}
+    </CtaLink>
+  );
 }
 
 export function GuideSection({
@@ -108,7 +124,7 @@ export default function SetupGuide({
           {beforeYouStart}
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
             <p className="text-sm font-medium text-white">MCP server URL</p>
-            <EndpointCopy url={mcpEndpoint} placement="setup" />
+            <EndpointCopy url={mcpEndpoint} placement="setup" client={client} />
           </div>
         </GuideSection>
 
@@ -156,14 +172,24 @@ export default function SetupGuide({
               in again. If the prompt is missing, disconnect and reconnect Cronometer in your client.
             </li>
           </ul>
-          <p><GuideLink href={docs}>{name}’s official setup documentation</GuideLink></p>
+          <p>
+            <GuideLink href={docs} client={client} cta="open_client_docs">
+              {name}’s official setup documentation
+            </GuideLink>
+          </p>
         </GuideSection>
       </article>
 
       <nav aria-label="Other setup guides" className="mt-10 border-t border-white/10 pt-6">
-        <a href={setupPaths[otherClient]} className={`inline-flex items-center gap-2 text-sm font-semibold ${linkClass}`}>
+        <CtaLink
+          cta="open_setup_guide"
+          placement="setup_nav"
+          client={otherClient}
+          href={setupPaths[otherClient]}
+          className={`inline-flex items-center gap-2 text-sm font-semibold ${linkClass}`}
+        >
           {setupClientNames[otherClient]} setup guide <ArrowRightIcon className="size-3.5" />
-        </a>
+        </CtaLink>
       </nav>
     </main>
   );

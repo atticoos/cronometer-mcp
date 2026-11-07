@@ -7,7 +7,15 @@ import { trackCta, type CtaPlacement } from "../cta-analytics";
 
 const COPIED_RESET_MS = 2000;
 
-export default function EndpointCopy({ url, placement = "hero" }: { url: string; placement?: CtaPlacement }) {
+export default function EndpointCopy({
+  url,
+  placement = "hero",
+  client,
+}: {
+  url: string;
+  placement?: CtaPlacement;
+  client?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<number | null>(null);
 
@@ -18,7 +26,7 @@ export default function EndpointCopy({ url, placement = "hero" }: { url: string;
   }, []);
 
   async function copy() {
-    trackCta("copy_endpoint", placement);
+    trackCta("copy_endpoint", placement, { client });
     try {
       await navigator.clipboard.writeText(url);
     } catch {

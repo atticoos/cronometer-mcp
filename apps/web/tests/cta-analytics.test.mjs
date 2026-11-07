@@ -71,7 +71,7 @@ test("link preserves native attributes and tracks once via click without cancell
     "../app/components/cta-link.tsx",
     {},
     {
-      "../cta-analytics": { trackCta: (...args) => calls.push(args) },
+      "../cta-analytics": { trackCta: (...args) => calls.push(JSON.parse(JSON.stringify(args))) },
     },
   ).default;
   const anchor = CtaLink({
@@ -86,7 +86,7 @@ test("link preserves native attributes and tracks once via click without cancell
   assert.equal(anchor.props.onTouchEnd, undefined);
   assert.equal(anchor.props["data-umami-event"], undefined);
   anchor.props.onClick({ defaultPrevented: false });
-  assert.deepEqual(calls, [["connect_cronometer", "header"]]);
+  assert.deepEqual(calls, [["connect_cronometer", "header", {}]]);
   anchor.props.onClick({ defaultPrevented: true });
   assert.equal(calls.length, 1);
 });
@@ -111,7 +111,7 @@ test("endpoint URL text and icon share one native copy activation for each place
       {
         react: hookMocks,
         "./icons": { CheckIcon: "i", CopyIcon: "i" },
-        "../cta-analytics": { trackCta: (...args) => calls.push(args) },
+        "../cta-analytics": { trackCta: (...args) => calls.push(JSON.parse(JSON.stringify(args))) },
       },
     ).default;
     const tree = EndpointCopy({ url: "https://example.test/mcp", placement });
@@ -121,7 +121,7 @@ test("endpoint URL text and icon share one native copy activation for each place
     assert.equal(button.type, "button");
     assert.ok(elements(button).some((node) => node.props?.children === "https://example.test/mcp"));
     await button.props.onClick();
-    assert.deepEqual(calls, [["copy_endpoint", placement]]);
+    assert.deepEqual(calls, [["copy_endpoint", placement, {}]]);
   }
 });
 
@@ -133,7 +133,8 @@ test("setup URL surface and copy button are siblings without a bubbling tracking
     {
       react: hookMocks,
       "./icons": {},
-      "../cta-analytics": { trackCta: (...args) => calls.push(args) },
+      "./cta-link": (props) => ({ type: "CtaLink", props }),
+      "../cta-analytics": { trackCta: (...args) => calls.push(JSON.parse(JSON.stringify(args))) },
       "../site": {
         setupPaths: { chatgpt: "/setup/chatgpt", claude: "/setup/claude" },
         setupClientNames: { chatgpt: "ChatGPT", claude: "Claude" },
@@ -151,6 +152,83 @@ test("setup URL surface and copy button are siblings without a bubbling tracking
   for (const [index, button] of buttons.entries()) {
     button.props.onClick();
     assert.equal(calls.length, index + 1);
-    assert.deepEqual(calls[index], ["copy_setup", "setup", "chatgpt"]);
+    assert.deepEqual(calls[index], ["copy_setup", "setup", { client: "chatgpt" }]);
   }
+});
+
+test("client and demo details are sent only when present", () => {
+  const events = [];
+  const window = {
+    location: { pathname: "/setup/claude" },
+    umami: { track: (callback) => events.push(callback({ website: "w", hostname: "h" })) },
+  };
+  const { trackCta } = load("../app/cta-analytics.ts", window);
+  trackCta("open_client", "setup", { client: "claude" });
+  trackCta("select_demo", "hero", { demo: "week" });
+  trackCta("copy_endpoint", "hero", { client: undefined });
+  assert.deepEqual(JSON.parse(JSON.stringify(events.map((event) => event.data))), [
+    { cta: "open_client", placement: "setup", client: "claude" },
+    { cta: "select_demo", placement: "hero", demo: "week" },
+    { cta: "copy_endpoint", placement: "hero" },
+  ]);
+});
+
+function setupTabsTree(calls) {
+  const SetupTabs = load(
+    "../app/components/setup-tabs.tsx",
+    {},
+    {
+      react: hookMocks,
+      "./icons": {},
+      "./cta-link": (props) => ({ type: "CtaLink", props }),
+      "../cta-analytics": { trackCta: (...args) => calls.push(JSON.parse(JSON.stringify(args))) },
+      "../site": {
+        setupPaths: { chatgpt: "/setup/chatgpt", claude: "/setup/claude" },
+        setupClientNames: { chatgpt: "ChatGPT", claude: "Claude" },
+      },
+    },
+  ).default;
+  return elements(SetupTabs({ endpoint: "https://example.test/mcp" }));
+}
+
+test("selecting a different setup client tracks it; reselecting the active tab does not", () => {
+  const calls = [];
+  const tabs = setupTabsTree(calls).filter((node) => node.props?.role === "tab");
+  assert.equal(tabs.length, 7);
+  tabs[0].props.onClick();
+  assert.deepEqual(calls, []);
+  tabs[5].props.onClick();
+  assert.deepEqual(calls, [["select_setup_client", "setup", { client: "cursor" }]]);
+});
+
+test("full setup guide links are tracked per client", () => {
+  const links = setupTabsTree([]).filter((node) => node.props?.cta === "open_setup_guide");
+  assert.deepEqual(
+    links.map((link) => [link.props.placement, link.props.client, link.props.href]),
+    [
+      ["setup", "chatgpt", "/setup/chatgpt"],
+      ["setup", "claude", "/setup/claude"],
+    ],
+  );
+});
+
+test("demo tab switches and replays are tracked with the demo ID", () => {
+  const calls = [];
+  const demos = load(
+    "../app/components/demo-tabs.tsx",
+    {},
+    {
+      react: hookMocks,
+      "./icons": { CheckIcon: "i", RefreshIcon: "i" },
+      "../cta-analytics": { trackCta: (...args) => calls.push(JSON.parse(JSON.stringify(args))) },
+    },
+  );
+  const tabs = elements(demos.default()).filter((node) => node.props?.role === "tab");
+  tabs[0].props.onClick();
+  assert.deepEqual(calls, []);
+  tabs[3].props.onClick();
+  assert.deepEqual(calls, [["select_demo", "hero", { demo: "week" }]]);
+  const replay = elements(demos.MacroPlanDemo()).find((node) => node.type === "button");
+  replay.props.onClick();
+  assert.deepEqual(calls.at(-1), ["replay_demo", "use_cases", { demo: "macros" }]);
 });
