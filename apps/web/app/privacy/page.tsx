@@ -145,8 +145,10 @@ export default function PrivacyPage() {
               </li>
               <li>
                 <strong>Traces.</strong> Performance traces are sent to Grafana Cloud. They include the request URL and
-                user agent, the URLs of requests made to Cronometer, the name of each tool called, the names of the
-                arguments it received (never their values), and whether it succeeded.
+                user agent, the URLs of requests made to Cronometer, the type of each stored record that is read or
+                written, the name of each tool called, the names of the arguments it received (never their values),
+                and whether it succeeded. Query parameter values and storage keys, which can hold one-time codes and
+                account identifiers, are removed before traces leave the service.
               </li>
               <li>
                 <strong>Pseudonymous user ID.</strong> Each tool call&apos;s trace carries a pseudonymous ID so usage and
