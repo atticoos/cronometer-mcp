@@ -149,8 +149,9 @@ export default function PrivacyPage() {
                 written, the name of each tool called, the names of the arguments it received (never their values),
                 and whether it succeeded. Query parameter values and storage keys, which can hold one-time codes and
                 account identifiers, are removed before traces leave the service. Each tool call is also recorded in
-                Grafana Cloud as a usage log entry with the same tool name, argument names, outcome, and how long it
-                took.
+                Grafana Cloud as a usage log entry with the same tool name, argument names, outcome, how long it took,
+                and the kind of assistant app that made the call (for example Claude, ChatGPT, or Cursor), as read from
+                its user agent.
               </li>
               <li>
                 <strong>Pseudonymous user ID.</strong> Each tool call&apos;s trace and usage log entry carry a pseudonymous ID so usage and

@@ -35,6 +35,7 @@ export function toolCallLogPayload(record: ToolCallRecord, serviceName: string) 
   ];
   if (record.argKeys) attributes.push(stringAttribute("mcp.tool.arg_keys", record.argKeys));
   if (record.userId) attributes.push(stringAttribute("enduser.pseudo.id", record.userId));
+  if (record.platform) attributes.push(stringAttribute("mcp.client.platform", record.platform));
 
   const failed = record.outcome !== "success";
   return {
