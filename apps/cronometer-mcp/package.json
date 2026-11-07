@@ -19,6 +19,7 @@
     "@modelcontextprotocol/server": "2.0.0",
     "@sentry/cloudflare": "^11.11.0",
     "agents": "^0.20.1",
+    "hono": "^4.13.3",
     "@cronometer-mcp/cronometer-client": "*",
     "@cronometer-mcp/core": "*",
     "zod": "^4.4.3"
