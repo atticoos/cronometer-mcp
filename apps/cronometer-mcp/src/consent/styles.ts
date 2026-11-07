@@ -94,6 +94,7 @@ input:focus { border-color: var(--accent); outline: none; }
 .facts svg { width: 16px; height: 16px; margin-top: 2px; }
 .facts b { color: var(--ink); font-weight: 600; }
 
+.foot a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .foot { border-top: 1px solid var(--line); padding: 12px 28px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
 
 @media (max-width: 760px) {
