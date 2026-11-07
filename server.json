@@ -1,0 +1,27 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.atticoos/cronometer-mcp",
+  "title": "Cronometer MCP",
+  "description": "Review nutrition, log meals, and manage foods and recipes in your Cronometer account.",
+  "websiteUrl": "https://cronometer-mcp.dev",
+  "icons": [
+    {
+      "src": "https://cronometer-mcp.dev/favicon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/atticoos/cronometer-mcp",
+    "source": "github"
+  },
+  "version": "0.3.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.cronometer-mcp.dev/mcp"
+    }
+  ]
+}
