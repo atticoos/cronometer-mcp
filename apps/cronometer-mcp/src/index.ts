@@ -25,7 +25,7 @@ import { sentryOptions } from "./sentry";
 import { createToolCallLogSink } from "./tool-call-log";
 import { env as workerEnv, waitUntil } from "cloudflare:workers";
 import { telemetryUserId } from "./telemetry-user";
-import { clientPlatform } from "./client-platform";
+import { clientPlatform, clientUserAgent } from "./client-platform";
 
 type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 const MCP_ROUTE = "/mcp";
@@ -34,6 +34,7 @@ export function createServer(
   reauthorize?: () => Promise<string | undefined>,
   telemetrySecret?: string,
   platform?: string,
+  userAgent?: string,
 ): McpServer {
   const getAuthContext = (): AuthContext | null => {
     const parsed = authPropsSchema.safeParse(getMcpAuthContext()?.props);
@@ -44,6 +45,7 @@ export function createServer(
     {
       onToolCall: toolCallLogSink(),
       clientPlatform: platform,
+      clientUserAgent: userAgent,
       resolveUserId: async () =>
         telemetryUserId(telemetrySecret, getAuthContext()?.cronometerWebSession.userId),
     },
@@ -83,6 +85,7 @@ const mcpHandler = {
         () => reauthorize(request, env),
         env.TELEMETRY_USER_ID_SECRET,
         clientPlatform(request.headers.get("User-Agent")),
+        clientUserAgent(request.headers.get("User-Agent")),
       ),
     )(request, env, ctx);
     // Tool calls are POSTs answered over a stream. GET opens a long-lived

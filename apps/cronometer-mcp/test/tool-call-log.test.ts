@@ -16,6 +16,7 @@ const record: ToolCallRecord = {
   argKeys: "query",
   userId: "5f2b9c0e1a7d4e3f8b6a0c9d2e1f4a7b",
   platform: "claude",
+  userAgent: "Claude-User",
   traceId: "0af7651916cd43dd8448eb211c80319c",
   spanId: "b7ad6b7169203331",
 };
@@ -56,6 +57,7 @@ describe("toolCallLogPayload", () => {
       { key: "mcp.tool.arg_keys", value: { stringValue: "query" } },
       { key: "enduser.pseudo.id", value: { stringValue: "5f2b9c0e1a7d4e3f8b6a0c9d2e1f4a7b" } },
       { key: "mcp.client.platform", value: { stringValue: "claude" } },
+      { key: "user_agent.original", value: { stringValue: "Claude-User" } },
     ]);
   });
 
