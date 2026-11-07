@@ -12,7 +12,7 @@ import {
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { captureException, withSentry } from "@sentry/cloudflare";
 import { authHandler, OAUTH_SCOPE } from "./auth";
-import { instrumentToolRegistration } from "./observability";
+import { holdTraceUntilBodyDone, instrumentToolRegistration } from "./observability";
 import { sentryOptions } from "./sentry";
 import { telemetryUserId } from "./telemetry-user";
 
@@ -49,10 +49,14 @@ export function createServer(
 }
 
 const mcpHandler = {
-  fetch(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Response | Promise<Response> {
-    return createMcpHandler(() =>
+  async fetch(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Promise<Response> {
+    const response = await createMcpHandler(() =>
       createServer(() => reauthorize(request, env), env.TELEMETRY_USER_ID_SECRET),
     )(request, env, ctx);
+    // Tool calls are POSTs answered over a stream. GET opens a long-lived
+    // notification stream, which must not hold the trace open.
+    if (request.method !== "POST") return response;
+    return holdTraceUntilBodyDone(response, (promise) => ctx.waitUntil(promise));
   },
 } satisfies ExportedHandler<RuntimeEnv>;
 
