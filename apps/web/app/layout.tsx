@@ -7,7 +7,7 @@ const buildBranch = process.env.WORKERS_CI_BRANCH;
 const isPreview = Boolean(buildBranch && buildBranch !== "main");
 const title = `${siteName} — Connect Cronometer to ChatGPT and Claude`;
 const description =
-  "Connect Cronometer to ChatGPT, Claude, Cursor, and other MCP clients. Review nutrition, track macros, and log food with this open-source connector.";
+  "Cronometer MCP is an open-source MCP server that connects Cronometer to ChatGPT, Claude, Cursor, and other AI assistants. Review nutrition, track macros, and log food in chat.";
 
 export const metadata: Metadata = {
   metadataBase: productionUrl,

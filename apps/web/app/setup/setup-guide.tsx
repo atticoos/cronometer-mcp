@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import EndpointCopy from "../components/endpoint-copy";
+import JsonLd from "../components/json-ld";
 import { ArrowRightIcon } from "../components/icons";
 import { mcpEndpoint, productionUrl, setupClientNames, setupPaths, siteName } from "../site";
 
@@ -78,9 +79,23 @@ export default function SetupGuide({
 }) {
   const name = setupClientNames[client];
   const otherClient = client === "chatgpt" ? "claude" : "chatgpt";
+  const breadcrumbs = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: siteName, item: productionUrl.href },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: `Connect Cronometer to ${name}`,
+        item: new URL(setupPaths[client], productionUrl).href,
+      },
+    ],
+  };
 
   return (
     <main className="mx-auto max-w-3xl px-6 pt-12 pb-16 font-sans sm:pt-16">
+      <JsonLd data={breadcrumbs} />
       <article className="space-y-10 text-base leading-relaxed text-zinc-300">
         <header>
           <h1 className="text-4xl font-bold tracking-tight text-balance text-white sm:text-5xl">

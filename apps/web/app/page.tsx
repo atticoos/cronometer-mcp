@@ -4,6 +4,7 @@ import DemoTabs, { MacroPlanDemo } from "./components/demo-tabs";
 import CtaLink from "./components/cta-link";
 import EndpointCopy from "./components/endpoint-copy";
 import SetupTabs from "./components/setup-tabs";
+import JsonLd from "./components/json-ld";
 import SiteHeader from "./components/site-header";
 import {
   AppleIcon,
@@ -243,6 +244,11 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
     question: "Can it change my Cronometer account?",
     answer:
       "Yes. Write tools cover food entries, custom foods, recipes, day copying, and day completion. Each tool declares whether it is read-only, idempotent, or destructive, so compatible clients can require confirmation before anything mutates.",
+  },
+  {
+    question: "Is this the “Chronometer MCP” server?",
+    answer:
+      "Yes. Cronometer, the nutrition tracker, is often spelled “Chronometer.” If you were looking for a Chronometer MCP server to connect your food diary to ChatGPT or Claude, this is the hosted, open-source Cronometer MCP connector.",
   },
   {
     question: "Is this an official Cronometer product?",
@@ -713,16 +719,46 @@ function Footer() {
 }
 
 export default function HomePage() {
-  const website = {
+  const structuredData = {
     "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: siteName,
-    url: productionUrl.href,
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": new URL("#website", productionUrl).href,
+        name: siteName,
+        url: productionUrl.href,
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": new URL("#software", productionUrl).href,
+        name: siteName,
+        alternateName: ["Cronometer MCP Server", "Chronometer MCP"],
+        description:
+          "Open-source Model Context Protocol (MCP) server that connects Cronometer to ChatGPT, Claude, Cursor, and other AI assistants.",
+        url: productionUrl.href,
+        applicationCategory: "HealthApplication",
+        operatingSystem: "Web",
+        isAccessibleForFree: true,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        license: "https://opensource.org/licenses/MIT",
+        codeRepository: GITHUB_URL,
+        sameAs: [GITHUB_URL],
+      },
+      {
+        "@type": "FAQPage",
+        "@id": new URL("#faq", productionUrl).href,
+        mainEntity: FAQ_ITEMS.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: { "@type": "Answer", text: item.answer },
+        })),
+      },
+    ],
   };
 
   return (
     <div className="min-h-screen font-sans">
-      <script type="application/ld+json">{JSON.stringify(website)}</script>
+      <JsonLd data={structuredData} />
       <SiteHeader onHomePage />
       <main>
         <Hero />
