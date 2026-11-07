@@ -85,6 +85,20 @@ across the rotation. Without the secret, spans carry no user identifier. Query i
 in Tempo with, for example,
 `{ span.mcp.tool.name != nil } | count_over_time() by (span.enduser.pseudo.id)`.
 
+The same endpoint and headers also ship one OTLP log record per tool call to the sibling
+`/v1/logs` URL, which Grafana Cloud stores in Loki under `service_name="cronometer-mcp"`.
+Each record carries `mcp_tool_name`, `mcp_tool_outcome`, `mcp_tool_duration_ms`, and
+`mcp_tool_arg_keys` (and `enduser_pseudo_id` when the secret above is set) as
+structured metadata, plus the trace and span IDs of the tool span.
+Use these logs for usage reports: unlike Tempo metrics queries, which are capped at 25 hours,
+one LogQL query covers any range up to Loki's 30-day limit.
+
+```logql
+sum by (mcp_tool_name, mcp_tool_outcome) (
+  count_over_time({service_name="cronometer-mcp"} | mcp_tool_name != "" [7d])
+)
+```
+
 ## Sentry error reporting
 
 Use the DSN from the Cronometer MCP project in Sentry to enable error reporting

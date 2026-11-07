@@ -22,6 +22,8 @@ import {
   RedactingSpanProcessor,
 } from "./observability";
 import { sentryOptions } from "./sentry";
+import { createToolCallLogSink } from "./tool-call-log";
+import { env as workerEnv, waitUntil } from "cloudflare:workers";
 import { telemetryUserId } from "./telemetry-user";
 
 type RuntimeEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
@@ -38,6 +40,7 @@ export function createServer(
   const server = instrumentToolRegistration(
     new McpServer({ name: "Cronometer MCP", version: "0.3.0" }),
     {
+      onToolCall: toolCallLogSink(),
       resolveUserId: async () =>
         telemetryUserId(telemetrySecret, getAuthContext()?.cronometerWebSession.userId),
     },
@@ -54,6 +57,20 @@ export function createServer(
     },
   });
   return server;
+}
+
+// One OTLP log record per tool call lands in Loki, where usage reports are a
+// single LogQL query over any range instead of day-by-day Tempo scans.
+function toolCallLogSink() {
+  const env = workerEnv as Partial<Env>;
+  return createToolCallLogSink(
+    {
+      tracesEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      headers: parseOtlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
+      serviceName: env.OTEL_SERVICE_NAME ?? "cronometer-mcp",
+    },
+    waitUntil,
+  );
 }
 
 const mcpHandler = {

@@ -148,10 +148,12 @@ export default function PrivacyPage() {
                 user agent, the URLs of requests made to Cronometer, the type of each stored record that is read or
                 written, the name of each tool called, the names of the arguments it received (never their values),
                 and whether it succeeded. Query parameter values and storage keys, which can hold one-time codes and
-                account identifiers, are removed before traces leave the service.
+                account identifiers, are removed before traces leave the service. Each tool call is also recorded in
+                Grafana Cloud as a usage log entry with the same tool name, argument names, outcome, and how long it
+                took.
               </li>
               <li>
-                <strong>Pseudonymous user ID.</strong> Each tool call&apos;s trace carries a pseudonymous ID so usage and
+                <strong>Pseudonymous user ID.</strong> Each tool call&apos;s trace and usage log entry carry a pseudonymous ID so usage and
                 errors can be counted per account. It is derived from your Cronometer user ID with a keyed hash
                 (HMAC-SHA-256) whose key is kept secret, so it cannot be traced back to your account without that key.
                 It differs from the account identifier used to index your grant, and it never includes your username
