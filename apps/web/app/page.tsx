@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { githubUrl as GITHUB_URL, mcpEndpoint as ENDPOINT, productionUrl, siteName } from "./site";
+import { githubUrl as GITHUB_URL, mcpEndpoint as ENDPOINT, privacyPath, productionUrl, siteName } from "./site";
 import DemoTabs, { MacroPlanDemo } from "./components/demo-tabs";
 import CtaLink from "./components/cta-link";
 import EndpointCopy from "./components/endpoint-copy";
@@ -682,17 +682,22 @@ function Footer() {
           </div>
           <p className="font-mono text-xs text-zinc-600">Built on Cloudflare Workers</p>
         </div>
-        <CtaLink
-          cta="view_github"
-          placement="footer"
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-emerald-400"
-        >
-          Open source on GitHub
-          <ArrowRightIcon className="size-3.5" />
-        </CtaLink>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <CtaLink
+            cta="view_github"
+            placement="footer"
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-emerald-400"
+          >
+            Open source on GitHub
+            <ArrowRightIcon className="size-3.5" />
+          </CtaLink>
+          <a href={privacyPath} className="text-xs text-zinc-500 transition-colors hover:text-emerald-400">
+            Privacy policy
+          </a>
+        </div>
           <p className="max-w-3xl text-xs leading-relaxed text-zinc-500">
             Independent, open source, and built to turn nutrition data into useful answers.
           </p>

@@ -186,7 +186,12 @@ const ConsentPage: FC<ConsentPageProps> = (props) => {
           </div>
 
           <footer class="foot">
-            <span>Unofficial integration, not affiliated with Cronometer.</span>
+            <span>
+              Unofficial integration, not affiliated with Cronometer.{" "}
+              <a href="https://cronometer-mcp.dev/privacy" target="_blank" rel="noreferrer">
+                Privacy policy
+              </a>
+            </span>
             <span>This request expires in {props.expiresInMinutes} minutes.</span>
           </footer>
         </main>
