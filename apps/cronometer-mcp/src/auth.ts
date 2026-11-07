@@ -147,7 +147,10 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
       userId: subject,
     });
     await env.OAUTH_KV.delete(flowKey);
-    await logAuthorization(env, signupStatus, flow.clientName, webSession.userId);
+    // The grant already exists here, so telemetry must not fall into the error path below.
+    await logAuthorization(env, signupStatus, flow.clientName, webSession.userId).catch(
+      () => undefined,
+    );
 
     return new Response(null, {
       headers: {
