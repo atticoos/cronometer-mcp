@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { redactSpanAttributes } from "../src/observability";
 import {
   authorizationLogPayload,
-  recordSignup,
+  classifySignup,
+  markSignedIn,
   SIGNUP_PREFIX,
   SIGNUP_TTL_SECONDS,
 } from "../src/signup-log";
@@ -17,22 +18,25 @@ function provider(grants: number) {
   };
 }
 
-describe("recordSignup", () => {
-  it("counts a first sign-in as new and remembers the account", async () => {
+describe("classifySignup and markSignedIn", () => {
+  it("counts a first sign-in as new until the account is marked", async () => {
     const subject = crypto.randomUUID();
     const signupEnv = { OAUTH_KV: env.OAUTH_KV, OAUTH_PROVIDER: provider(0) };
 
-    expect(await recordSignup(signupEnv, subject)).toBe("new");
+    expect(await classifySignup(signupEnv, subject)).toBe("new");
+    // A failed attempt never marks the account, so the retry is still new.
+    expect(await classifySignup(signupEnv, subject)).toBe("new");
+    await markSignedIn(signupEnv, subject);
     expect(await env.OAUTH_KV.get(`${SIGNUP_PREFIX}${subject}`)).toBe("1");
-    expect(await recordSignup(signupEnv, subject)).toBe("returning");
+    expect(await classifySignup(signupEnv, subject)).toBe("returning");
   });
 
   it("stays returning after the account's grants are revoked", async () => {
     const subject = crypto.randomUUID();
-    await recordSignup({ OAUTH_KV: env.OAUTH_KV, OAUTH_PROVIDER: provider(0) }, subject);
+    await markSignedIn({ OAUTH_KV: env.OAUTH_KV }, subject);
 
     const noGrants = provider(0);
-    expect(await recordSignup({ OAUTH_KV: env.OAUTH_KV, OAUTH_PROVIDER: noGrants }, subject)).toBe(
+    expect(await classifySignup({ OAUTH_KV: env.OAUTH_KV, OAUTH_PROVIDER: noGrants }, subject)).toBe(
       "returning",
     );
     expect(noGrants.listUserGrants).not.toHaveBeenCalled();
@@ -41,26 +45,28 @@ describe("recordSignup", () => {
   it("treats accounts with a live grant but no marker as returning", async () => {
     const subject = crypto.randomUUID();
     const signupEnv = { OAUTH_KV: env.OAUTH_KV, OAUTH_PROVIDER: provider(1) };
-    expect(await recordSignup(signupEnv, subject)).toBe("returning");
-    expect(await env.OAUTH_KV.get(`${SIGNUP_PREFIX}${subject}`)).toBe("1");
+    expect(await classifySignup(signupEnv, subject)).toBe("returning");
   });
 
   it("refreshes the marker's expiry on every sign-in", async () => {
     const put = vi.fn(async () => undefined);
-    const kv = { get: async () => "1", put } as unknown as KVNamespace;
-    await recordSignup({ OAUTH_KV: kv, OAUTH_PROVIDER: provider(0) }, "subject");
+    await markSignedIn({ OAUTH_KV: { put } as unknown as KVNamespace }, "subject");
     expect(put).toHaveBeenCalledWith(`${SIGNUP_PREFIX}subject`, "1", {
       expirationTtl: SIGNUP_TTL_SECONDS,
     });
   });
 
-  it("reports unknown instead of failing sign-in when storage is unavailable", async () => {
+  it("never fails sign-in when storage is unavailable", async () => {
     const kv = {
       get: async () => {
         throw new Error("KV down");
       },
+      put: async () => {
+        throw new Error("KV down");
+      },
     } as unknown as KVNamespace;
-    expect(await recordSignup({ OAUTH_KV: kv, OAUTH_PROVIDER: provider(0) }, "s")).toBe("unknown");
+    expect(await classifySignup({ OAUTH_KV: kv, OAUTH_PROVIDER: provider(0) }, "s")).toBe("unknown");
+    await expect(markSignedIn({ OAUTH_KV: kv }, "s")).resolves.toBeUndefined();
   });
 });
 

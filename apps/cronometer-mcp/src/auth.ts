@@ -12,7 +12,7 @@ import { captureException } from "@sentry/cloudflare";
 import { waitUntil } from "cloudflare:workers";
 import { renderConsentPage } from "./consent/ConsentPage";
 import { clientPlatform } from "./client-platform";
-import { authorizationLogPayload, recordSignup } from "./signup-log";
+import { authorizationLogPayload, classifySignup, markSignedIn, type SignupStatus } from "./signup-log";
 import { telemetryUserId } from "./telemetry-user";
 import { createOtlpLogSender, parseOtlpHeaders } from "./tool-call-log";
 
@@ -134,7 +134,7 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
     const requestedScopes = flow.oauthRequest.scope ?? [];
     const grantedScopes = requestedScopes.filter((scope) => scope === OAUTH_SCOPE);
     // Checked before the grant exists, so a first sign-in is not seen as its own prior grant.
-    const signupStatus = await recordSignup(env, subject);
+    const signupStatus = await classifySignup(env, subject);
     const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
       metadata: { provider: "cronometer" },
       props: {
@@ -147,6 +147,7 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
       userId: subject,
     });
     await env.OAUTH_KV.delete(flowKey);
+    await markSignedIn(env, subject);
     // The grant already exists here, so telemetry must not fall into the error path below.
     await logAuthorization(env, signupStatus, flow.clientName, webSession.userId).catch(
       () => undefined,
@@ -211,7 +212,7 @@ function denyAuthorization(oauthRequest: AuthRequest): Response {
 // platform comes from the OAuth client's registered name instead.
 async function logAuthorization(
   env: AuthEnv,
-  status: Awaited<ReturnType<typeof recordSignup>>,
+  status: SignupStatus,
   clientName: string,
   cronometerUserId: string | number,
 ): Promise<void> {

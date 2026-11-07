@@ -27,33 +27,33 @@ interface SignupEnv {
 }
 
 /**
- * Classifies a sign-in before its grant is created, and records the account
- * as seen. Grants alone cannot tell a newcomer apart: they are revoked when
- * Cronometer rejects a session and expire after 30 idle days, so a separate
- * marker keyed by the grant's own account hash remembers prior sign-ins.
- * Accounts that connected before the marker existed are recognised by their
- * live grants.
+ * Classifies a sign-in before its grant is created. Grants alone cannot tell a
+ * newcomer apart: they are revoked when Cronometer rejects a session and
+ * expire after 30 idle days, so a separate marker keyed by the grant's own
+ * account hash remembers prior sign-ins (see `markSignedIn`). Accounts that
+ * connected before the marker existed are recognised by their live grants.
  */
-export async function recordSignup(env: SignupEnv, subject: string): Promise<SignupStatus> {
-  const key = `${SIGNUP_PREFIX}${subject}`;
-  let status: SignupStatus;
+export async function classifySignup(env: SignupEnv, subject: string): Promise<SignupStatus> {
   try {
-    const marker = await env.OAUTH_KV.get(key);
-    if (marker !== null) {
-      status = "returning";
-    } else {
-      const { items } = await env.OAUTH_PROVIDER.listUserGrants(subject, { limit: 1 });
-      status = items.length > 0 ? "returning" : "new";
-    }
+    if ((await env.OAUTH_KV.get(`${SIGNUP_PREFIX}${subject}`)) !== null) return "returning";
+    const { items } = await env.OAUTH_PROVIDER.listUserGrants(subject, { limit: 1 });
+    return items.length > 0 ? "returning" : "new";
   } catch {
     return "unknown";
   }
+}
+
+/**
+ * Records the account as signed in, refreshing the marker's expiry. Call only
+ * once the grant exists, so a failed first attempt is still counted as new on
+ * retry. Best effort: a missed marker only risks counting the account as new again.
+ */
+export async function markSignedIn(env: Pick<SignupEnv, "OAUTH_KV">, subject: string): Promise<void> {
   try {
-    await env.OAUTH_KV.put(key, "1", { expirationTtl: SIGNUP_TTL_SECONDS });
+    await env.OAUTH_KV.put(`${SIGNUP_PREFIX}${subject}`, "1", { expirationTtl: SIGNUP_TTL_SECONDS });
   } catch {
-    // Best effort: a missed marker only risks counting this account as new again.
+    // Ignored, see above.
   }
-  return status;
 }
 
 function stringAttribute(key: string, value: string) {
