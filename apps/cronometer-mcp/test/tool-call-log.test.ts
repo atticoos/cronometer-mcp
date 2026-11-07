@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { trace } from "@opentelemetry/api";
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport, McpServer, type Server } from "@modelcontextprotocol/server";
 import { z } from "zod";
@@ -108,6 +110,13 @@ describe("createToolCallLogSink", () => {
 });
 
 describe("onToolCall", () => {
+  const exporter = new InMemorySpanExporter();
+  beforeAll(() => {
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+    );
+  });
+
   async function connect(onToolCall: (record: ToolCallRecord) => void) {
     const mcp = instrumentToolRegistration(new McpServer({ name: "t", version: "0" }), {
       onToolCall,
@@ -144,6 +153,11 @@ describe("onToolCall", () => {
     ]);
     expect(records[0].argKeys).toBe("text");
     expect(records[0].durationMs).toBeGreaterThanOrEqual(0);
+
+    const span = exporter.getFinishedSpans().find((s) => s.name === "mcp.tool echo");
+    expect(span).toBeDefined();
+    expect(records[0].traceId).toBe(span?.spanContext().traceId);
+    expect(records[0].spanId).toBe(span?.spanContext().spanId);
   });
 
   it("keeps the tool call working when the sink throws", async () => {

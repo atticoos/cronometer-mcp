@@ -74,7 +74,8 @@ export function instrumentToolRegistration(
         const userId = await options.resolveUserId?.().catch(() => undefined);
         if (userId) span.setAttribute("enduser.pseudo.id", userId);
         const startedAt = Date.now();
-        const { traceId, spanId } = span.spanContext();
+        // Read before span.end(): an ended span no longer reports isRecording().
+        const traceIds = span.isRecording() ? span.spanContext() : undefined;
         const report = (outcome: ToolOutcome) => {
           if (!options.onToolCall) return;
           const endTimeMs = Date.now();
@@ -86,7 +87,7 @@ export function instrumentToolRegistration(
               endTimeMs,
               argKeys: keys,
               userId,
-              ...(span.isRecording() ? { traceId, spanId } : {}),
+              ...(traceIds ? { traceId: traceIds.traceId, spanId: traceIds.spanId } : {}),
             });
           } catch {
             // Telemetry must never affect a tool call.
