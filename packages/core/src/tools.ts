@@ -60,10 +60,25 @@ function toolSuccess(payload: Record<string, unknown>) {
   };
 }
 
-export function toolError(message: string) {
+/**
+ * Why a tool returned an error result, for telemetry only:
+ * - `auth`: the user must reconnect (no linked account, expired session).
+ * - `rejected`: Cronometer refused the request as asked (bad input, limits).
+ * - `upstream`: Cronometer or this server failed; these are reported via `onError`.
+ */
+export type ToolErrorKind = "auth" | "rejected" | "upstream";
+
+/**
+ * Symbol-keyed so it never reaches the client: JSON serialization skips
+ * symbol keys. Hosts read it from the handler's result to classify failures.
+ */
+export const TOOL_ERROR_KIND: unique symbol = Symbol.for("cronometer-mcp.tool-error-kind");
+
+export function toolError(message: string, kind: ToolErrorKind = "upstream") {
   return {
     content: [{ type: "text" as const, text: message }],
     isError: true,
+    [TOOL_ERROR_KIND]: kind,
   };
 }
 
@@ -90,7 +105,7 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
     : {};
 
   async function authError(message: string) {
-    const error = toolError(message);
+    const error = toolError(message, "auth");
     const challenge = await oauth?.reauthorize();
     return challenge
       ? { ...error, _meta: { "mcp/www_authenticate": [challenge] } }
@@ -108,10 +123,11 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       if (error instanceof mobile.CronometerMobileError && error.reason === "session") {
         return authError(SESSION_EXPIRED_MESSAGE);
       }
-      if (!(error instanceof mobile.CronometerMobileError) || error.reason === "upstream") {
-        onError?.(error, "mobile");
+      if (error instanceof mobile.CronometerMobileError && error.reason === "request") {
+        return toolError(mobileErrorMessage(error), "rejected");
       }
-      return toolError(mobileErrorMessage(error));
+      onError?.(error, "mobile");
+      return toolError(mobileErrorMessage(error), "upstream");
     }
   }
 
@@ -191,11 +207,14 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       } catch (error) {
         if (error instanceof CronometerExportError) {
           if (error.reason === "session") return authError(SESSION_EXPIRED_MESSAGE);
-          if (error.reason === "format" || error.reason === "upstream") onError?.(error, "export");
-          return toolError(exportErrorMessage(error.reason));
+          if (error.reason === "format" || error.reason === "upstream") {
+            onError?.(error, "export");
+            return toolError(exportErrorMessage(error.reason), "upstream");
+          }
+          return toolError(exportErrorMessage(error.reason), "rejected");
         }
         onError?.(error, "export");
-        return toolError("Cronometer data retrieval failed. Try again later.");
+        return toolError("Cronometer data retrieval failed. Try again later.", "upstream");
       }
     },
   );

@@ -66,6 +66,12 @@ describe("toolCallLogPayload", () => {
       .scopeLogs[0].logRecords[0];
     expect(log.severityText).toBe("WARN");
   });
+
+  it("records why a returned error failed", () => {
+    const log = toolCallLogPayload({ ...record, outcome: "returned_error", errorKind: "auth" }, "svc")
+      .resourceLogs[0].scopeLogs[0].logRecords[0];
+    expect(log.attributes).toContainEqual({ key: "mcp.tool.error_kind", value: { stringValue: "auth" } });
+  });
 });
 
 describe("createToolCallLogSink", () => {
@@ -156,6 +162,8 @@ describe("onToolCall", () => {
       ["boom", "thrown_error"],
     ]);
     expect(records[0].argKeys).toBe("text");
+    // A bare isError result has no kind from our helpers, so it counts as a fault.
+    expect(records[1].errorKind).toBe("upstream");
     expect(records[0].durationMs).toBeGreaterThanOrEqual(0);
 
     const span = exporter.getFinishedSpans().find((s) => s.name === "mcp.tool echo");

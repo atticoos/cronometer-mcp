@@ -33,6 +33,7 @@ export function toolCallLogPayload(record: ToolCallRecord, serviceName: string) 
     stringAttribute("mcp.tool.outcome", record.outcome),
     { key: "mcp.tool.duration_ms", value: { intValue: String(Math.round(record.durationMs)) } },
   ];
+  if (record.errorKind) attributes.push(stringAttribute("mcp.tool.error_kind", record.errorKind));
   if (record.argKeys) attributes.push(stringAttribute("mcp.tool.arg_keys", record.argKeys));
   if (record.userId) attributes.push(stringAttribute("enduser.pseudo.id", record.userId));
   if (record.platform) attributes.push(stringAttribute("mcp.client.platform", record.platform));

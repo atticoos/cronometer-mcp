@@ -49,6 +49,7 @@ describe("tool telemetry", () => {
       .filter((span) => span.name === "mcp.tool get_cronometer_data");
     expect(spans.length).toBeGreaterThan(0);
     expect(spans.at(-1)?.attributes["mcp.tool.outcome"]).toBe("returned_error");
+    expect(spans.at(-1)?.attributes["mcp.tool.error_kind"]).toBe("auth");
   });
 });
 

@@ -2,8 +2,9 @@ import { SpanStatusCode, trace, type Attributes, type Context } from "@opentelem
 import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { captureException, withScope } from "@sentry/cloudflare";
+import { TOOL_ERROR_KIND, type ToolErrorKind } from "@cronometer-mcp/core";
 
-type ToolResult = { isError?: boolean } & Record<string, unknown>;
+type ToolResult = { isError?: boolean; [TOOL_ERROR_KIND]?: ToolErrorKind } & Record<string, unknown>;
 type ToolHandler = (
   args: Record<string, unknown>,
   extra: unknown,
@@ -21,6 +22,8 @@ export type ToolOutcome = "success" | "returned_error" | "thrown_error";
 export interface ToolCallRecord {
   tool: string;
   outcome: ToolOutcome;
+  /** Why a `returned_error` call failed; `upstream` ones are also reported to Sentry. */
+  errorKind?: ToolErrorKind;
   durationMs: number;
   endTimeMs: number;
   argKeys?: string;
@@ -88,13 +91,14 @@ export function instrumentToolRegistration(
         const startedAt = Date.now();
         // Read before span.end(): an ended span no longer reports isRecording().
         const traceIds = span.isRecording() ? span.spanContext() : undefined;
-        const report = (outcome: ToolOutcome) => {
+        const report = (outcome: ToolOutcome, errorKind?: ToolErrorKind) => {
           if (!options.onToolCall) return;
           const endTimeMs = Date.now();
           try {
             options.onToolCall({
               tool: name,
               outcome,
+              ...(errorKind ? { errorKind } : {}),
               durationMs: endTimeMs - startedAt,
               endTimeMs,
               argKeys: keys,
@@ -115,11 +119,15 @@ export function instrumentToolRegistration(
           const failed = result?.isError === true;
           const outcome: ToolOutcome = failed ? "returned_error" : "success";
           span.setAttribute("mcp.tool.outcome", outcome);
+          // A result that sets isError without a kind came from outside our
+          // tool helpers, so treat it as a fault.
+          const errorKind = failed ? (result[TOOL_ERROR_KIND] ?? "upstream") : undefined;
+          if (errorKind) span.setAttribute("mcp.tool.error_kind", errorKind);
           span.setStatus({
             code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK,
           });
           span.end();
-          report(outcome);
+          report(outcome, errorKind);
           return result;
         } catch (error) {
           captureException(error, { tags: { "mcp.tool.name": name } });

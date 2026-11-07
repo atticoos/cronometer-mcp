@@ -147,9 +147,11 @@ export default function PrivacyPage() {
                 <strong>Traces.</strong> Performance traces are sent to Grafana Cloud. They include the request URL and
                 user agent, the URLs of requests made to Cronometer, the type of each stored record that is read or
                 written, the name of each tool called, the names of the arguments it received (never their values),
-                and whether it succeeded. Query parameter values and storage keys, which can hold one-time codes and
+                and whether it succeeded. For a call that failed, they also record a broad category of why (the
+                Cronometer sign-in needs renewing, Cronometer declined the request, or Cronometer or the service
+                failed), never the error message. Query parameter values and storage keys, which can hold one-time codes and
                 account identifiers, are removed before traces leave the service. Each tool call is also recorded in
-                Grafana Cloud as a usage log entry with the same tool name, argument names, outcome, how long it took,
+                Grafana Cloud as a usage log entry with the same tool name, argument names, outcome, failure category, how long it took,
                 the kind of assistant app that made the call (for example Claude, ChatGPT, or Cursor), as read from
                 its user agent, and the user agent itself.
               </li>
