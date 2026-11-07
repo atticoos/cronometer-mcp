@@ -23,9 +23,21 @@ function argKeys(args: unknown): string | undefined {
 /**
  * Wraps server.registerTool so every tool handler runs inside a
  * `mcp.tool.<name>` span with bounded, privacy-safe attributes.
- * Argument keys are recorded; argument values never are.
+ * Argument keys are recorded; argument values never are. The caller is
+ * identified only by a keyed pseudonym (see telemetry-user.ts).
  */
-export function instrumentToolRegistration(server: McpServer): McpServer {
+export interface ToolTelemetryOptions {
+  /**
+   * Resolves the pseudonymous ID of the user making the call, recorded as
+   * `enduser.pseudo.id`. Return undefined to leave the attribute off.
+   */
+  resolveUserId?: () => Promise<string | undefined>;
+}
+
+export function instrumentToolRegistration(
+  server: McpServer,
+  options: ToolTelemetryOptions = {},
+): McpServer {
   const tracer = trace.getTracer("cronometer-mcp");
   const registerTool = server.registerTool.bind(server) as RegisterTool;
 
@@ -41,6 +53,8 @@ export function instrumentToolRegistration(server: McpServer): McpServer {
         span.setAttribute("mcp.tool.name", name);
         const keys = argKeys(args);
         if (keys) span.setAttribute("mcp.tool.arg_keys", keys);
+        const userId = await options.resolveUserId?.().catch(() => undefined);
+        if (userId) span.setAttribute("enduser.pseudo.id", userId);
         try {
           const result = await withScope((scope) => {
             scope.setTag("mcp.tool.name", name);
