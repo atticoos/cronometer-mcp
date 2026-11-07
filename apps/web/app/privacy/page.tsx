@@ -104,6 +104,11 @@ export default function PrivacyPage() {
                 user ID. That hash is stored unencrypted so a grant can be found and revoked.
               </li>
               <li>
+                <strong>Sign-in history.</strong> A small record keyed by that same hash notes that your account has
+                connected before, so new users can be counted. It holds nothing else and expires a year after your
+                last sign-in.
+              </li>
+              <li>
                 <strong>Pending sign-ins.</strong> While the authorization page is open, a short-lived record holds the
                 OAuth request, the requesting app&apos;s name, a hashed security token, and a count of failed attempts.
                 It is deleted when you finish or cancel, and expires on its own after 10 minutes.
@@ -161,6 +166,12 @@ export default function PrivacyPage() {
                 (HMAC-SHA-256) whose key is kept secret, so it cannot be traced back to your account without that key.
                 It differs from the account identifier used to index your grant, and it never includes your username
                 or email.
+              </li>
+              <li>
+                <strong>Sign-in events.</strong> Each completed sign-in is recorded in Grafana Cloud as a usage log
+                entry saying whether it was the account&apos;s first sign-in, the kind of assistant app it came from
+                (read from the app&apos;s registered name), and the pseudonymous user ID described above. It never
+                includes your username, email, or password.
               </li>
               <li>
                 <strong>Error reports.</strong> Unexpected errors are sent to Sentry. Before anything leaves the
@@ -222,6 +233,7 @@ export default function PrivacyPage() {
                 revoked automatically when Cronometer rejects its sessions and you are asked to sign in again.
               </li>
               <li>Assistant registrations: 90 days.</li>
+              <li>Sign-in history: 1 year after your last sign-in.</li>
               <li>Logs, traces, and error reports: according to the retention settings of Cloudflare, Grafana Cloud, and Sentry.</li>
             </List>
           </Section>
