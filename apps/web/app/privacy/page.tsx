@@ -146,7 +146,9 @@ export default function PrivacyPage() {
               <li>
                 <strong>Traces.</strong> Performance traces are sent to Grafana Cloud. They include the request URL and
                 user agent, the URLs of requests made to Cronometer, the name of each tool called, the names of the
-                arguments it received (never their values), and whether it succeeded.
+                arguments it received (never their values), and whether it succeeded. Each tool call is also
+                recorded in Grafana Cloud as a usage log entry with the same tool name, argument names, outcome, and
+                how long it took.
               </li>
               <li>
                 <strong>Error reports.</strong> Unexpected errors are sent to Sentry. Before anything leaves the
