@@ -71,3 +71,26 @@ export function instrumentToolRegistration(server: McpServer): McpServer {
 
   return server;
 }
+
+/**
+ * otel-cf-workers ends the root fetch span as soon as the handler returns a
+ * Response, then flushes the trace once every `ctx.waitUntil` promise settles,
+ * force-ending any span still open. MCP tool calls answer over a streamed
+ * (text/event-stream) body, so the handler returns before the tool finishes and
+ * the tool span used to be exported without its outcome.
+ *
+ * Registering the body's completion with `waitUntil` keeps the flush waiting
+ * until the stream has been fully written, which happens after the tool span
+ * has ended.
+ */
+export function holdTraceUntilBodyDone(
+  response: Response,
+  waitUntil: (promise: Promise<unknown>) => void,
+): Response {
+  if (!response.body) return response;
+  const { readable, writable } = new TransformStream();
+  // A client disconnect cancels the stream; the rejection only means the body
+  // ended early, which is still the end of the request.
+  waitUntil(response.body.pipeTo(writable).catch(() => undefined));
+  return new Response(readable, response);
+}
