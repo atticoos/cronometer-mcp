@@ -22,7 +22,7 @@ import {
   RedactingSpanProcessor,
 } from "./observability";
 import { sentryOptions } from "./sentry";
-import { createToolCallLogSink } from "./tool-call-log";
+import { createToolCallLogSink, parseOtlpHeaders } from "./tool-call-log";
 import { env as workerEnv, waitUntil } from "cloudflare:workers";
 import { telemetryUserId } from "./telemetry-user";
 import { clientPlatform, clientUserAgent } from "./client-platform";
@@ -114,20 +114,6 @@ async function reauthorize(request: Request, env: RuntimeEnv): Promise<string | 
 
   const metadata = `${url.origin}/.well-known/oauth-protected-resource${MCP_ROUTE}`;
   return `Bearer resource_metadata="${metadata}", error="invalid_token", error_description="Sign in to Cronometer again"`;
-}
-
-function parseOtlpHeaders(raw: string | undefined): Record<string, string> {
-  if (!raw) return {};
-  return Object.fromEntries(
-    raw
-      .split(",")
-      .map((pair) => {
-        const eq = pair.indexOf("=");
-        return eq === -1 ? undefined : [pair.slice(0, eq), pair.slice(eq + 1)];
-      })
-      .filter((entry): entry is [string, string] => entry !== undefined)
-      .map(([key, value]) => [key.trim(), value.trim()]),
-  );
 }
 
 const oauthProvider = new OAuthProvider<RuntimeEnv>({

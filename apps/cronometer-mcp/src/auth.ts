@@ -9,7 +9,12 @@ import {
   authenticateCronometerMobile,
 } from "@cronometer-mcp/cronometer-client";
 import { captureException } from "@sentry/cloudflare";
+import { waitUntil } from "cloudflare:workers";
 import { renderConsentPage } from "./consent/ConsentPage";
+import { clientPlatform } from "./client-platform";
+import { authorizationLogPayload, classifySignup, markSignedIn, type SignupStatus } from "./signup-log";
+import { telemetryUserId } from "./telemetry-user";
+import { createOtlpLogSender, parseOtlpHeaders } from "./tool-call-log";
 
 const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
@@ -128,6 +133,8 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
     const subject = await sha256Hex(`cronometer:${webSession.userId}`);
     const requestedScopes = flow.oauthRequest.scope ?? [];
     const grantedScopes = requestedScopes.filter((scope) => scope === OAUTH_SCOPE);
+    // Checked before the grant exists, so a first sign-in is not seen as its own prior grant.
+    const signupStatus = await classifySignup(env, subject);
     const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
       metadata: { provider: "cronometer" },
       props: {
@@ -140,6 +147,11 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
       userId: subject,
     });
     await env.OAUTH_KV.delete(flowKey);
+    await markSignedIn(env, subject);
+    // The grant already exists here, so telemetry must not fall into the error path below.
+    await logAuthorization(env, signupStatus, flow.clientName, webSession.userId).catch(
+      () => undefined,
+    );
 
     return new Response(null, {
       headers: {
@@ -193,6 +205,35 @@ function denyAuthorization(oauthRequest: AuthRequest): Response {
     headers: { Location: redirect.toString(), "Set-Cookie": csrfCookie("", 0) },
     status: 302,
   });
+}
+
+// One log record per completed sign-in lets Grafana count and alert on new
+// users. The browser's user agent says nothing about the assistant, so the
+// platform comes from the OAuth client's registered name instead.
+async function logAuthorization(
+  env: AuthEnv,
+  status: SignupStatus,
+  clientName: string,
+  cronometerUserId: string | number,
+): Promise<void> {
+  const send = createOtlpLogSender(
+    {
+      tracesEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      headers: parseOtlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
+      serviceName: env.OTEL_SERVICE_NAME ?? "cronometer-mcp",
+    },
+    waitUntil,
+  );
+  if (!send) return;
+  const userId = await telemetryUserId(env.TELEMETRY_USER_ID_SECRET, cronometerUserId).catch(
+    () => undefined,
+  );
+  send(
+    authorizationLogPayload(
+      { status, platform: clientPlatform(clientName), userId, timeMs: Date.now() },
+      env.OTEL_SERVICE_NAME ?? "cronometer-mcp",
+    ),
+  );
 }
 
 function loginPage(options: {

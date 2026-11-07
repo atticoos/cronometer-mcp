@@ -177,7 +177,7 @@ const REDACTED = "[redacted]";
 // Key prefixes written by @cloudflare/workers-oauth-provider and our auth flow.
 // The rest of each key holds the user id, grant id, token hash, client id or
 // sign-in flow id, so only the prefix is kept.
-const KV_KEY_PREFIXES = ["token:", "grant:", "client:", "cronometer:auth-flow:"];
+const KV_KEY_PREFIXES = ["token:", "grant:", "client:", "signup:", "cronometer:auth-flow:"];
 
 function redactKvKey(key: string): string {
   const prefix = KV_KEY_PREFIXES.find((candidate) => key.startsWith(candidate));

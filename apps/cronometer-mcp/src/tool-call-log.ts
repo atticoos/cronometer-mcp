@@ -67,28 +67,57 @@ export function toolCallLogPayload(record: ToolCallRecord, serviceName: string) 
 }
 
 /**
+ * Returns a function that ships one OTLP/JSON logs payload to the logs
+ * endpoint beside the configured trace URL, or undefined when telemetry export
+ * is not configured. Delivery is best effort: failures are swallowed so
+ * telemetry never affects the request that produced it.
+ */
+export function createOtlpLogSender(
+  config: ToolCallLogConfig,
+  schedule: (promise: Promise<unknown>) => void,
+  fetchImpl: typeof fetch = uninstrumentedFetch,
+): ((payload: unknown) => void) | undefined {
+  const url = logsEndpoint(config.tracesEndpoint);
+  if (!url) return undefined;
+
+  return (payload) => {
+    schedule(
+      fetchImpl(url, {
+        method: "POST",
+        headers: { ...config.headers, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then((response) => response.body?.cancel())
+        .catch(() => undefined),
+    );
+  };
+}
+
+/**
  * Returns a sink that ships each tool call to the OTLP logs endpoint, or
- * undefined when telemetry export is not configured. Delivery is best effort:
- * failures are swallowed so telemetry never affects a tool call.
+ * undefined when telemetry export is not configured.
  */
 export function createToolCallLogSink(
   config: ToolCallLogConfig,
   schedule: (promise: Promise<unknown>) => void,
   fetchImpl: typeof fetch = uninstrumentedFetch,
 ): ((record: ToolCallRecord) => void) | undefined {
-  const url = logsEndpoint(config.tracesEndpoint);
-  if (!url) return undefined;
+  const send = createOtlpLogSender(config, schedule, fetchImpl);
+  if (!send) return undefined;
+  return (record) => send(toolCallLogPayload(record, config.serviceName));
+}
 
-  return (record) => {
-    const body = JSON.stringify(toolCallLogPayload(record, config.serviceName));
-    schedule(
-      fetchImpl(url, {
-        method: "POST",
-        headers: { ...config.headers, "Content-Type": "application/json" },
-        body,
+/** Parses `OTEL_EXPORTER_OTLP_HEADERS` (`key=value,key=value`) into a header map. */
+export function parseOtlpHeaders(raw: string | undefined): Record<string, string> {
+  if (!raw) return {};
+  return Object.fromEntries(
+    raw
+      .split(",")
+      .map((pair) => {
+        const eq = pair.indexOf("=");
+        return eq === -1 ? undefined : [pair.slice(0, eq), pair.slice(eq + 1)];
       })
-        .then((response) => response.body?.cancel())
-        .catch(() => undefined),
-    );
-  };
+      .filter((entry): entry is [string, string] => entry !== undefined)
+      .map(([key, value]) => [key.trim(), value.trim()]),
+  );
 }
