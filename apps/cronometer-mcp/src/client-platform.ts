@@ -18,3 +18,18 @@ export function clientPlatform(userAgent: string | null | undefined): ClientPlat
   if (!ua) return "unknown";
   return PLATFORMS.find(({ match }) => match.test(ua))?.platform ?? "other";
 }
+
+/** Longest user agent recorded in telemetry; longer values are cut to this length. */
+export const MAX_USER_AGENT_LENGTH = 200;
+
+/**
+ * The raw User-Agent as recorded on tool spans and usage logs, trimmed and
+ * capped in length, or undefined when the request sent none. Unlike
+ * `clientPlatform`, this keeps the exact client name and version, so callers
+ * that land in "other" can still be told apart.
+ */
+export function clientUserAgent(userAgent: string | null | undefined): string | undefined {
+  const ua = userAgent?.trim();
+  if (!ua) return undefined;
+  return ua.length > MAX_USER_AGENT_LENGTH ? ua.slice(0, MAX_USER_AGENT_LENGTH) : ua;
+}

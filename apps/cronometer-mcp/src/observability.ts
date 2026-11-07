@@ -28,6 +28,8 @@ export interface ToolCallRecord {
   userId?: string;
   /** Assistant platform, the same value as the span's `mcp.client.platform`. */
   platform?: string;
+  /** Client User-Agent, the same value as the span's `user_agent.original`. */
+  userAgent?: string;
   traceId?: string;
   spanId?: string;
 }
@@ -54,6 +56,8 @@ export interface ToolTelemetryOptions {
   onToolCall?: (record: ToolCallRecord) => void;
   /** Assistant platform making the call (see client-platform.ts), recorded as `mcp.client.platform`. */
   clientPlatform?: string;
+  /** Client User-Agent (see `clientUserAgent`), recorded as `user_agent.original`. */
+  clientUserAgent?: string;
 }
 
 export function instrumentToolRegistration(
@@ -77,6 +81,8 @@ export function instrumentToolRegistration(
         if (keys) span.setAttribute("mcp.tool.arg_keys", keys);
         const platform = options.clientPlatform;
         if (platform) span.setAttribute("mcp.client.platform", platform);
+        const userAgent = options.clientUserAgent;
+        if (userAgent) span.setAttribute("user_agent.original", userAgent);
         const userId = await options.resolveUserId?.().catch(() => undefined);
         if (userId) span.setAttribute("enduser.pseudo.id", userId);
         const startedAt = Date.now();
@@ -94,6 +100,7 @@ export function instrumentToolRegistration(
               argKeys: keys,
               userId,
               platform,
+              userAgent,
               ...(traceIds ? { traceId: traceIds.traceId, spanId: traceIds.spanId } : {}),
             });
           } catch {
