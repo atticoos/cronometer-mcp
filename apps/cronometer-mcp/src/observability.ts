@@ -26,6 +26,8 @@ export interface ToolCallRecord {
   argKeys?: string;
   /** Pseudonymous user ID, the same value as the span's `enduser.pseudo.id`. */
   userId?: string;
+  /** Assistant platform, the same value as the span's `mcp.client.platform`. */
+  platform?: string;
   traceId?: string;
   spanId?: string;
 }
@@ -50,6 +52,8 @@ export interface ToolTelemetryOptions {
   resolveUserId?: () => Promise<string | undefined>;
   /** Called once per finished tool call. Must not throw or block. */
   onToolCall?: (record: ToolCallRecord) => void;
+  /** Assistant platform making the call (see client-platform.ts), recorded as `mcp.client.platform`. */
+  clientPlatform?: string;
 }
 
 export function instrumentToolRegistration(
@@ -71,6 +75,8 @@ export function instrumentToolRegistration(
         span.setAttribute("mcp.tool.name", name);
         const keys = argKeys(args);
         if (keys) span.setAttribute("mcp.tool.arg_keys", keys);
+        const platform = options.clientPlatform;
+        if (platform) span.setAttribute("mcp.client.platform", platform);
         const userId = await options.resolveUserId?.().catch(() => undefined);
         if (userId) span.setAttribute("enduser.pseudo.id", userId);
         const startedAt = Date.now();
@@ -87,6 +93,7 @@ export function instrumentToolRegistration(
               endTimeMs,
               argKeys: keys,
               userId,
+              platform,
               ...(traceIds ? { traceId: traceIds.traceId, spanId: traceIds.spanId } : {}),
             });
           } catch {
