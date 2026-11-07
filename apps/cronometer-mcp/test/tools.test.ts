@@ -3,6 +3,7 @@ import type { Server } from "@modelcontextprotocol/server";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { createServer } from "../src/index";
+import { PERMISSION_GROUPS } from "../src/consent/permissions";
 
 let client: Client;
 
@@ -37,6 +38,19 @@ describe("registered tool surface", () => {
       "remove_food_entry",
       "search_foods",
     ]);
+  });
+
+  it("describes every tool on the consent screen exactly once", async () => {
+    const { tools } = await client.listTools();
+    const described = PERMISSION_GROUPS.flatMap((group) => group.tools.map((tool) => tool.name));
+    expect([...described].sort()).toEqual(
+      tools.map((tool) => tool.name).filter((name) => name !== "connection_status").sort(),
+    );
+    const deleteTools = PERMISSION_GROUPS.filter((group) => group.risk === "delete").flatMap((group) =>
+      group.tools.map((tool) => tool.name),
+    );
+    const destructive = tools.filter((tool) => tool.annotations?.destructiveHint).map((tool) => tool.name);
+    expect(deleteTools.sort()).toEqual(destructive.sort());
   });
 
   it("exposes JSON schemas for every tool", async () => {

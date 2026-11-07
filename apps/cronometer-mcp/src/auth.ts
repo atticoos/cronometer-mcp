@@ -9,6 +9,7 @@ import {
   authenticateCronometerMobile,
 } from "@cronometer-mcp/cronometer-client";
 import { captureException } from "@sentry/cloudflare";
+import { renderConsentPage } from "./consent/ConsentPage";
 
 const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
@@ -84,12 +85,13 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
   const form = await request.formData();
   const flowId = stringField(form, "flow_id", 100);
   const csrfForm = stringField(form, "csrf_token", 100);
+  const denied = stringField(form, "action", 10) === "deny";
   const username = stringField(form, "username", 320);
   const password = stringField(form, "password", 1024);
   const userCode = stringField(form, "user_code", 64) ?? "";
   const csrfCookieValue = readCookie(request, CSRF_COOKIE);
 
-  if (!flowId || !csrfForm || !username || !password || !csrfCookieValue) {
+  if (!flowId || !csrfForm || !csrfCookieValue || (!denied && (!username || !password))) {
     return htmlError("The authorization request is incomplete or expired", 400);
   }
 
@@ -98,6 +100,13 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
   const csrfHash = await sha256Hex(csrfForm);
   const cookieHash = await sha256Hex(csrfCookieValue);
   if (!flow || csrfHash !== flow.csrfHash || cookieHash !== flow.csrfHash) {
+    return htmlError("The authorization request is incomplete or expired", 400);
+  }
+  if (denied) {
+    await env.OAUTH_KV.delete(flowKey);
+    return denyAuthorization(flow.oauthRequest);
+  }
+  if (!username || !password) {
     return htmlError("The authorization request is incomplete or expired", 400);
   }
   if (flow.attempts >= MAX_LOGIN_ATTEMPTS) {
@@ -148,13 +157,16 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
       expirationTtl: FLOW_TTL_SECONDS,
     });
 
-    const message = authenticationErrorMessage(error);
     return loginPage({
       clientName: flow.clientName,
       csrfToken: csrfForm,
-      error: message,
+      error: {
+        message: authenticationErrorMessage(error),
+        needsCode: error instanceof CronometerAuthenticationError && error.reason === "second_factor",
+      },
       flowId,
       redirectUri: flow.oauthRequest.redirectUri,
+      username,
     });
   }
 }
@@ -171,60 +183,36 @@ function authorizationErrorResponse(error: unknown): Response {
   return Response.redirect(redirect, 302);
 }
 
+// The person declined: tell the client per RFC 6749 §4.1.2.1.
+function denyAuthorization(oauthRequest: AuthRequest): Response {
+  const redirect = new URL(oauthRequest.redirectUri);
+  redirect.searchParams.set("error", "access_denied");
+  redirect.searchParams.set("error_description", "The user declined to connect their Cronometer account.");
+  if (oauthRequest.state) redirect.searchParams.set("state", oauthRequest.state);
+  return new Response(null, {
+    headers: { Location: redirect.toString(), "Set-Cookie": csrfCookie("", 0) },
+    status: 302,
+  });
+}
+
 function loginPage(options: {
   clientName: string;
   csrfToken: string;
-  error?: string;
+  error?: { message: string; needsCode: boolean };
   flowId: string;
   redirectUri: string;
   setCookie?: string;
+  username?: string;
 }): Response {
-  const error = options.error
-    ? `<p class="error" role="alert">${escapeHtml(options.error)}</p>`
-    : "";
-  const body = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Connect Cronometer</title>
-  <style>
-    :root { color-scheme: light; font-family: ui-sans-serif, system-ui, sans-serif; }
-    body { background:#f5f7f2; color:#17210f; display:grid; margin:0; min-height:100vh; place-items:center; }
-    main { background:white; border:1px solid #dce5d6; border-radius:16px; box-shadow:0 16px 50px #24351a14; box-sizing:border-box; max-width:440px; padding:32px; width:calc(100% - 32px); }
-    h1 { font-size:1.5rem; margin:0 0 8px; } p { color:#52604b; line-height:1.5; }
-    label { display:block; font-size:.875rem; font-weight:650; margin:18px 0 6px; }
-    input { border:1px solid #aebaa7; border-radius:9px; box-sizing:border-box; font:inherit; padding:11px 12px; width:100%; }
-    input:focus { border-color:#397d25; outline:3px solid #397d2526; }
-    button { background:#397d25; border:0; border-radius:9px; color:white; cursor:pointer; font:inherit; font-weight:700; margin-top:22px; padding:12px; width:100%; }
-    .error { background:#fff1f0; border:1px solid #ffc9c4; border-radius:8px; color:#8d1d15; padding:10px 12px; }
-    .privacy { font-size:.8rem; margin-bottom:0; }
-  </style>
-</head>
-<body><main>
-  <h1>Connect your Cronometer account</h1>
-  <p><strong>${escapeHtml(options.clientName)}</strong> is requesting read and write access to your Cronometer account through Cronometer MCP. This allows it to:</p>
-  <ul>
-    <li>Read your food diary, nutrition, targets, fasting history, and biometrics; search foods and view food details; and download CSV exports, including exercises and notes.</li>
-    <li>Add and delete food entries.</li>
-    <li>Create custom foods and recipes.</li>
-    <li>Copy diary entries from the previous day.</li>
-    <li>Mark diary days complete or incomplete.</li>
-  </ul>
-  ${error}
-  <form method="post" action="/authorize">
-    <input type="hidden" name="flow_id" value="${escapeHtml(options.flowId)}">
-    <input type="hidden" name="csrf_token" value="${escapeHtml(options.csrfToken)}">
-    <label for="username">Cronometer username or email</label>
-    <input id="username" name="username" autocomplete="username" maxlength="320" required>
-    <label for="password">Cronometer password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" maxlength="1024" required>
-    <label for="user_code">One-time code <span>(if enabled)</span></label>
-    <input id="user_code" name="user_code" autocomplete="one-time-code" inputmode="numeric" maxlength="64" placeholder="000000">
-    <button type="submit">Sign in and allow</button>
-  </form>
-  <p class="privacy">Your password is used only to sign in to Cronometer and is never stored. You can revoke the MCP connection at any time.</p>
-</main></body></html>`;
+  const body = renderConsentPage({
+    clientName: options.clientName,
+    csrfToken: options.csrfToken,
+    error: options.error,
+    expiresInMinutes: FLOW_TTL_SECONDS / 60,
+    flowId: options.flowId,
+    redirectUri: options.redirectUri,
+    username: options.username,
+  });
 
   const headers = authorizationSecurityHeaders(options.redirectUri);
   if (options.setCookie) headers.set("Set-Cookie", options.setCookie);
@@ -247,7 +235,7 @@ function authenticationErrorMessage(error: unknown): string {
     case "credentials":
       return "Cronometer did not accept those credentials. Re-enter them and try again.";
     case "second_factor":
-      return "Cronometer requires a current one-time code. Re-enter your credentials and add the code from your authenticator.";
+      return "Cronometer needs a one-time code for this account. Re-enter your password and add the code from your authenticator app.";
     case "session":
       return "Cronometer accepted the login, but a session handshake failed. The integration may need an update.";
   }
