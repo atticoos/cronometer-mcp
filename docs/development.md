@@ -71,10 +71,25 @@ npx wrangler secret put OTEL_EXPORTER_OTLP_HEADERS
 page. Rotate by re-running `wrangler secret put`. Use `npx wrangler secret list` to
 verify what is configured; a missing value disables tracing rather than failing requests.
 
+To tie tool spans to an account, also set a random HMAC key:
+
+```sh
+openssl rand -hex 32 | npx wrangler secret put TELEMETRY_USER_ID_SECRET
+```
+
+Each `mcp.tool` span then carries `enduser.pseudo.id`, an HMAC-SHA-256 of the
+Cronometer user ID truncated to 32 hex characters. Cronometer user IDs are
+sequential, so the key is what keeps the ID from being reversed; never log or
+share it. Rotating the key changes every user's ID, which breaks per-user history
+across the rotation. Without the secret, spans carry no user identifier. Query it
+in Tempo with, for example,
+`{ span.mcp.tool.name != nil } | count_over_time() by (span.enduser.pseudo.id)`.
+
 The same endpoint and headers also ship one OTLP log record per tool call to the sibling
 `/v1/logs` URL, which Grafana Cloud stores in Loki under `service_name="cronometer-mcp"`.
 Each record carries `mcp_tool_name`, `mcp_tool_outcome`, `mcp_tool_duration_ms`, and
-`mcp_tool_arg_keys` as structured metadata, plus the trace and span IDs of the tool span.
+`mcp_tool_arg_keys` (and `enduser_pseudo_id` when the secret above is set) as
+structured metadata, plus the trace and span IDs of the tool span.
 Use these logs for usage reports: unlike Tempo metrics queries, which are capped at 25 hours,
 one LogQL query covers any range up to Loki's 30-day limit.
 

@@ -151,6 +151,13 @@ export default function PrivacyPage() {
                 how long it took.
               </li>
               <li>
+                <strong>Pseudonymous user ID.</strong> Each tool call&apos;s trace and usage log entry carry a pseudonymous ID so usage and
+                errors can be counted per account. It is derived from your Cronometer user ID with a keyed hash
+                (HMAC-SHA-256) whose key is kept secret, so it cannot be traced back to your account without that key.
+                It differs from the account identifier used to index your grant, and it never includes your username
+                or email.
+              </li>
+              <li>
                 <strong>Error reports.</strong> Unexpected errors are sent to Sentry. Before anything leaves the
                 service, each report is reduced to the error type, a generic message, a stack trace of our code, and
                 the name of the tool or step that failed. Messages, request data, headers, cookies, user information,

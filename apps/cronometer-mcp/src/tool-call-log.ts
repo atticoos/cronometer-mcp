@@ -34,6 +34,7 @@ export function toolCallLogPayload(record: ToolCallRecord, serviceName: string) 
     { key: "mcp.tool.duration_ms", value: { intValue: String(Math.round(record.durationMs)) } },
   ];
   if (record.argKeys) attributes.push(stringAttribute("mcp.tool.arg_keys", record.argKeys));
+  if (record.userId) attributes.push(stringAttribute("enduser.pseudo.id", record.userId));
 
   const failed = record.outcome !== "success";
   return {
