@@ -59,14 +59,14 @@ async function registerClient() {
   return (await response.json<{ client_id: string }>()).client_id;
 }
 
-async function authorize(clientId: string) {
+async function authorize(clientId: string, audience = resource) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   const query = new URLSearchParams({
     client_id: clientId,
     code_challenge: btoa(String.fromCharCode(...new Uint8Array(digest))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
     code_challenge_method: "S256",
     redirect_uri: redirectUri,
-    resource,
+    resource: audience,
     response_type: "code",
     scope,
   });
@@ -97,6 +97,18 @@ function tokenRequest(clientId: string, fields: Record<string, string>) {
   return worker.fetch(`${origin}/oauth/token`, {
     method: "POST",
     body: new URLSearchParams({ client_id: clientId, ...fields }),
+  });
+}
+
+function rpc(url: string, accessToken: string | undefined, body: object) {
+  return worker.fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json, text/event-stream",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
 }
 
@@ -208,5 +220,30 @@ describe("Cronometer OAuth reauthorization", () => {
     expect(result.content).toMatchObject([
       { type: "text", text: expect.stringContaining('"food_id": 789') },
     ]);
+  });
+
+  it("serves MCP at the bare origin for clients configured without /mcp", async () => {
+    const landing = await worker.fetch(`${origin}/`);
+    expect(landing.status).toBe(200);
+    expect(await landing.text()).toContain("Cronometer MCP is running");
+
+    const challenge = await rpc(`${origin}/`, undefined, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    expect(challenge.status).toBe(401);
+    expect(challenge.headers.get("WWW-Authenticate")).toContain(metadata);
+
+    const clientId = await registerClient();
+    const tokens = await authorize(clientId, origin);
+    const init = await rpc(`${origin}/`, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "openai-mcp", version: "1.0.0" } },
+    });
+    expect(init.status).toBe(200);
+    const list = await rpc(`${origin}/`, tokens.access_token, { jsonrpc: "2.0", id: 2, method: "tools/list" });
+    expect(list.status).toBe(200);
+    const body = await list.text();
+    const data = body.startsWith("{") ? body : /^data: (.+)$/m.exec(body)?.[1];
+    expect(JSON.parse(data!).result.tools.length).toBeGreaterThan(0);
   });
 });

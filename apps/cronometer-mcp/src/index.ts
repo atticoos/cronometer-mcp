@@ -128,7 +128,24 @@ const oauthProvider = new OAuthProvider<RuntimeEnv>({
   tokenEndpoint: "/oauth/token",
 });
 
-const fetchWithOAuth = oauthProvider.fetch.bind(oauthProvider);
+// Some clients (e.g. ChatGPT apps) are configured with the bare origin and
+// speak MCP to "/". Serve those requests from the MCP route so they get the
+// same auth challenge and transport. Plain browser GETs keep the landing text.
+export function routeRootToMcp(request: Request): Request {
+  const url = new URL(request.url);
+  if (url.pathname !== "/") return request;
+  const isMcp =
+    request.method === "POST" ||
+    request.method === "DELETE" ||
+    request.method === "OPTIONS" ||
+    (request.method === "GET" && /text\/event-stream/i.test(request.headers.get("Accept") ?? ""));
+  if (!isMcp) return request;
+  url.pathname = MCP_ROUTE;
+  return new Request(url, request);
+}
+
+const fetchWithOAuth = (request: Request, env: RuntimeEnv, ctx: ExecutionContext) =>
+  oauthProvider.fetch(routeRootToMcp(request), env, ctx);
 const sentryWorker = withSentry(sentryOptions, { fetch: fetchWithOAuth });
 
 export default instrument(
