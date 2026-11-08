@@ -112,7 +112,7 @@ async function reauthorize(request: Request, env: RuntimeEnv): Promise<string | 
     return;
   }
 
-  const metadata = `${url.origin}/.well-known/oauth-protected-resource${MCP_ROUTE}`;
+  const metadata = `${url.origin}/.well-known/oauth-protected-resource${resourceMetadataPath(request)}`;
   return `Bearer resource_metadata="${metadata}", error="invalid_token", error_description="Sign in to Cronometer again"`;
 }
 
@@ -130,22 +130,47 @@ const oauthProvider = new OAuthProvider<RuntimeEnv>({
 
 // Some clients (e.g. ChatGPT apps) are configured with the bare origin and
 // speak MCP to "/". Serve those requests from the MCP route so they get the
-// same auth challenge and transport. Plain browser GETs keep the landing text.
+// same auth checks and transport. Plain browser GETs keep the landing text.
+// Challenges for them name the root resource metadata, whose resource is the
+// origin the client used (RFC 9728 §3.3); origin-audience tokens cover /mcp.
+const ROOT_REQUEST_HEADER = "X-Cronometer-MCP-Root";
+
 export function routeRootToMcp(request: Request): Request {
   const url = new URL(request.url);
-  if (url.pathname !== "/") return request;
   const isMcp =
-    request.method === "POST" ||
-    request.method === "DELETE" ||
-    request.method === "OPTIONS" ||
-    (request.method === "GET" && /text\/event-stream/i.test(request.headers.get("Accept") ?? ""));
-  if (!isMcp) return request;
+    url.pathname === "/" &&
+    (request.method === "POST" ||
+      request.method === "DELETE" ||
+      request.method === "OPTIONS" ||
+      (request.method === "GET" && /text\/event-stream/i.test(request.headers.get("Accept") ?? "")));
+  if (!isMcp) {
+    if (!request.headers.has(ROOT_REQUEST_HEADER)) return request;
+    const headers = new Headers(request.headers);
+    headers.delete(ROOT_REQUEST_HEADER);
+    return new Request(request, { headers });
+  }
   url.pathname = MCP_ROUTE;
-  return new Request(url, request);
+  const headers = new Headers(request.headers);
+  headers.set(ROOT_REQUEST_HEADER, "1");
+  return new Request(url, new Request(request, { headers }));
 }
 
-const fetchWithOAuth = (request: Request, env: RuntimeEnv, ctx: ExecutionContext) =>
-  oauthProvider.fetch(routeRootToMcp(request), env, ctx);
+function resourceMetadataPath(request: Request): string {
+  return request.headers.has(ROOT_REQUEST_HEADER) ? "" : MCP_ROUTE;
+}
+
+async function fetchWithOAuth(request: Request, env: RuntimeEnv, ctx: ExecutionContext) {
+  const routed = routeRootToMcp(request);
+  const response = await oauthProvider.fetch(routed, env, ctx);
+  const challenge = response.headers.get("WWW-Authenticate");
+  if (!challenge || resourceMetadataPath(routed) === MCP_ROUTE) return response;
+  const rewritten = new Response(response.body, response);
+  rewritten.headers.set(
+    "WWW-Authenticate",
+    challenge.replace("/.well-known/oauth-protected-resource/mcp\"", "/.well-known/oauth-protected-resource\""),
+  );
+  return rewritten;
+}
 const sentryWorker = withSentry(sentryOptions, { fetch: fetchWithOAuth });
 
 export default instrument(

@@ -229,10 +229,14 @@ describe("Cronometer OAuth reauthorization", () => {
 
     const challenge = await rpc(`${origin}/`, undefined, { jsonrpc: "2.0", id: 1, method: "tools/list" });
     expect(challenge.status).toBe(401);
-    expect(challenge.headers.get("WWW-Authenticate")).toContain(metadata);
+    const rootMetadata = `${origin}/.well-known/oauth-protected-resource`;
+    const advertised = /resource_metadata="([^"]+)"/.exec(challenge.headers.get("WWW-Authenticate")!)![1];
+    expect(advertised).toBe(rootMetadata);
+    const discovered = await (await worker.fetch(advertised)).json<{ resource: string }>();
+    expect(discovered.resource).toBe(origin);
 
     const clientId = await registerClient();
-    const tokens = await authorize(clientId, origin);
+    const tokens = await authorize(clientId, discovered.resource);
     const init = await rpc(`${origin}/`, tokens.access_token, {
       jsonrpc: "2.0",
       id: 1,
@@ -245,5 +249,16 @@ describe("Cronometer OAuth reauthorization", () => {
     const body = await list.text();
     const data = body.startsWith("{") ? body : /^data: (.+)$/m.exec(body)?.[1];
     expect(JSON.parse(data!).result.tools.length).toBeGreaterThan(0);
+
+    mobileSession = "fresh-mobile-session";
+    const expired = await rpc(`${origin}/`, tokens.access_token, {
+      jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "add_food_entry", arguments: diaryWrite },
+    });
+    expect((await toolResult(expired))._meta).toMatchObject({
+      "mcp/www_authenticate": [expect.stringContaining(`resource_metadata="${rootMetadata}"`)],
+    });
+    const revoked = await rpc(`${origin}/`, tokens.access_token, { jsonrpc: "2.0", id: 4, method: "tools/list" });
+    expect(revoked.status).toBe(401);
+    expect(revoked.headers.get("WWW-Authenticate")).toContain(`resource_metadata="${rootMetadata}"`);
   });
 });
