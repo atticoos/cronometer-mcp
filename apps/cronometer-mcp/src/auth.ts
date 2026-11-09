@@ -32,17 +32,21 @@ interface PendingFlow {
   oauthRequest: AuthRequest;
 }
 
+// The MCP host is an API, not a website. Keep its plain-text pages out of search
+// results so they don't compete with cronometer-mcp.dev as thin duplicates.
+const NOINDEX = { "X-Robots-Tag": "noindex, nofollow" } as const;
+
 export const authHandler = {
   async fetch(request: Request, env: AuthEnv): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/" && request.method === "GET") {
       return new Response("Cronometer MCP is running. Connect an MCP client at /mcp.", {
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        headers: { "Content-Type": "text/plain; charset=utf-8", ...NOINDEX },
       });
     }
 
-    if (url.pathname !== "/authorize") return new Response("Not found", { status: 404 });
+    if (url.pathname !== "/authorize") return new Response("Not found", { headers: NOINDEX, status: 404 });
     if (request.method === "GET") return beginAuthorization(request, env);
     if (request.method === "POST") return finishAuthorization(request, env);
     return new Response("Method not allowed", { headers: { Allow: "GET, POST" }, status: 405 });
