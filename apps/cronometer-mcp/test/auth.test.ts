@@ -155,3 +155,12 @@ describe("authorizationSecurityHeaders", () => {
     );
   });
 });
+
+describe("search indexing", () => {
+  it("keeps the MCP host's plain-text pages out of search results", async () => {
+    for (const path of ["/", "/does-not-exist"]) {
+      const response = await SELF.fetch(`https://mcp.example.com${path}`);
+      expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
+    }
+  });
+});
