@@ -226,9 +226,20 @@ async function requestV2<T extends JsonRecord = JsonRecord>(
       message.toLowerCase() === "authentication failed" ||
       (/\b(?:session|sessionKey|token)\b/i.test(message) && /\b(?:invalid|expired|missing)\b/i.test(message)) ||
       /\b(?:unauthorized|not authenticated|not logged in)\b/i.test(message);
-    throw new CronometerMobileError(invalidSession ? "session" : "upstream");
+    if (invalidSession) throw new CronometerMobileError("session");
+    // A FAIL with an explanation is Cronometer refusing this input (unknown
+    // food, bad measure, ...), not an outage. Pass the reason through so the
+    // caller can correct the arguments instead of retrying blind.
+    if (message) {
+      throw new CronometerMobileError("request", `Cronometer rejected the request: ${truncate(message, 300)}`);
+    }
+    throw new CronometerMobileError("upstream", `${endpoint} returned ${result}`);
   }
   return data.raw as T;
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 function v3Headers(session: CronometerMobileSession): Record<string, string> {

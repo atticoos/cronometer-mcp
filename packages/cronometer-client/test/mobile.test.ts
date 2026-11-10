@@ -123,10 +123,27 @@ describe("requestV2 auth handling", () => {
     await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({ reason: "session" });
   });
 
-  it("does not treat an unrelated FAIL body as an expired session", async () => {
+  it("treats a FAIL body with another reason as a rejected request and keeps the reason", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
       jsonResponse({ error: "Food not found", result: "FAIL" }),
     );
+    await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({
+      message: "Cronometer rejected the request: Food not found",
+      reason: "request",
+    });
+  });
+
+  it("truncates a long FAIL reason", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({ error: "x".repeat(1000), result: "FAIL" }),
+    );
+    const error = await getDiary(session, undefined, fetcher).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ reason: "request" });
+    expect((error as Error).message.length).toBeLessThanOrEqual(340);
+  });
+
+  it("treats a FAIL body without a reason as an upstream failure", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ result: "FAIL" }));
     await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({ reason: "upstream" });
   });
 

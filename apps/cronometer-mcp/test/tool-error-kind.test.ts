@@ -60,8 +60,21 @@ describe("tool error kinds", () => {
     expect(reported).toEqual([]);
   });
 
+  it("classifies a FAIL Cronometer explains as rejected, passing the reason to the client", async () => {
+    respondWith({ result: "FAIL", error: "Invalid measure" });
+    const { client, records, reported } = await connect(() => auth);
+    const result = await client.callTool({
+      name: "add_food_entry",
+      arguments: { foodId: 1, grams: 100, measureId: 2 },
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("Cronometer rejected the request: Invalid measure");
+    expect(records.at(-1)).toMatchObject({ outcome: "returned_error", errorKind: "rejected" });
+    expect(reported).toEqual([]);
+  });
+
   it("classifies an upstream failure as upstream and reports it", async () => {
-    respondWith({ result: "FAIL", error: "Something broke" });
+    respondWith({ result: "FAIL" });
     const { client, records, reported } = await connect(() => auth);
     await client.callTool({ name: "get_macro_targets", arguments: {} });
     expect(records.at(-1)).toMatchObject({ outcome: "returned_error", errorKind: "upstream" });
