@@ -1,5 +1,5 @@
 import { SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { authorizationSecurityHeaders, isAllowedAuthorizationOrigin } from "../src/auth";
 import { renderConsentPage, returnTarget } from "../src/consent/ConsentPage";
 import { PERMISSION_GROUPS } from "../src/consent/permissions";
@@ -162,5 +162,33 @@ describe("search indexing", () => {
       const response = await SELF.fetch(`https://mcp.example.com${path}`);
       expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
     }
+  });
+});
+
+describe("client metadata document clients", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("rejects a client whose metadata document is not JSON instead of failing", async () => {
+    // Seen in production: a client probing with a missing metadata URL got an
+    // HTML page back, and the lookup error escaped as an unhandled 500.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("<!doctype html><title>Not here</title>", {
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+    const query = new URLSearchParams({
+      client_id: "https://client.example.com/oauth/missing.json",
+      code_challenge: "a".repeat(43),
+      code_challenge_method: "S256",
+      redirect_uri: "https://client.example.com/callback",
+      response_type: "code",
+      scope: "cronometer:read",
+      state: "cimd-test",
+    });
+
+    const response = await SELF.fetch(`https://mcp.example.com/authorize?${query}`);
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("client metadata document could not be loaded");
   });
 });

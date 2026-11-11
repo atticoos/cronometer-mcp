@@ -1,6 +1,7 @@
 import {
   AuthorizationError,
   type AuthRequest,
+  CimdFetchError,
   type OAuthHelpers,
 } from "@cloudflare/workers-oauth-provider";
 import {
@@ -55,13 +56,13 @@ export const authHandler = {
 
 async function beginAuthorization(request: Request, env: AuthEnv): Promise<Response> {
   let oauthRequest: AuthRequest;
+  let client: Awaited<ReturnType<OAuthHelpers["lookupClient"]>>;
   try {
     oauthRequest = await env.OAUTH_PROVIDER.parseAuthRequest(request);
+    client = await env.OAUTH_PROVIDER.lookupClient(oauthRequest.clientId);
   } catch (error) {
     return authorizationErrorResponse(error);
   }
-
-  const client = await env.OAUTH_PROVIDER.lookupClient(oauthRequest.clientId);
   if (!client) return htmlError("Unknown OAuth client", 400);
 
   const flowId = crypto.randomUUID();
@@ -188,6 +189,12 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
 }
 
 function authorizationErrorResponse(error: unknown): Response {
+  // A URL client_id whose metadata document is missing or invalid is the
+  // client's misconfiguration, not ours. The redirect URI can't be trusted
+  // without that document, so answer here the way the token endpoint does.
+  if (error instanceof CimdFetchError) {
+    return htmlError("Invalid client_id: its client metadata document could not be loaded", 400);
+  }
   if (!(error instanceof AuthorizationError)) throw error;
   if (!error.redirectUri) return htmlError(error.description, 400);
 
