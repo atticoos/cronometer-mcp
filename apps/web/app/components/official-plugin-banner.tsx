@@ -28,10 +28,7 @@ export default function OfficialPluginBanner() {
         <p className="text-pretty">
           <span className="block font-semibold text-white sm:inline">Cronometer launched an official ChatGPT plugin.</span>{" "}
           <span className="mt-0.5 inline-block text-emerald-100/70 sm:mt-0 sm:inline">
-            <span className="sm:hidden">Read-only &middot; Daily totals &middot; Gold only</span>
-            <span className="hidden sm:inline">
-              It&rsquo;s read-only, works with daily totals, and needs Cronometer Gold.
-            </span>
+            Read-only &middot; Daily totals &middot; Gold only
           </span>{" "}
           <CtaLink
             cta="open_official_plugin"
@@ -41,8 +38,7 @@ export default function OfficialPluginBanner() {
             rel="noreferrer"
             className="font-semibold whitespace-nowrap text-emerald-300 underline decoration-emerald-300/40 underline-offset-4 hover:decoration-emerald-300"
           >
-            <span className="sm:hidden">Try it</span>
-            <span className="hidden sm:inline">Try the official plugin</span> <span aria-hidden="true">&rarr;</span>
+            Try it <span aria-hidden="true">&rarr;</span>
           </CtaLink>
         </p>
       </div>
