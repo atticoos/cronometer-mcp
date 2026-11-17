@@ -12,6 +12,7 @@ import {
   getDiary,
   getMacroTargets,
   mealGroupForHour,
+  tryGetConsumedNutrients,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
 
@@ -307,6 +308,37 @@ describe("getConsumedNutrients", () => {
       { amount: 1800, confidence: 5, id: 208, name: "Energy", unit: "kcal" },
       { amount: 90, confidence: 4, id: 203, name: "Protein", unit: "g" },
     ]);
+  });
+});
+
+describe("tryGetConsumedNutrients", () => {
+  it("returns null when get_nutrition_scores fails upstream", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ diary: [{ servingId: 1, type: "Serving" }] }))
+      .mockResolvedValueOnce(new Response("<html>Bad Gateway</html>", { status: 502 }));
+
+    await expect(tryGetConsumedNutrients(session, "2026-08-20", fetcher)).resolves.toBeNull();
+  });
+
+  it("returns null when get_nutrition_scores answers with a non-JSON body", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ diary: [] }))
+      .mockResolvedValueOnce(new Response("<html>maintenance</html>", { status: 200 }));
+
+    await expect(tryGetConsumedNutrients(session, "2026-08-20", fetcher)).resolves.toBeNull();
+  });
+
+  it("still throws when the session has expired", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ diary: [] }))
+      .mockResolvedValueOnce(new Response("", { status: 401 }));
+
+    await expect(tryGetConsumedNutrients(session, "2026-08-20", fetcher)).rejects.toMatchObject({
+      reason: "session",
+    });
   });
 });
 
