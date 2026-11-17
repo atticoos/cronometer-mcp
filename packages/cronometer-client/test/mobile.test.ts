@@ -12,6 +12,7 @@ import {
   getDiary,
   getMacroTargets,
   mealGroupForHour,
+  searchFoods,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
 
@@ -152,6 +153,44 @@ describe("requestV2 auth handling", () => {
     await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({
       reason: "upstream",
     });
+  });
+});
+
+describe("requestV2 timeouts", () => {
+  const timeout = () => new DOMException("The operation timed out.", "TimeoutError");
+
+  it("retries a read-only request once when it times out", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(timeout())
+      .mockResolvedValueOnce(jsonResponse({ foods: [{ id: 1, name: "Apple" }] }));
+
+    await expect(searchFoods(session, "apple", fetcher)).resolves.toEqual([{ id: 1, name: "Apple" }]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).query).toBe("apple");
+  });
+
+  it("gives up after a second timeout", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(timeout()).mockRejectedValueOnce(timeout());
+
+    await expect(searchFoods(session, "apple", fetcher)).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry other failures", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    await expect(searchFoods(session, "apple", fetcher)).rejects.toThrow("fetch failed");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("never retries a write", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(timeout());
+
+    await expect(copyDay(session, "2026-08-20", "2026-08-19", fetcher)).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
 

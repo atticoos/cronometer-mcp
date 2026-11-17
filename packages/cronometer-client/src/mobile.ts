@@ -39,6 +39,28 @@ import type {
 const MOBILE_BASE_URL = "https://mobile.cronometer.com";
 const UPSTREAM_TIMEOUT_MS = 30_000;
 
+/**
+ * Read-only v2 endpoints get two shorter attempts instead of one 30s wait:
+ * Cronometer occasionally leaves a single request hanging while the same
+ * request answers in under a second when sent again. Two 15s attempts keep
+ * the worst case at the old 30s. Writes are never retried, so a request that
+ * reached Cronometer cannot be applied twice.
+ */
+const READ_ATTEMPT_TIMEOUT_MS = 15_000;
+const READ_ONLY_V2_ENDPOINTS: ReadonlySet<string> = new Set([
+  "/api/v2/find_food",
+  "/api/v2/get_biometrics",
+  "/api/v2/get_diary",
+  "/api/v2/get_fasting_stats",
+  "/api/v2/get_fasting_with_date_range",
+  "/api/v2/get_food",
+  "/api/v2/get_foods",
+  "/api/v2/get_metrics",
+  "/api/v2/get_nutrients",
+  "/api/v2/get_nutrition_scores",
+  "/api/v2/get_profile",
+]);
+
 /** Auth block sent with every v2 request (mimics the Android app). */
 const APP_AUTH = { api: 3, os: "Android", build: "2807", flavour: "free" } as const;
 
@@ -183,7 +205,12 @@ function authBlock(session: CronometerMobileSession): AuthBlock {
   return { userId: session.userId, token: session.sessionKey, ...APP_AUTH };
 }
 
-async function postJson(endpoint: string, body: unknown, fetcher: Fetcher): Promise<Response> {
+async function postJson(
+  endpoint: string,
+  body: unknown,
+  fetcher: Fetcher,
+  timeoutMs: number = UPSTREAM_TIMEOUT_MS,
+): Promise<Response> {
   // text/plain matches the Android app's wire format even though the body is JSON.
   return fetcher(MOBILE_BASE_URL + endpoint, {
     body: JSON.stringify(body),
@@ -193,8 +220,23 @@ async function postJson(endpoint: string, body: unknown, fetcher: Fetcher): Prom
       "accept-encoding": "gzip",
     },
     method: "POST",
-    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
+}
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
+}
+
+/** POST a v2 request, retrying a read-only endpoint once if it times out. */
+async function postV2(endpoint: string, body: unknown, fetcher: Fetcher): Promise<Response> {
+  if (!READ_ONLY_V2_ENDPOINTS.has(endpoint)) return postJson(endpoint, body, fetcher);
+  try {
+    return await postJson(endpoint, body, fetcher, READ_ATTEMPT_TIMEOUT_MS);
+  } catch (error) {
+    if (!isTimeout(error)) throw error;
+    return postJson(endpoint, body, fetcher, READ_ATTEMPT_TIMEOUT_MS);
+  }
 }
 
 /**
@@ -212,7 +254,7 @@ async function requestV2<T extends JsonRecord = JsonRecord>(
   fetcher: Fetcher,
 ): Promise<T> {
   const body = { ...payload, auth: authBlock(session), lastSeen: 0 };
-  const response = await postJson(endpoint, body, fetcher);
+  const response = await postV2(endpoint, body, fetcher);
 
   if (response.status === 401 || response.status === 403) {
     throw new CronometerMobileError("session");
