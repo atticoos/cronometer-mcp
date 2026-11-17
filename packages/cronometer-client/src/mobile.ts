@@ -228,14 +228,26 @@ function isTimeout(error: unknown): boolean {
   return error instanceof Error && error.name === "TimeoutError";
 }
 
-/** POST a v2 request, retrying a read-only endpoint once if it times out. */
-async function postV2(endpoint: string, body: unknown, fetcher: Fetcher): Promise<Response> {
-  if (!READ_ONLY_V2_ENDPOINTS.has(endpoint)) return postJson(endpoint, body, fetcher);
+/** POST a v2 request and read its JSON body within one timeout. */
+async function attemptV2(endpoint: string, body: unknown, fetcher: Fetcher, timeoutMs: number): Promise<JsonResponse> {
+  const response = await postJson(endpoint, body, fetcher, timeoutMs);
+  if (response.status === 401 || response.status === 403) {
+    throw new CronometerMobileError("session");
+  }
+  return readJsonResponse(response, endpoint);
+}
+
+/**
+ * Run a v2 request, retrying a read-only endpoint once if the request or its
+ * body read times out. HTTP errors and bad bodies are never retried.
+ */
+async function sendV2(endpoint: string, body: unknown, fetcher: Fetcher): Promise<JsonResponse> {
+  if (!READ_ONLY_V2_ENDPOINTS.has(endpoint)) return attemptV2(endpoint, body, fetcher, UPSTREAM_TIMEOUT_MS);
   try {
-    return await postJson(endpoint, body, fetcher, READ_ATTEMPT_TIMEOUT_MS);
+    return await attemptV2(endpoint, body, fetcher, READ_ATTEMPT_TIMEOUT_MS);
   } catch (error) {
     if (!isTimeout(error)) throw error;
-    return postJson(endpoint, body, fetcher, READ_ATTEMPT_TIMEOUT_MS);
+    return attemptV2(endpoint, body, fetcher, READ_ATTEMPT_TIMEOUT_MS);
   }
 }
 
@@ -254,13 +266,7 @@ async function requestV2<T extends JsonRecord = JsonRecord>(
   fetcher: Fetcher,
 ): Promise<T> {
   const body = { ...payload, auth: authBlock(session), lastSeen: 0 };
-  const response = await postV2(endpoint, body, fetcher);
-
-  if (response.status === 401 || response.status === 403) {
-    throw new CronometerMobileError("session");
-  }
-
-  const data = await readJsonResponse(response, endpoint);
+  const data = await sendV2(endpoint, body, fetcher);
   const result = data.get("result");
   if (result === "FAIL" || result === "FAILURE") {
     const message = data.string("error")?.trim() ?? "";
@@ -352,7 +358,9 @@ async function readJsonResponse(response: Response, action: string): Promise<Jso
   let parsed: unknown;
   try {
     parsed = await response.json();
-  } catch {
+  } catch (error) {
+    // A body that stalls past the request's timeout is a timeout, not bad JSON.
+    if (isTimeout(error)) throw error;
     throw new CronometerMobileError("upstream", `${action} returned a non-JSON response`);
   }
   if (!isJsonRecord(parsed)) {

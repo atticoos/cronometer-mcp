@@ -170,6 +170,31 @@ describe("requestV2 timeouts", () => {
     expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).query).toBe("apple");
   });
 
+  it("retries when the response body stalls past the attempt timeout", async () => {
+    const stalledBody = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(timeout());
+        },
+      }),
+      { status: 200 },
+    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(stalledBody)
+      .mockResolvedValueOnce(jsonResponse({ foods: [] }));
+
+    await expect(searchFoods(session, "apple", fetcher)).resolves.toEqual([]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a malformed body", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response("<html>", { status: 200 }));
+
+    await expect(searchFoods(session, "apple", fetcher)).rejects.toMatchObject({ reason: "upstream" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("gives up after a second timeout", async () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(timeout()).mockRejectedValueOnce(timeout());
 
