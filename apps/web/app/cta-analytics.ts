@@ -10,7 +10,8 @@ export type CtaName =
   | "open_client"
   | "open_client_docs"
   | "select_demo"
-  | "replay_demo";
+  | "replay_demo"
+  | "open_official_plugin";
 export type CtaPlacement =
   | "header"
   | "hero"
@@ -20,7 +21,8 @@ export type CtaPlacement =
   | "setup"
   | "setup_overview"
   | "setup_nav"
-  | "use_cases";
+  | "use_cases"
+  | "banner";
 
 type Payload = Record<string, unknown>;
 

@@ -17,6 +17,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html[data-official-banner="dismissed"] .official-banner {
+  display: none;
+}
+
 ::selection {
   background-color: rgba(52, 211, 153, 0.3);
   color: #ecfdf5;

@@ -10,3 +10,8 @@ export const setupPaths = {
 } as const;
 
 export const setupClientNames = { chatgpt: "ChatGPT", claude: "Claude" } as const;
+
+// Cronometer's first-party ChatGPT plugin, announced at cronometer.com/blog/cronometer-chatgpt-plugin/.
+export const officialPluginUrl = "https://chatgpt.com/plugins/plugin_asdk_app_6ae279585f808191affab8de1adde624";
+// localStorage key that remembers a dismissed announcement banner. Change it to show a new announcement.
+export const officialPluginBannerKey = "cronometer-mcp:official-plugin-banner-dismissed";
