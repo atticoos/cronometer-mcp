@@ -253,7 +253,7 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is this an official Cronometer product?",
     answer:
-      "No. Cronometer MCP is an independent open-source project and is not affiliated with or endorsed by Cronometer.com.",
+      "No. Cronometer MCP is an independent open-source project and is not affiliated with or endorsed by Cronometer.com. Cronometer now offers its own official ChatGPT plugin for Gold subscribers, which is read-only and works with daily totals. Cronometer MCP also covers individual diary entries, food search, and logging, and works with Claude and other MCP clients.",
   },
 ];
 

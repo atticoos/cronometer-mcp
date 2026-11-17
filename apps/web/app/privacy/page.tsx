@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import SiteHeader from "../components/site-header";
 import { githubUrl, privacyPath, productionUrl, siteName } from "../site";
 
-const EFFECTIVE_DATE = "November 7, 2026";
+const EFFECTIVE_DATE = "November 17, 2026";
 const issuesUrl = `${githubUrl}/issues`;
 const linkClass = "text-emerald-300 underline decoration-emerald-300/40 underline-offset-4 hover:decoration-emerald-300";
 
@@ -188,8 +188,11 @@ export default function PrivacyPage() {
               <Link href="https://umami.is/privacy">Umami</Link>, a privacy-focused analytics service that does not
               use cookies, to count page views and interactions such as clicking &ldquo;Connect Cronometer&rdquo;, copying
               the server URL or a setup command, choosing a client setup guide or an example chat, and following links
-              to a client app or its documentation. These events record which button was used and where on the page,
-              never what was copied or anything about your account. It loads
+              to a client app, its documentation, or Cronometer&rsquo;s official ChatGPT plugin. These events record
+              which button was used and where on the page, never what was copied or anything about your account. If
+              you close the announcement banner, your browser remembers that choice in its local storage on your
+              device so the banner stays hidden; it is never sent to us, and clearing your site data shows the banner
+              again. It loads
               fonts from Google Fonts, which means your browser requests them from Google. The website does not ask for
               or receive your Cronometer credentials.
             </p>
