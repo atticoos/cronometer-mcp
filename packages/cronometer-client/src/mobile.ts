@@ -224,8 +224,13 @@ async function postJson(
   });
 }
 
+/**
+ * Our timeout signal is the only thing that aborts these requests. Runtimes
+ * report it as a TimeoutError, though a body read cut off mid-stream may
+ * surface as a plain AbortError, so both count.
+ */
 function isTimeout(error: unknown): boolean {
-  return error instanceof Error && error.name === "TimeoutError";
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 /** POST a v2 request and read its JSON body within one timeout. */

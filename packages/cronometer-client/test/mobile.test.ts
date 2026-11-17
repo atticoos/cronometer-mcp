@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
 import {
   addServing,
@@ -186,6 +188,32 @@ describe("requestV2 timeouts", () => {
 
     await expect(searchFoods(session, "apple", fetcher)).resolves.toEqual([]);
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries when a real fetch's body read is cut off by its timeout signal", async () => {
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests += 1;
+      response.writeHead(200, { "Content-Type": "application/json" });
+      if (requests === 1) {
+        response.write('{"foods": [');
+        return; // headers sent, body stalls
+      }
+      response.end(JSON.stringify({ foods: [{ id: 7 }] }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    // Real fetch to the local server, with the attempt timeout shortened to keep the test fast.
+    const fetcher: typeof fetch = (_url, init) =>
+      fetch(`http://127.0.0.1:${port}/`, { ...init, signal: AbortSignal.timeout(200) });
+
+    try {
+      await expect(searchFoods(session, "apple", fetcher)).resolves.toEqual([{ id: 7 }]);
+      expect(requests).toBe(2);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 
   it("does not retry a malformed body", async () => {
