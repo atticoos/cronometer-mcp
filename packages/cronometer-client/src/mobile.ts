@@ -559,6 +559,75 @@ export async function copyDay(
   );
 }
 
+export interface DiaryGroup {
+  custom: boolean;
+  id: number;
+  name: string;
+}
+
+const DEFAULT_DIARY_GROUPS: readonly { id: number; name: string }[] = [
+  { id: 0, name: "Uncategorized" },
+  { id: 1, name: "Breakfast" },
+  { id: 2, name: "Lunch" },
+  { id: 3, name: "Dinner" },
+  { id: 4, name: "Snacks" },
+];
+
+export async function getDiaryGroups(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<{ custom_group_prefs: Record<string, string>; groups: DiaryGroup[] }> {
+  const profile = await requestV2<GetProfileResponse>(
+    session,
+    "/api/v2/get_profile",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+
+  const allPrefs = prefMap(new JsonResponse(profile).array("prefs"));
+  const customGroupPrefs: Record<string, string> = {};
+  const byId = new Map<number, DiaryGroup>(
+    DEFAULT_DIARY_GROUPS.map((group) => [group.id, { ...group, custom: false }]),
+  );
+
+  for (const [key, value] of Object.entries(allPrefs)) {
+    if (/(?:diary.*group|diarygroup|meal.*group)/i.test(key)) {
+      customGroupPrefs[key] = value;
+      const indexed = /(\d+)$/.exec(key);
+      if (indexed && value.trim() !== "") {
+        const id = Number(indexed[1]);
+        byId.set(id, { custom: true, id, name: value.trim() });
+      }
+    }
+  }
+
+  for (const field of ["diaryGroups", "diary_groups", "groups"] as const) {
+    const rawList = profile[field];
+    if (!Array.isArray(rawList)) continue;
+    rawList.forEach((item, index) => {
+      if (typeof item === "string" && item.trim() !== "") {
+        byId.set(index, { custom: true, id: index, name: item.trim() });
+      } else if (isJsonRecord(item)) {
+        const id =
+          typeof item.id === "number"
+            ? item.id
+            : typeof item.groupId === "number"
+              ? item.groupId
+              : index;
+        const name = typeof item.name === "string" ? item.name.trim() : undefined;
+        if (name) {
+          byId.set(id, { custom: true, id, name });
+        }
+      }
+    });
+  }
+
+  return {
+    custom_group_prefs: customGroupPrefs,
+    groups: [...byId.values()].sort((a, b) => a.id - b.id),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Diary notes (/photoupload)
 // ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ describe("registered tool surface", () => {
       "get_biometrics",
       "get_cronometer_data",
       "get_daily_nutrition",
+      "get_diary_groups",
       "get_fasting_history",
       "get_fasting_stats",
       "get_food_details",
@@ -150,6 +151,12 @@ describe("new MCP tool handlers", () => {
       date: "2026-04-20",
       note_id: 777,
       status: "success",
+    });
+  });
+  it("executes get_diary_groups", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ prefs: [{ "diary.group.1": "Morning" }] }));
+    expect(parseToolJson(await authedClient.callTool({ name: "get_diary_groups", arguments: {} }))).toMatchObject({
+      custom_group_prefs: { "diary.group.1": "Morning" },
     });
   });
 });

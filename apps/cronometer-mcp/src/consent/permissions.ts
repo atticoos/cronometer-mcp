@@ -23,6 +23,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_food_log", description: "Food logged on a day" },
       { name: "get_daily_nutrition", description: "Calories and nutrients for a day" },
       { name: "get_macro_targets", description: "Macro targets" },
+      { name: "get_diary_groups", description: "Configured diary meal groups" },
     ],
   },
   {

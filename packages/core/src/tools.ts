@@ -425,6 +425,22 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       }),
   );
 
+  server.registerTool(
+    "get_diary_groups",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Retrieve configured diary meal groups (including default slots like breakfast, lunch, dinner, snacks " +
+        "and any custom group preferences found on the Cronometer profile).",
+      inputSchema: z.object({}),
+    },
+    async () =>
+      withMobileSession(async (session) => ({
+        ...(await mobile.getDiaryGroups(session)),
+      })),
+  );
+
   // ---------------------------------------------------------------------------
   // Nutrition & food database
   // ---------------------------------------------------------------------------

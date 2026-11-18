@@ -11,6 +11,7 @@ import {
   getBiometrics,
   getConsumedNutrients,
   getDiary,
+  getDiaryGroups,
   getMacroTargets,
   mealGroupForHour,
   updateNote,
@@ -477,5 +478,19 @@ describe("getMacroTargets", () => {
       includeActivityBurn: null,
     });
     expect(targets.prefs).toEqual({ "targets.macros.percent": "true" });
+  });
+});
+
+describe("getDiaryGroups", () => {
+  it("parses custom diary group preferences from get_profile", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        prefs: [{ "diary.group.2": "Midday Fuel" }, { otherPref: "ignored" }],
+      }),
+    );
+
+    const groups = await getDiaryGroups(session, fetcher);
+    expect(groups.custom_group_prefs).toEqual({ "diary.group.2": "Midday Fuel" });
+    expect(groups.groups.find((g) => g.id === 2)).toEqual({ custom: true, id: 2, name: "Midday Fuel" });
   });
 });
