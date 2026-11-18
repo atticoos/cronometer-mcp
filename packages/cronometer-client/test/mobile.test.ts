@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addNote,
   addServing,
   authenticateCronometerMobile,
   copyDay,
@@ -12,6 +13,7 @@ import {
   getDiary,
   getMacroTargets,
   mealGroupForHour,
+  updateNote,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
 
@@ -339,6 +341,57 @@ describe("createCustomFood", () => {
         fetcher,
       ),
     ).rejects.toMatchObject({ reason: "request" });
+  });
+});
+
+describe("addNote & updateNote (/photoupload)", () => {
+  it("submits multipart FormData to /photoupload with noteId 0 when adding a note", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({ day: "2026-08-20", noteId: 444, order: 1, text: "Felt energized" }),
+    );
+
+    const note = await addNote(
+      session,
+      { date: "2026-08-20", text: "Felt energized" },
+      fetcher,
+    );
+
+    expect(note).toMatchObject({ noteId: 444, text: "Felt energized" });
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe("https://mobile.cronometer.com/photoupload");
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init?.body as FormData;
+    expect(form.get("action")).toBe("diaryImage");
+    expect(form.get("sessionKey")).toBe("mobile-session-key");
+    expect(form.get("noteId")).toBe("0");
+    expect(form.get("day")).toBe("2026-8-20");
+    expect(form.get("order")).toBe("1");
+    expect(form.get("deleteExistingPhoto")).toBe("false");
+    expect(form.get("noteText")).toBe("Felt energized");
+  });
+
+  it("preserves the existing note's diary order when updating without diaryGroup", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ diary: [{ noteId: 444, order: (2 << 16) | 3, type: "Note" }] }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ day: "2026-08-20", noteId: 444, order: (2 << 16) | 3, text: "Updated" }),
+      );
+
+    await updateNote(session, { date: "2026-08-20", noteId: 444, text: "Updated" }, fetcher);
+
+    const form = fetcher.mock.calls[1][1]?.body as FormData;
+    expect(form.get("noteId")).toBe("444");
+    expect(form.get("order")).toBe(String((2 << 16) | 3));
+    expect(form.get("noteText")).toBe("Updated");
+  });
+
+  it("rejects empty note text and maps HTTP 401 to an expired session", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response("", { status: 401 }));
+    await expect(addNote(session, { text: "   " }, fetcher)).rejects.toMatchObject({ reason: "request" });
+    await expect(addNote(session, { text: "ok" }, fetcher)).rejects.toMatchObject({ reason: "session" });
   });
 });
 

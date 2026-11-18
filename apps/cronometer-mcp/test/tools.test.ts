@@ -1,7 +1,7 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import type { Server } from "@modelcontextprotocol/server";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { McpServer, InMemoryTransport, type Server } from "@modelcontextprotocol/server";
 import { Client } from "@modelcontextprotocol/client";
-import { InMemoryTransport } from "@modelcontextprotocol/server";
+import { registerCronometerTools, type AuthContext } from "@cronometer-mcp/core";
 import { createServer } from "../src/index";
 import { PERMISSION_GROUPS } from "../src/consent/permissions";
 
@@ -22,6 +22,7 @@ describe("registered tool surface", () => {
     expect(names).toEqual([
       "add_custom_food",
       "add_food_entry",
+      "add_note",
       "add_recipe",
       "connection_status",
       "copy_day",
@@ -37,6 +38,7 @@ describe("registered tool surface", () => {
       "mark_day_complete",
       "remove_food_entry",
       "search_foods",
+      "update_note",
     ]);
   });
 
@@ -71,5 +73,83 @@ describe("registered tool surface", () => {
       content: [{ type: "text", text: expect.stringContaining("Reconnect") }],
     });
     expect(result._meta).toBeUndefined();
+  });
+});
+
+describe("new MCP tool handlers", () => {
+  let currentUserId: number;
+  let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
+  let authedClient: Client;
+
+  beforeEach(async () => {
+    currentUserId = 42;
+    fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const mcpServer = new McpServer({ name: "test-authed", version: "0.0.0" });
+    registerCronometerTools(mcpServer, {
+      getAuthContext: (): AuthContext => ({
+        cronometerMobileSession: { sessionKey: "session-123", timezone: "UTC", userId: currentUserId },
+        cronometerUsername: "person@example.com",
+        cronometerWebSession: { cookies: "sesnonce=abc", userId: String(currentUserId) },
+      }),
+      oauth: {
+        reauthorize: async () => 'Bearer error="invalid_token"',
+        scopes: ["cronometer:read"],
+      },
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    authedClient = new Client({ name: "authed-test", version: "0.0.0" });
+    await Promise.all([
+      mcpServer.server.connect(serverTransport),
+      authedClient.connect(clientTransport),
+    ]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function parseToolJson(result: Awaited<ReturnType<Client["callTool"]>>) {
+    expect(result.isError).toBeUndefined();
+    const first = (result.content as { type: string; text: string }[])[0];
+    return JSON.parse(first.text) as Record<string, unknown>;
+  }
+
+  it("executes add_note and update_note", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/photoupload")) {
+        return Response.json({ noteId: 777, order: 4 });
+      }
+      if (url.endsWith("/api/v2/get_diary")) {
+        return Response.json({ diary: [{ noteId: 777, order: 131073, type: "Note" }] });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const added = parseToolJson(
+      await authedClient.callTool({
+        name: "add_note",
+        arguments: { date: "2026-04-20", diaryGroup: "lunch", text: "Felt energized" },
+      }),
+    );
+    expect(added).toMatchObject({
+      date: "2026-04-20",
+      note_id: 777,
+      status: "success",
+    });
+
+    const updated = parseToolJson(
+      await authedClient.callTool({
+        name: "update_note",
+        arguments: { date: "2026-04-20", noteId: 777, text: "Felt great after lunch" },
+      }),
+    );
+    expect(updated).toMatchObject({
+      date: "2026-04-20",
+      note_id: 777,
+      status: "success",
+    });
   });
 });

@@ -52,12 +52,14 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
   {
     id: "log",
     risk: "write",
-    title: "Log food and update your diary",
-    summary: "Add entries, copy the previous day, mark days complete",
+    title: "Log entries and update your diary",
+    summary: "Add food, exercise, biometrics and notes, copy days, mark days complete",
     tools: [
       { name: "add_food_entry", description: "Add a food entry" },
       { name: "copy_day", description: "Copy the previous day's entries" },
       { name: "mark_day_complete", description: "Mark a day complete or incomplete" },
+      { name: "add_note", description: "Add a diary note" },
+      { name: "update_note", description: "Edit an existing diary note" },
     ],
   },
   {

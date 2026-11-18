@@ -45,6 +45,8 @@ const optionalDateString = z
   .optional()
   .describe("Date as YYYY-MM-DD. Defaults to today in the account's timezone.");
 
+const ENTRY_DIARY_GROUP_IDS = { uncategorized: 0, breakfast: 1, lunch: 2, dinner: 3, snacks: 4 } as const;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -357,6 +359,70 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
         destination_date: date ?? mobile.formatToday(session.timezone),
         result: await mobile.copyDay(session, date),
       })),
+  );
+
+  server.registerTool(
+    "add_note",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Add a text note to a diary day. Returns the created note_id, which can be edited later with update_note.",
+      inputSchema: z.object({
+        text: z.string().min(1).describe("Note text to add to the diary day."),
+        date: optionalDateString,
+        diaryGroup: z
+          .enum(["uncategorized", "breakfast", "lunch", "dinner", "snacks"])
+          .default("uncategorized")
+          .describe("Diary section to place the note in."),
+      }),
+    },
+    async ({ text, date, diaryGroup }) =>
+      withMobileSession(async (session) => {
+        const note = await mobile.addNote(session, {
+          date,
+          diaryGroup: ENTRY_DIARY_GROUP_IDS[diaryGroup],
+          text,
+        });
+        return {
+          date: date ?? mobile.formatToday(session.timezone),
+          note,
+          note_id: note.noteId,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "update_note",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Update an existing diary note by note_id. Use get_food_log to find the note's note_id and date.",
+      inputSchema: z.object({
+        noteId: z.number().int().positive().describe("Note ID from get_food_log or add_note."),
+        text: z.string().min(1).describe("Updated note text."),
+        date: optionalDateString.describe("Date the note belongs to (YYYY-MM-DD). Defaults to today."),
+        diaryGroup: z
+          .enum(["uncategorized", "breakfast", "lunch", "dinner", "snacks"])
+          .optional()
+          .describe("Optional diary section override. Preserves the existing section when omitted."),
+      }),
+    },
+    async ({ noteId, text, date, diaryGroup }) =>
+      withMobileSession(async (session) => {
+        const note = await mobile.updateNote(session, {
+          date,
+          diaryGroup: diaryGroup !== undefined ? ENTRY_DIARY_GROUP_IDS[diaryGroup] : undefined,
+          noteId,
+          text,
+        });
+        return {
+          date: date ?? mobile.formatToday(session.timezone),
+          note,
+          note_id: note.noteId ?? noteId,
+        };
+      }),
   );
 
   // ---------------------------------------------------------------------------

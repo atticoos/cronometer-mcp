@@ -16,9 +16,9 @@
 
 import { CronometerAuthenticationError } from "./cronometer";
 import type {
-  AuthBlock,
   AddFoodResponse,
   AddServingResponse,
+  AuthBlock,
   CopyDiaryResponse,
   FindFoodResponse,
   GetBiometricsResponse,
@@ -32,6 +32,7 @@ import type {
   GetNutritionScoresResponse,
   GetProfileResponse,
   LoginBody,
+  PhotouploadResponse,
   ServingInput,
   SetCompleteResponse,
 } from "./generated/schemas";
@@ -556,6 +557,106 @@ export async function copyDay(
     { config: { call_version: 1 }, diaryGroupNumber: null, from, to },
     fetcher,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Diary notes (/photoupload)
+// ---------------------------------------------------------------------------
+
+export interface AddNoteOptions {
+  date?: string;
+  diaryGroup?: number;
+  text: string;
+}
+
+export interface UpdateNoteOptions {
+  date?: string;
+  diaryGroup?: number;
+  noteId: number;
+  text: string;
+}
+
+async function saveDiaryNote(
+  session: CronometerMobileSession,
+  options: { date?: string; diaryGroup?: number; noteId: number; order?: number; text: string },
+  fetcher: Fetcher,
+): Promise<PhotouploadResponse> {
+  if (options.text.trim() === "") {
+    throw new CronometerMobileError("request", "Note text must not be empty.");
+  }
+
+  const order = options.order ?? (((options.diaryGroup ?? 0) << 16) | 1);
+  const form = new FormData();
+  form.set("action", "diaryImage");
+  form.set("sessionKey", session.sessionKey);
+  form.set("noteId", String(options.noteId));
+  form.set("day", formatDay(options.date, session.timezone));
+  form.set("order", String(order));
+  form.set("deleteExistingPhoto", "false");
+  form.set("noteText", options.text);
+
+  const response = await fetcher(`${MOBILE_BASE_URL}/photoupload`, {
+    body: form,
+    headers: {
+      "User-Agent": "Dart/3.9 (dart:io)",
+      "accept-encoding": "gzip",
+    },
+    method: "POST",
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new CronometerMobileError("session");
+  }
+
+  const data = await readJsonResponse(response, "/photoupload");
+  const result = data.get("result");
+  if (result === "FAIL" || result === "FAILURE") {
+    const message = data.string("error")?.trim() ?? "";
+    if (message) {
+      throw new CronometerMobileError("request", `Cronometer rejected the request: ${truncate(message, 300)}`);
+    }
+    throw new CronometerMobileError("upstream", `/photoupload returned ${result}`);
+  }
+  return data.raw as PhotouploadResponse;
+}
+
+export async function addNote(
+  session: CronometerMobileSession,
+  options: AddNoteOptions,
+  fetcher: Fetcher = fetch,
+): Promise<PhotouploadResponse> {
+  return saveDiaryNote(session, { ...options, noteId: 0 }, fetcher);
+}
+
+export async function updateNote(
+  session: CronometerMobileSession,
+  options: UpdateNoteOptions,
+  fetcher: Fetcher = fetch,
+): Promise<PhotouploadResponse> {
+  if (!Number.isInteger(options.noteId) || options.noteId <= 0) {
+    throw new CronometerMobileError("request", "noteId must be a positive integer.");
+  }
+
+  let order: number | undefined;
+  if (options.diaryGroup === undefined) {
+    let diary: JsonRecord | null = null;
+    try {
+      diary = await getDiary(session, options.date, fetcher);
+    } catch (error) {
+      if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+    }
+    if (diary) {
+      const existing = new JsonResponse(diary)
+        .array("diary")
+        .find((entry) => entry.noteId === options.noteId || String(entry.noteId) === String(options.noteId));
+      if (existing && typeof existing.order === "number") {
+        order = existing.order;
+      }
+    }
+  }
+
+  return saveDiaryNote(session, { ...options, order }, fetcher);
 }
 
 // ---------------------------------------------------------------------------
