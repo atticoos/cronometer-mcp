@@ -18,12 +18,14 @@ import {
   getEnergyTrends,
   getLoggingStreak,
   getMacroTargets,
+  getNutrientTargets,
   getNutritionReport,
   getNutritionTrends,
   getRecentExercises,
   getWeightTrends,
   mealGroupForHour,
   searchActivities,
+  setNutrientTarget,
   updateNote,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
@@ -618,4 +620,123 @@ describe("reports and trend charts", () => {
     const chartWeightCall = calls.find((c) => c.url.endsWith("/get_chart_data") && c.body.chartDataType === "BIOMETRIC");
     expect(chartWeightCall?.body).toMatchObject({ metricId: 1, nutrientId: null });
   });
+});
+
+describe("getNutrientTargets & setNutrientTarget", () => {
+  it("reads per-nutrient targets from v3 /targets and enriches them with nutrient definitions", async () => {
+    const targetSession = { ...session, userId: 4201 };
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/4201/targets")) {
+        return jsonResponse([
+          { custom: true, id: 291, max: null, min: 30, vis: true },
+          { custom: false, id: -1205, max: 120, min: 80, vis: true },
+          { custom: false, id: 307, max: 2300, min: 1500, vis: false },
+        ]);
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return jsonResponse({
+          nutrients: [
+            { category: "Carbohydrates", id: 291, name: "Fiber", unit: "g" },
+            { category: "Minerals", id: 307, name: "Sodium", unit: "mg" },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const targets = await getNutrientTargets(targetSession, fetcher);
+    expect(targets).toEqual([
+      {
+        category: "Carbohydrates",
+        custom: true,
+        maximum: null,
+        minimum: 30,
+        nutrient: "Fiber",
+        nutrient_id: 291,
+        unit: "g",
+        visible: true,
+      },
+      {
+        category: "Carbohydrates",
+        custom: false,
+        maximum: 120,
+        minimum: 80,
+        nutrient: "Net Carbs",
+        nutrient_id: -1205,
+        unit: "g",
+        visible: true,
+      },
+      {
+        category: "Minerals",
+        custom: false,
+        maximum: 2300,
+        minimum: 1500,
+        nutrient: "Sodium",
+        nutrient_id: 307,
+        unit: "mg",
+        visible: false,
+      },
+    ]);
+  });
+
+  it("propagates session errors from getNutrientDefinitions in getNutrientTargets", async () => {
+    const targetSession = { ...session, userId: 4202 };
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/4202/targets")) {
+        return jsonResponse([{ custom: true, id: 291, max: null, min: 30, vis: true }]);
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return jsonResponse({ error: "Invalid sessionKey", result: "FAIL" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    await expect(getNutrientTargets(targetSession, fetcher)).rejects.toMatchObject({ reason: "session" });
+  });
+
+  it("sets an individual nutrient target via edit_target preserving visibility", async () => {
+    const targetSession = { ...session, userId: 4210 };
+    let targetState = [{ custom: false, id: 291, max: null as number | null, min: 25, vis: false }];
+    let editBody: Record<string, unknown> | undefined;
+
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/4210/targets")) {
+        return jsonResponse(targetState);
+      }
+      if (url.endsWith("/api/v2/edit_target")) {
+        editBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        targetState = [
+          {
+            custom: Boolean(editBody.cus),
+            id: Number(editBody.id),
+            max: editBody.max as number | null,
+            min: Number(editBody.min),
+            vis: Boolean(editBody.vis),
+          },
+        ];
+        return jsonResponse({ result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return jsonResponse({ nutrients: [{ category: "Carbohydrates", id: 291, name: "Fiber", unit: "g" }] });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await setNutrientTarget(targetSession, { max: 45, min: 30, nutrientId: 291 }, fetcher);
+    expect(editBody).toMatchObject({ cus: true, id: 291, max: 45, min: 30, vis: false });
+    expect(updated).toEqual({
+      category: "Carbohydrates",
+      custom: true,
+      maximum: 45,
+      minimum: 30,
+      nutrient: "Fiber",
+      nutrient_id: 291,
+      unit: "g",
+      visible: false,
+    });
+  });
+
 });

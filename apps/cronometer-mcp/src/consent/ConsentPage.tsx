@@ -177,7 +177,7 @@ const ConsentPage: FC<ConsentPageProps> = (props) => {
                 <li>
                   <XIcon />
                   <span>
-                    {clientName} can't change your password, targets or account settings. You can
+                    {clientName} can't change your password or account login settings. You can
                     disconnect at any time.
                   </span>
                 </li>

@@ -1093,6 +1093,83 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
   );
 
   server.registerTool(
+    "get_nutrient_targets",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Get configured minimum and maximum nutrient targets across all tracked nutrients (including macros, " +
+        "fiber, vitamins, and minerals), along with units, visibility, and whether each target is customized.",
+      inputSchema: z.object({
+        includeHidden: z
+          .boolean()
+          .default(false)
+          .describe("Whether to include hidden/untracked nutrients whose targets are not shown in the diary."),
+        nutrient: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Optional case-insensitive nutrient name filter (e.g. "fiber", "vitamin d").'),
+      }),
+    },
+    async ({ includeHidden, nutrient }) =>
+      withMobileSession(async (session) => {
+        const allTargets = await mobile.getNutrientTargets(session);
+        const normalizeName = (value: string) => value.toLowerCase().replace(/fibre/g, "fiber");
+        const query = nutrient ? normalizeName(nutrient.trim()) : undefined;
+        const targets = allTargets.filter((target) => {
+          if (!includeHidden && target.visible === false) return false;
+          if (query) {
+            return target.nutrient ? normalizeName(target.nutrient).includes(query) : false;
+          }
+          return true;
+        });
+        return {
+          count: targets.length,
+          include_hidden: includeHidden,
+          ...(nutrient ? { nutrient_filter: nutrient } : {}),
+          targets,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "set_nutrient_target",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Set minimum and optional maximum daily targets for an individual nutrient (e.g. fiber, vitamin D, sodium). " +
+        "Use get_nutrient_definitions or get_nutrient_targets to find nutrient_id.",
+      inputSchema: z.object({
+        nutrientId: z.number().int().describe("Numeric Cronometer nutrient ID (e.g. 291 for Fiber)."),
+        min: z.number().nonnegative().describe("Minimum daily target value in the nutrient's unit."),
+        max: z
+          .number()
+          .nonnegative()
+          .nullable()
+          .optional()
+          .describe("Optional maximum daily target value. Pass null to clear an existing upper bound."),
+        visible: z
+          .boolean()
+          .optional()
+          .describe("Whether the nutrient target should be visible in the diary UI. Preserves current state if omitted."),
+        custom: z.boolean().default(true).describe("Whether to mark the target as custom (default true)."),
+      }),
+    },
+    async ({ nutrientId, min, max, visible, custom }) =>
+      withMobileSession(async (session) => ({
+        target: await mobile.setNutrientTarget(session, {
+          custom,
+          max,
+          min,
+          nutrientId,
+          visible,
+        }),
+      })),
+  );
+
+  server.registerTool(
     "get_fasting_history",
     {
       ...authMetadata,

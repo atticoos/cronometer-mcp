@@ -18,7 +18,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     id: "diary",
     risk: "read",
     title: "View your diary and nutrition",
-    summary: "Food log, daily totals and macro targets",
+    summary: "Food log, reports, trends, streaks, diary groups, and nutrition targets",
     tools: [
       { name: "get_food_log", description: "Food logged on a day" },
       { name: "get_daily_nutrition", description: "Calories and nutrients for a day" },
@@ -32,6 +32,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_nutrition_report", description: "Consolidated nutrition report over a date range" },
       { name: "get_nutrition_trends", description: "Historical intake trends for an individual nutrient" },
       { name: "get_energy_trends", description: "Historical calorie intake and expenditure trends" },
+      { name: "get_nutrient_targets", description: "Configured targets for all tracked nutrients" },
     ],
   },
   {
@@ -85,6 +86,15 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_food_details", description: "View a food's nutrients and servings" },
       { name: "add_custom_food", description: "Save a custom food" },
       { name: "add_recipe", description: "Save a recipe" },
+    ],
+  },
+  {
+    id: "targets",
+    risk: "write",
+    title: "Update nutrition targets",
+    summary: "Set macro targets, percentage macro splits, and individual nutrient targets",
+    tools: [
+      { name: "set_nutrient_target", description: "Set minimum and maximum targets for a nutrient" },
     ],
   },
   {

@@ -107,6 +107,13 @@ export const GroupIcon: FC<{ group: string }> = ({ group }) => {
           <path d="M12 5v14M5 12h14" />
         </Svg>
       );
+    case "targets":
+      return (
+        <Svg>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="4" />
+        </Svg>
+      );
     default:
       return (
         <Svg>

@@ -22,6 +22,7 @@ import type {
   AddServingResponse,
   AuthBlock,
   CopyDiaryResponse,
+  EditTargetResponse,
   FindActivityV2Response,
   FindFoodResponse,
   GetAllTimeStatsResponse,
@@ -40,6 +41,7 @@ import type {
   GetProfileResponse,
   GetReportResponse,
   GetStreakResponse,
+  GetV3TargetsResponse,
   LoginBody,
   PhotouploadResponse,
   RecentExerciseListResponse,
@@ -1321,6 +1323,165 @@ export async function getMacroTargets(
       protein: prefNumber(prefs, "macroProtein") ?? null,
     },
     prefs,
+  };
+}
+
+async function getV3Targets(
+  session: CronometerMobileSession,
+  fetcher: Fetcher,
+): Promise<GetV3TargetsResponse> {
+  const response = await requestV3(session, "GET", "/targets", undefined, fetcher);
+  if (!response.ok) {
+    throw new CronometerMobileError("upstream", `/targets returned HTTP ${response.status}`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = await response.json();
+  } catch {
+    throw new CronometerMobileError("upstream", "/targets returned a non-JSON response");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new CronometerMobileError("upstream", "/targets returned an unexpected response shape");
+  }
+  return parsed as GetV3TargetsResponse;
+}
+
+export interface NutrientTarget {
+  category?: string;
+  custom: boolean | null;
+  maximum: number | null;
+  minimum: number | null;
+  nutrient?: string;
+  nutrient_id: number;
+  unit?: string;
+  visible: boolean | null;
+}
+
+const DERIVED_NUTRIENT_FALLBACKS: Record<number, { category: string; name: string; unit: string }> = {
+  [-1205]: { category: "Carbohydrates", name: "Net Carbs", unit: "g" },
+};
+
+export async function getNutrientTargets(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<NutrientTarget[]> {
+  const rows = await getV3Targets(session, fetcher);
+  let definitions: Map<number, JsonRecord>;
+  try {
+    definitions = await getNutrientDefinitions(session, fetcher);
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+    definitions = new Map();
+  }
+
+  const targets: NutrientTarget[] = [];
+  for (const row of rows) {
+    if (typeof row.id !== "number") continue;
+    const meta = definitions.get(row.id) ?? definitions.get(Math.abs(row.id));
+    const derived = DERIVED_NUTRIENT_FALLBACKS[row.id];
+    targets.push({
+      category: typeof meta?.category === "string" ? meta.category : derived?.category,
+      custom: typeof row.custom === "boolean" ? row.custom : null,
+      maximum: typeof row.max === "number" ? row.max : null,
+      minimum: typeof row.min === "number" ? row.min : null,
+      nutrient: typeof meta?.name === "string" ? meta.name : derived?.name,
+      nutrient_id: row.id,
+      unit: typeof meta?.unit === "string" ? meta.unit : derived?.unit,
+      visible: typeof row.vis === "boolean" ? row.vis : null,
+    });
+  }
+  return targets;
+}
+
+async function editTarget(
+  session: CronometerMobileSession,
+  target: { cus: boolean; id: number; max: number | null; min: number; vis: boolean },
+  fetcher: Fetcher,
+): Promise<EditTargetResponse> {
+  return requestV2<EditTargetResponse>(
+    session,
+    "/api/v2/edit_target",
+    { config: { call_version: 1 }, ...target },
+    fetcher,
+  );
+}
+
+function assertNonNegativeFinite(value: number, label: string): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new CronometerMobileError("request", `${label} must be a non-negative number.`);
+  }
+}
+
+export interface SetNutrientTargetInput {
+  custom?: boolean;
+  max?: number | null;
+  min: number;
+  nutrientId: number;
+  visible?: boolean;
+}
+
+export async function setNutrientTarget(
+  session: CronometerMobileSession,
+  input: SetNutrientTargetInput,
+  fetcher: Fetcher = fetch,
+): Promise<NutrientTarget> {
+  if (!Number.isInteger(input.nutrientId)) {
+    throw new CronometerMobileError("request", "nutrientId must be an integer.");
+  }
+  assertNonNegativeFinite(input.min, "min");
+  if (input.max !== undefined && input.max !== null) {
+    assertNonNegativeFinite(input.max, "max");
+    if (input.max < input.min) {
+      throw new CronometerMobileError(
+        "request",
+        `max (${input.max}) must be greater than or equal to min (${input.min}).`,
+      );
+    }
+  }
+
+  let existingRow: GetV3TargetsResponse[number] | undefined;
+  try {
+    const rows = await getV3Targets(session, fetcher);
+    existingRow = rows.find((row) => row.id === input.nutrientId);
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+  }
+
+  const max =
+    input.max !== undefined
+      ? input.max
+      : typeof existingRow?.max === "number" && existingRow.max >= input.min
+        ? existingRow.max
+        : null;
+  const visible = input.visible ?? existingRow?.vis ?? true;
+  const custom = input.custom ?? true;
+
+  await editTarget(
+    session,
+    {
+      cus: custom,
+      id: input.nutrientId,
+      max,
+      min: input.min,
+      vis: visible,
+    },
+    fetcher,
+  );
+
+  try {
+    const targets = await getNutrientTargets(session, fetcher);
+    const updated = targets.find((row) => row.nutrient_id === input.nutrientId);
+    if (updated) return updated;
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+  }
+
+  return {
+    custom,
+    maximum: max,
+    minimum: input.min,
+    nutrient_id: input.nutrientId,
+    visible,
   };
 }
 

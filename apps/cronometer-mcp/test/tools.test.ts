@@ -41,6 +41,7 @@ describe("registered tool surface", () => {
       "get_logging_streak",
       "get_macro_targets",
       "get_nutrient_definitions",
+      "get_nutrient_targets",
       "get_nutrition_report",
       "get_nutrition_scores",
       "get_nutrition_trends",
@@ -51,6 +52,7 @@ describe("registered tool surface", () => {
       "remove_food_entry",
       "search_activities",
       "search_foods",
+      "set_nutrient_target",
       "update_note",
     ]);
   });
@@ -382,6 +384,95 @@ describe("new MCP tool handlers", () => {
     expect(parseToolJson(await authedClient.callTool({ name: "get_energy_trends", arguments: {} }))).toMatchObject({
       date_range_int: 3,
       energy_data: { consumed: [2000] },
+    });
+  });
+  it("executes get_nutrient_targets with visibility and fibre/fiber filtering", async () => {
+    currentUserId = 44;
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/44/targets")) {
+        return Response.json([
+          { custom: true, id: 291, max: null, min: 30, vis: true },
+          { custom: false, id: 307, max: 2300, min: 1500, vis: false },
+        ]);
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return Response.json({
+          nutrients: [
+            { category: "Carbohydrates", id: 291, name: "Fiber", unit: "g" },
+            { category: "Minerals", id: 307, name: "Sodium", unit: "mg" },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const visibleOnly = parseToolJson(
+      await authedClient.callTool({
+        name: "get_nutrient_targets",
+        arguments: {},
+      }),
+    );
+    expect(visibleOnly).toMatchObject({
+      count: 1,
+      include_hidden: false,
+      status: "success",
+      targets: [
+        {
+          category: "Carbohydrates",
+          custom: true,
+          maximum: null,
+          minimum: 30,
+          nutrient: "Fiber",
+          nutrient_id: 291,
+          unit: "g",
+          visible: true,
+        },
+      ],
+    });
+
+    const fibreFiltered = parseToolJson(
+      await authedClient.callTool({
+        name: "get_nutrient_targets",
+        arguments: { includeHidden: true, nutrient: "fibre" },
+      }),
+    );
+    expect(fibreFiltered).toMatchObject({
+      count: 1,
+      include_hidden: true,
+      nutrient_filter: "fibre",
+      status: "success",
+      targets: [{ nutrient_id: 291, minimum: 30, maximum: null, custom: true }],
+    });
+  });
+
+  it("executes set_nutrient_target", async () => {
+    currentUserId = 52;
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/52/targets")) {
+        return Response.json([{ custom: true, id: 291, max: 40, min: 30, vis: true }]);
+      }
+      if (url.endsWith("/api/v2/edit_target")) {
+        const body = JSON.parse(String(init?.body)) as { id: number; min: number; max: number | null };
+        expect(body).toMatchObject({ id: 291, max: 40, min: 30 });
+        return Response.json({ result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return Response.json({ nutrients: [{ category: "Carbohydrates", id: 291, name: "Fiber", pid: 205, sortKey: 10, unit: "g" }] });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const targetRes = parseToolJson(
+      await authedClient.callTool({
+        name: "set_nutrient_target",
+        arguments: { max: 40, min: 30, nutrientId: 291 },
+      }),
+    );
+    expect(targetRes).toMatchObject({
+      status: "success",
+      target: { maximum: 40, minimum: 30, nutrient: "Fiber", nutrient_id: 291, unit: "g" },
     });
   });
 });
