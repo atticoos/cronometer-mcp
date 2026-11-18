@@ -6,8 +6,9 @@
 # time without notice. Field optionality is inferred from single samples.
 #
 # Convention:
-#   x-confidence: verified   — request AND response captured live
-#   x-confidence: inferred   — shape guessed from partial evidence
+#   x-confidence: verified          — request AND response captured live
+#   x-confidence: inferred          — shape guessed from partial evidence
+#   x-confidence: reference-derived — derived from rwestergren/cronometer-api-mcp, not yet locally captured via MITM
 #   x-observed-at: date of capture
 openapi: 3.1.0
 info:
@@ -795,7 +796,7 @@ paths:
     post:
       tags: [foods]
       operationId: addFood
-      summary: Create a custom food or recipe (recipe = has `ingredients` array)
+      summary: Create, update, or retire a custom food or recipe (recipe = has `ingredients` array)
       x-confidence: verified
       x-observed-at: 2026-08-27
       x-notes: >-
@@ -804,7 +805,11 @@ paths:
         measures. Nutrient ids: 208 energy kcal, 203 protein, 204 fat,
         205 carbs, 291 fiber, 269 sugar, 307 sodium, 606 saturated fat,
         -1205 net carbs; negative mirror ids (-203/-204/-205/-221) are
-        required duplicates of macro rows.
+        required duplicates of macro rows. Reference-derived upsert/retire
+        behavior: sending a full get_food document (with `messages` stripped)
+        and non-zero `id` updates the custom food in place while preserving
+        existing measure IDs; setting `retired: true` soft-deletes it while
+        preserving historical diary entries.
       requestBody:
         required: true
         content:
@@ -826,6 +831,139 @@ paths:
                   result: { type: string, examples: ["SUCCESS"] }
                   id: { type: integer, description: "New food id" }
                   messages: { $ref: "#/components/schemas/MessagesArray" }
+
+  /api/v2/del_food:
+    post:
+      tags: [foods]
+      operationId: delFood
+      summary: Retire or permanently delete a user-created recipe or meal
+      x-confidence: reference-derived
+      x-notes: >-
+        Derived from rwestergren/cronometer-api-mcp (delete_recipe). Sending
+        `retire: true` soft-deletes the recipe/meal (removes it from search
+        and My Foods while keeping historical diary entries intact). Omitting
+        `retire` permanently deletes the recipe and its historical diary
+        entries. Plain custom foods are retired via /api/v2/add_food with
+        `retired: true`. Uses standard v2 body auth (AuthBlock injected by
+        requestV2).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: integer, description: "Recipe or meal food ID" }
+                retire: { type: boolean, description: "True to soft-retire and preserve diary history; omit to permanently delete" }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Deletion or retirement result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS", "FAIL"] }
+                  error: { type: string }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+                additionalProperties: true
+
+  /api/v2/delete_recent_foods:
+    post:
+      tags: [foods]
+      operationId: deleteRecentFoods
+      summary: Remove food IDs from the recently logged foods list
+      x-confidence: reference-derived
+      x-notes: >-
+        Derived from rwestergren/cronometer-api-mcp (called after permanent
+        recipe deletion with call_version 2). Uses standard v2 body auth.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [servingFoodIds]
+              properties:
+                servingFoodIds:
+                  type: array
+                  items: { type: integer }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Cleanup ack
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, examples: ["SUCCESS"] }
+                  messages: { $ref: "#/components/schemas/MessagesArray" }
+                additionalProperties: true
+
+  /api/v2/import_recipe:
+    post:
+      tags: [foods]
+      operationId: importRecipe
+      summary: Start an asynchronous recipe import from free-text ingredients or URL
+      x-confidence: reference-derived
+      x-notes: >-
+        Derived from rwestergren/cronometer-api-mcp (_start_recipe_import).
+        Pass `url: ""` with newline-separated `ingredients` and
+        `enable_async: true`. Small imports may return `result` immediately;
+        otherwise poll `/api/v2/poll_async_result` using the returned `id`
+        as `futureId` and `resultType: "recipe"`. Uses standard v2 body auth.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, ingredients]
+              properties:
+                url: { type: string, description: "Recipe URL, or empty string when parsing ingredients text" }
+                ingredients: { type: string, description: "Newline-separated free-text ingredient lines" }
+                enable_async: { type: boolean, examples: [true] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Async import job state (or immediate result)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncRecipeImportResponse"
+
+  /api/v2/poll_async_result:
+    post:
+      tags: [foods]
+      operationId: pollAsyncResult
+      summary: Poll an asynchronous mobile job (such as recipe import)
+      x-confidence: reference-derived
+      x-notes: >-
+        Derived from rwestergren/cronometer-api-mcp (_await_async_result).
+        Poll until `result` is populated. Failure is indicated by
+        `isError: true` with `message` or `messages`, or `progress: 100`
+        without `result`. Uses standard v2 body auth.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [futureId, resultType]
+              properties:
+                futureId: { type: string, description: "Job ID returned by the async start call" }
+                resultType: { type: string, examples: ["recipe"] }
+                config: { $ref: "#/components/schemas/CallConfig" }
+      responses:
+        "200":
+          description: Current async job status and optional parsed result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncRecipeImportResponse"
 
   /api/v2/copy:
     post:
@@ -2079,11 +2217,14 @@ components:
       description: Request body of add_food (custom food or recipe). Captured 2026-08-27.
       required: [name, nutrients, measures]
       properties:
-        id: { type: integer, description: "0 to create" }
+        id: { type: integer, description: "0 to create; existing food ID to update/retire" }
         name: { type: string }
         category: { type: integer }
         owner: { type: [object, "null"] }
-        retired: { type: [object, "null"] }
+        retired: { type: [boolean, object, "null"], description: "Set true to retire a custom food while keeping diary history" }
+        meal: { type: boolean }
+        barcodes: { type: array, items: { type: string } }
+        translations: { type: array, items: { type: object, additionalProperties: true } }
         source: { type: [string, "null"] }
         defaultMeasureId: { type: integer }
         comments: { type: [string, "null"] }
@@ -2122,3 +2263,45 @@ components:
               value: { type: number }
         properties: { type: object, additionalProperties: { type: string } }
         foodTags: { type: array, items: { type: string } }
+
+    AsyncRecipeImportEntry:
+      type: object
+      description: Reference-derived recipe parser entry from import_recipe / poll_async_result.
+      properties:
+        rawIngredientImport: { type: string }
+        description: { type: string }
+        servingSizeMatchFound: { type: boolean }
+        topKFoodIds:
+          type: array
+          items: { type: integer }
+        ingredient:
+          type: object
+          properties:
+            foodId: { type: integer }
+            measureId: { type: integer }
+            grams: { type: number }
+          additionalProperties: true
+      additionalProperties: true
+
+    AsyncRecipeImportResponse:
+      type: object
+      description: Reference-derived response from /api/v2/import_recipe and /api/v2/poll_async_result.
+      properties:
+        id: { type: string, description: "Async job futureId" }
+        progress: { type: number }
+        message: { type: string }
+        isError: { type: boolean }
+        messages: { $ref: "#/components/schemas/MessagesArray" }
+        result:
+          type: object
+          properties:
+            recipe:
+              type: object
+              properties:
+                name: { type: string }
+              additionalProperties: true
+            entries:
+              type: array
+              items: { $ref: "#/components/schemas/AsyncRecipeImportEntry" }
+          additionalProperties: true
+      additionalProperties: true

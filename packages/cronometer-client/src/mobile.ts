@@ -16,24 +16,52 @@
 
 import { CronometerAuthenticationError } from "./cronometer";
 import type {
-  AuthBlock,
+  AddBiometricBody,
+  AddBiometricResponse,
+  AddExerciseBody,
+  AddExerciseResponse,
   AddFoodResponse,
   AddServingResponse,
+  AsyncRecipeImportResponse,
+  AuthBlock,
   CopyDiaryResponse,
+  DeleteRecentFoodsResponse,
+  DelFoodResponse,
+  EditTargetResponse,
+  FindActivityV2Response,
   FindFoodResponse,
+  FoodInput,
+  GetAllTimeStatsResponse,
   GetBiometricsResponse,
+  GetCalendarInfoResponse,
+  GetChartDataResponse,
+  GetDashboardEnergyDataResponse,
   GetDiaryResponse,
   GetFastingStatsResponse,
   GetFastingWithDateRangeResponse,
   GetFoodResponse,
   GetFoodsResponse,
+  GetMacroSchedulesResponse,
+  GetMacroTargetTemplatesResponse,
   GetMetricsResponse,
+  GetMyFoodsResponse,
   GetNutrientsResponse,
   GetNutritionScoresResponse,
   GetProfileResponse,
+  GetRecentFoodsResponse,
+  GetReportResponse,
+  GetSleepScoreResponse,
+  GetStreakResponse,
+  GetV3TargetsResponse,
+  ImportRecipeResponse,
   LoginBody,
+  PhotouploadResponse,
+  PollAsyncResultResponse,
+  RecentBiometricListResponse,
+  RecentExerciseListResponse,
   ServingInput,
   SetCompleteResponse,
+  SetPrefResponse,
 } from "./generated/schemas";
 
 const MOBILE_BASE_URL = "https://mobile.cronometer.com";
@@ -404,6 +432,16 @@ function shiftedDay(day: string, deltaDays: number): string {
 // Food search & details
 // ---------------------------------------------------------------------------
 
+function extractRecordArray(record: JsonRecord, candidateKeys: readonly string[]): JsonRecord[] {
+  const response = new JsonResponse(record);
+  for (const key of candidateKeys) {
+    if (Array.isArray(record[key])) {
+      return response.array(key);
+    }
+  }
+  return [];
+}
+
 export async function searchFoods(
   session: CronometerMobileSession,
   query: string,
@@ -444,6 +482,38 @@ async function getFoodsInternal(
     fetcher,
   );
   return new JsonResponse(data).array("foods");
+}
+
+export async function listCustomFoods(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<{ foods: JsonRecord[]; raw: GetMyFoodsResponse }> {
+  const raw = await requestV2<GetMyFoodsResponse>(
+    session,
+    "/api/v2/get_myfoods",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+  return {
+    foods: extractRecordArray(raw, ["foods", "myFoods", "myfoods", "customFoods"]),
+    raw,
+  };
+}
+
+export async function getRecentFoods(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<{ foods: JsonRecord[]; raw: GetRecentFoodsResponse }> {
+  const raw = await requestV2<GetRecentFoodsResponse>(
+    session,
+    "/api/v2/get_recent_foods",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+  return {
+    foods: extractRecordArray(raw, ["foods", "recentFoods", "recent_foods"]),
+    raw,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -556,6 +626,344 @@ export async function copyDay(
     { config: { call_version: 1 }, diaryGroupNumber: null, from, to },
     fetcher,
   );
+}
+
+export interface DiaryGroup {
+  custom: boolean;
+  enabled: boolean;
+  id: number;
+  name: string;
+  pref: string;
+}
+
+const DEFAULT_DIARY_GROUPS: readonly { enabled: boolean; id: number; name: string }[] = [
+  { enabled: true, id: 0, name: "Uncategorized" },
+  { enabled: true, id: 1, name: "Breakfast" },
+  { enabled: true, id: 2, name: "Lunch" },
+  { enabled: true, id: 3, name: "Dinner" },
+  { enabled: true, id: 4, name: "Snacks" },
+  { enabled: false, id: 5, name: "Group 6" },
+  { enabled: false, id: 6, name: "Group 7" },
+  { enabled: false, id: 7, name: "Group 8" },
+];
+
+export async function getDiaryGroups(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<{ custom_group_prefs: Record<string, string>; groups: DiaryGroup[] }> {
+  const profile = await requestV2<GetProfileResponse>(
+    session,
+    "/api/v2/get_profile",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+
+  const allPrefs = prefMap(new JsonResponse(profile).array("prefs"));
+  const customGroupPrefs: Record<string, string> = {};
+  const byId = new Map<number, DiaryGroup>();
+
+  for (const def of DEFAULT_DIARY_GROUPS) {
+    const pref = `DG${String(def.id + 1).padStart(2, "0")}`;
+    const onPref = `${pref}ON`;
+    const rawName = allPrefs[pref];
+    const rawEnabled = allPrefs[onPref];
+    if (rawName !== undefined) customGroupPrefs[pref] = rawName;
+    if (rawEnabled !== undefined) customGroupPrefs[onPref] = rawEnabled;
+
+    const trimmedName = rawName?.trim() ?? "";
+    const name = rawName !== undefined ? (trimmedName !== "" ? trimmedName : `Group ${def.id + 1}`) : def.name;
+    const enabled =
+      rawEnabled !== undefined ? rawEnabled.trim().toLowerCase() === "true" : def.enabled;
+    const custom =
+      (trimmedName !== "" && trimmedName !== def.name) ||
+      (rawEnabled !== undefined && enabled !== def.enabled);
+
+    byId.set(def.id, { custom, enabled, id: def.id, name, pref });
+  }
+
+  for (const [key, value] of Object.entries(allPrefs)) {
+    if (/^DG0[1-8](?:ON)?$/i.test(key)) continue;
+    if (/(?:diary.*group|diarygroup|meal.*group)/i.test(key)) {
+      customGroupPrefs[key] = value;
+      const indexed = /(\d+)$/.exec(key);
+      if (indexed && value.trim() !== "") {
+        const id = Number(indexed[1]);
+        const prev = byId.get(id);
+        byId.set(id, {
+          custom: true,
+          enabled: prev?.enabled ?? true,
+          id,
+          name: value.trim(),
+          pref: prev?.pref ?? `DG${String(id + 1).padStart(2, "0")}`,
+        });
+      }
+    }
+  }
+
+  for (const field of ["diaryGroups", "diary_groups", "groups"] as const) {
+    const rawList = profile[field];
+    if (!Array.isArray(rawList)) continue;
+    rawList.forEach((item, index) => {
+      if (typeof item === "string" && item.trim() !== "") {
+        const prev = byId.get(index);
+        byId.set(index, {
+          custom: true,
+          enabled: prev?.enabled ?? true,
+          id: index,
+          name: item.trim(),
+          pref: prev?.pref ?? `DG${String(index + 1).padStart(2, "0")}`,
+        });
+      } else if (isJsonRecord(item)) {
+        const id =
+          typeof item.id === "number"
+            ? item.id
+            : typeof item.groupId === "number"
+              ? item.groupId
+              : index;
+        const name = typeof item.name === "string" ? item.name.trim() : undefined;
+        if (name) {
+          const prev = byId.get(id);
+          byId.set(id, {
+            custom: true,
+            enabled: typeof item.enabled === "boolean" ? item.enabled : (prev?.enabled ?? true),
+            id,
+            name,
+            pref: prev?.pref ?? `DG${String(id + 1).padStart(2, "0")}`,
+          });
+        }
+      }
+    });
+  }
+
+  return {
+    custom_group_prefs: customGroupPrefs,
+    groups: [...byId.values()].sort((a, b) => a.id - b.id),
+  };
+}
+
+export async function getLoggingStreak(
+  session: CronometerMobileSession,
+  date?: string,
+  fetcher: Fetcher = fetch,
+): Promise<GetStreakResponse> {
+  return requestV2<GetStreakResponse>(
+    session,
+    "/api/v2/get_streak",
+    { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
+    fetcher,
+  );
+}
+
+export async function getAllTimeStats(
+  session: CronometerMobileSession,
+  date?: string,
+  fetcher: Fetcher = fetch,
+): Promise<GetAllTimeStatsResponse> {
+  return requestV2<GetAllTimeStatsResponse>(
+    session,
+    "/api/v2/get_all_time_stats",
+    { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
+    fetcher,
+  );
+}
+
+export async function getCalendarSummary(
+  session: CronometerMobileSession,
+  startDate?: string,
+  endDate?: string,
+  fetcher: Fetcher = fetch,
+): Promise<GetCalendarInfoResponse> {
+  const endDay = formatDay(endDate, session.timezone);
+  const startDay = formatDay(startDate ?? shiftedDay(endDay, -30), session.timezone);
+  return requestV2<GetCalendarInfoResponse>(
+    session,
+    "/api/v2/get_calendar_info",
+    { config: { call_version: 1 }, endDay, startDay },
+    fetcher,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Diary notes (/photoupload)
+// ---------------------------------------------------------------------------
+
+export interface AddNoteOptions {
+  date?: string;
+  diaryGroup?: number;
+  text: string;
+}
+
+export interface UpdateNoteOptions {
+  date?: string;
+  diaryGroup?: number;
+  noteId: number;
+  text: string;
+}
+
+async function saveDiaryNote(
+  session: CronometerMobileSession,
+  options: { date?: string; diaryGroup?: number; noteId: number; order?: number; text: string },
+  fetcher: Fetcher,
+): Promise<PhotouploadResponse> {
+  if (options.text.trim() === "") {
+    throw new CronometerMobileError("request", "Note text must not be empty.");
+  }
+
+  const order = options.order ?? (((options.diaryGroup ?? 0) << 16) | 1);
+  const form = new FormData();
+  form.set("action", "diaryImage");
+  form.set("sessionKey", session.sessionKey);
+  form.set("noteId", String(options.noteId));
+  form.set("day", formatDay(options.date, session.timezone));
+  form.set("order", String(order));
+  form.set("deleteExistingPhoto", "false");
+  form.set("noteText", options.text);
+
+  const response = await fetcher(`${MOBILE_BASE_URL}/photoupload`, {
+    body: form,
+    headers: {
+      "User-Agent": "Dart/3.9 (dart:io)",
+      "accept-encoding": "gzip",
+    },
+    method: "POST",
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new CronometerMobileError("session");
+  }
+
+  const data = await readJsonResponse(response, "/photoupload");
+  const result = data.get("result");
+  if (result === "FAIL" || result === "FAILURE") {
+    const message = data.string("error")?.trim() ?? "";
+    if (message) {
+      throw new CronometerMobileError("request", `Cronometer rejected the request: ${truncate(message, 300)}`);
+    }
+    throw new CronometerMobileError("upstream", `/photoupload returned ${result}`);
+  }
+  return data.raw as PhotouploadResponse;
+}
+
+export async function addNote(
+  session: CronometerMobileSession,
+  options: AddNoteOptions,
+  fetcher: Fetcher = fetch,
+): Promise<PhotouploadResponse> {
+  return saveDiaryNote(session, { ...options, noteId: 0 }, fetcher);
+}
+
+export async function updateNote(
+  session: CronometerMobileSession,
+  options: UpdateNoteOptions,
+  fetcher: Fetcher = fetch,
+): Promise<PhotouploadResponse> {
+  if (!Number.isInteger(options.noteId) || options.noteId <= 0) {
+    throw new CronometerMobileError("request", "noteId must be a positive integer.");
+  }
+
+  let order: number | undefined;
+  if (options.diaryGroup === undefined) {
+    let diary: JsonRecord | null = null;
+    try {
+      diary = await getDiary(session, options.date, fetcher);
+    } catch (error) {
+      if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+    }
+    if (diary) {
+      const existing = new JsonResponse(diary)
+        .array("diary")
+        .find((entry) => entry.noteId === options.noteId || String(entry.noteId) === String(options.noteId));
+      if (existing && typeof existing.order === "number") {
+        order = existing.order;
+      }
+    }
+  }
+
+  return saveDiaryNote(session, { ...options, order }, fetcher);
+}
+
+// ---------------------------------------------------------------------------
+// Exercises & activities
+// ---------------------------------------------------------------------------
+
+export async function searchActivities(
+  session: CronometerMobileSession,
+  query: string,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord[]> {
+  const data = await requestV2<FindActivityV2Response>(
+    session,
+    "/api/v2/find_activity_V2",
+    { config: { call_version: 1 }, query },
+    fetcher,
+  );
+  return new JsonResponse(data).array("activities");
+}
+
+export interface AddExerciseOptions {
+  activityId: number;
+  activitySpecId?: number;
+  caloriesBurned?: number;
+  date?: string;
+  diaryGroup?: number;
+  minutes: number;
+  name?: string;
+}
+
+export async function addExercise(
+  session: CronometerMobileSession,
+  options: AddExerciseOptions,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord> {
+  if (!(options.minutes > 0)) {
+    throw new CronometerMobileError("request", "Exercise duration (minutes) must be positive.");
+  }
+  if (options.caloriesBurned !== undefined && options.caloriesBurned < 0) {
+    throw new CronometerMobileError("request", "caloriesBurned must be non-negative.");
+  }
+
+  const diaryGroup = options.diaryGroup ?? 0;
+  const exercise = {
+    activityId: options.activityId,
+    calorieOverride: options.caloriesBurned !== undefined,
+    day: formatDay(options.date, session.timezone),
+    exerciseId: null,
+    externalId: null,
+    meta: null,
+    minutes: options.minutes,
+    name: options.name ?? null,
+    order: (diaryGroup << 16) | 1,
+    source: null,
+    type: "Exercise",
+    userId: session.userId,
+    ...(options.activitySpecId !== undefined ? { activitySpecId: options.activitySpecId } : {}),
+    ...(options.caloriesBurned !== undefined ? { calories: -Math.abs(options.caloriesBurned) } : {}),
+  } satisfies AddExerciseBody["exercise"];
+
+  return requestV2<AddExerciseResponse>(
+    session,
+    "/api/v2/add_exercise",
+    { config: { call_version: 1 }, exercise },
+    fetcher,
+  );
+}
+
+export async function getRecentExercises(
+  session: CronometerMobileSession,
+  resultSetLimit = 10,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord[]> {
+  if (!Number.isInteger(resultSetLimit) || resultSetLimit <= 0) {
+    throw new CronometerMobileError("request", "resultSetLimit must be a positive integer.");
+  }
+  const data = await requestV2<RecentExerciseListResponse>(
+    session,
+    "/api/v2/recent_exercise_list",
+    { config: { call_version: 1 }, resultSetLimit },
+    fetcher,
+  );
+  return new JsonResponse(data).array("exercises");
 }
 
 // ---------------------------------------------------------------------------
@@ -671,6 +1079,122 @@ export async function getConsumedNutrients(
   }
 
   return { macros, nutrients };
+}
+
+export interface GetNutritionReportOptions {
+  allTime?: boolean;
+  endDate?: string;
+  includeSupplements?: boolean;
+  startDate?: string;
+  type?: string;
+}
+
+export async function getNutritionReport(
+  session: CronometerMobileSession,
+  options: GetNutritionReportOptions = {},
+  fetcher: Fetcher = fetch,
+): Promise<GetReportResponse> {
+  const end = formatDay(options.endDate, session.timezone);
+  const start = formatDay(options.startDate ?? shiftedDay(end, -30), session.timezone);
+  return requestV2<GetReportResponse>(
+    session,
+    "/api/v2/get_report",
+    {
+      allTime: options.allTime ?? false,
+      config: { call_version: 1 },
+      end,
+      start,
+      supplements: options.includeSupplements ?? true,
+      type: options.type ?? "All",
+    },
+    fetcher,
+  );
+}
+
+export interface ChartDataOptions {
+  dayType?: string;
+  endDate?: string;
+  ignoreEmptyTimestamps?: boolean;
+  startDate?: string;
+}
+
+/**
+ * Historical nutrient trend series via /api/v2/get_chart_data.
+ * Note: specs/cronometer-mobile.yaml marks chartDataType: "NUTRIENT" as inferred
+ * from the verified "BIOMETRIC" request shape.
+ */
+export async function getNutritionTrends(
+  session: CronometerMobileSession,
+  nutrientId: number,
+  options: ChartDataOptions = {},
+  fetcher: Fetcher = fetch,
+): Promise<GetChartDataResponse> {
+  if (!Number.isInteger(nutrientId)) {
+    throw new CronometerMobileError("request", "nutrientId must be an integer.");
+  }
+  const end = formatDay(options.endDate, session.timezone);
+  const start = formatDay(options.startDate ?? shiftedDay(end, -30), session.timezone);
+  return requestV2<GetChartDataResponse>(
+    session,
+    "/api/v2/get_chart_data",
+    {
+      chartDataType: "NUTRIENT",
+      config: { call_version: 1 },
+      dayType: options.dayType ?? "All",
+      end,
+      ignoreEmptyTimestamps: options.ignoreEmptyTimestamps ?? true,
+      metricId: null,
+      nutrientId,
+      scoreId: null,
+      start,
+    },
+    fetcher,
+  );
+}
+
+export async function getWeightTrends(
+  session: CronometerMobileSession,
+  options: ChartDataOptions & { metricId?: number } = {},
+  fetcher: Fetcher = fetch,
+): Promise<GetChartDataResponse> {
+  const metricId = options.metricId ?? 1;
+  if (!Number.isInteger(metricId) || metricId <= 0) {
+    throw new CronometerMobileError("request", "metricId must be a positive integer.");
+  }
+  const end = formatDay(options.endDate, session.timezone);
+  const start = formatDay(options.startDate ?? shiftedDay(end, -30), session.timezone);
+  return requestV2<GetChartDataResponse>(
+    session,
+    "/api/v2/get_chart_data",
+    {
+      chartDataType: "BIOMETRIC",
+      config: { call_version: 1 },
+      dayType: options.dayType ?? "All",
+      end,
+      ignoreEmptyTimestamps: options.ignoreEmptyTimestamps ?? true,
+      metricId,
+      nutrientId: null,
+      scoreId: null,
+      start,
+    },
+    fetcher,
+  );
+}
+
+export async function getEnergyTrends(
+  session: CronometerMobileSession,
+  dateRangeInt = 3,
+  fetcher: Fetcher = fetch,
+): Promise<GetDashboardEnergyDataResponse> {
+  if (!Number.isInteger(dateRangeInt) || dateRangeInt < 0) {
+    throw new CronometerMobileError("request", "dateRangeInt must be a non-negative integer.");
+  }
+  return requestV2<GetDashboardEnergyDataResponse>(
+    session,
+    "/api/v2/get_dashboard_energy_data",
+    { config: { call_version: 1 }, dateRangeInt },
+    fetcher,
+  );
 }
 
 /**
@@ -903,6 +1427,412 @@ export async function getMacroTargets(
   };
 }
 
+async function getV3Targets(
+  session: CronometerMobileSession,
+  fetcher: Fetcher,
+): Promise<GetV3TargetsResponse> {
+  const response = await requestV3(session, "GET", "/targets", undefined, fetcher);
+  if (!response.ok) {
+    throw new CronometerMobileError("upstream", `/targets returned HTTP ${response.status}`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = await response.json();
+  } catch {
+    throw new CronometerMobileError("upstream", "/targets returned a non-JSON response");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new CronometerMobileError("upstream", "/targets returned an unexpected response shape");
+  }
+  return parsed as GetV3TargetsResponse;
+}
+
+export interface NutrientTarget {
+  category?: string;
+  custom: boolean | null;
+  maximum: number | null;
+  minimum: number | null;
+  nutrient?: string;
+  nutrient_id: number;
+  unit?: string;
+  visible: boolean | null;
+}
+
+const DERIVED_NUTRIENT_FALLBACKS: Record<number, { category: string; name: string; unit: string }> = {
+  [-1205]: { category: "Carbohydrates", name: "Net Carbs", unit: "g" },
+};
+
+export async function getNutrientTargets(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<NutrientTarget[]> {
+  const rows = await getV3Targets(session, fetcher);
+  let definitions: Map<number, JsonRecord>;
+  try {
+    definitions = await getNutrientDefinitions(session, fetcher);
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+    definitions = new Map();
+  }
+
+  const targets: NutrientTarget[] = [];
+  for (const row of rows) {
+    if (typeof row.id !== "number") continue;
+    const meta = definitions.get(row.id) ?? definitions.get(Math.abs(row.id));
+    const derived = DERIVED_NUTRIENT_FALLBACKS[row.id];
+    targets.push({
+      category: typeof meta?.category === "string" ? meta.category : derived?.category,
+      custom: typeof row.custom === "boolean" ? row.custom : null,
+      maximum: typeof row.max === "number" ? row.max : null,
+      minimum: typeof row.min === "number" ? row.min : null,
+      nutrient: typeof meta?.name === "string" ? meta.name : derived?.name,
+      nutrient_id: row.id,
+      unit: typeof meta?.unit === "string" ? meta.unit : derived?.unit,
+      visible: typeof row.vis === "boolean" ? row.vis : null,
+    });
+  }
+  return targets;
+}
+
+async function setPref(
+  session: CronometerMobileSession,
+  key: string,
+  val: string,
+  fetcher: Fetcher,
+): Promise<SetPrefResponse> {
+  return requestV2<SetPrefResponse>(
+    session,
+    "/api/v2/set_pref",
+    { config: { call_version: 1 }, key, val },
+    fetcher,
+  );
+}
+
+async function editTarget(
+  session: CronometerMobileSession,
+  target: { cus: boolean; id: number; max: number | null; min: number; vis: boolean },
+  fetcher: Fetcher,
+): Promise<EditTargetResponse> {
+  return requestV2<EditTargetResponse>(
+    session,
+    "/api/v2/edit_target",
+    { config: { call_version: 1 }, ...target },
+    fetcher,
+  );
+}
+
+export interface SetMacroTargetsInput {
+  caloriesKcal?: number;
+  fatG?: number;
+  fatMaxG?: number | null;
+  netCarbsG?: number;
+  netCarbsMaxG?: number | null;
+  proteinG?: number;
+  proteinMaxG?: number | null;
+}
+
+function assertNonNegativeFinite(value: number, label: string): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new CronometerMobileError("request", `${label} must be a non-negative number.`);
+  }
+}
+
+function validateMacroTargetRange(
+  value: number | undefined,
+  max: number | null | undefined,
+  label: string,
+  minArg: string,
+  maxArg: string,
+): void {
+  if (value !== undefined) assertNonNegativeFinite(value, label);
+  if (max !== undefined && max !== null) {
+    assertNonNegativeFinite(max, `${label} max`);
+    if (value === undefined) {
+      throw new CronometerMobileError("request", `${minArg} is required when setting ${maxArg}.`);
+    }
+    if (max < value) {
+      throw new CronometerMobileError("request", `${maxArg} (${max}) must be greater than or equal to ${minArg} (${value}).`);
+    }
+  } else if (max === null && value === undefined) {
+    throw new CronometerMobileError("request", `${minArg} is required when updating ${maxArg}.`);
+  }
+}
+
+export async function setMacroTargets(
+  session: CronometerMobileSession,
+  input: SetMacroTargetsInput,
+  fetcher: Fetcher = fetch,
+): Promise<MacroTargets> {
+  if (
+    input.proteinG === undefined &&
+    input.netCarbsG === undefined &&
+    input.fatG === undefined &&
+    input.caloriesKcal === undefined
+  ) {
+    throw new CronometerMobileError(
+      "request",
+      "Provide at least one target to update (proteinG, netCarbsG, fatG, or caloriesKcal).",
+    );
+  }
+
+  validateMacroTargetRange(input.proteinG, input.proteinMaxG, "proteinG", "proteinG", "proteinMaxG");
+  validateMacroTargetRange(input.netCarbsG, input.netCarbsMaxG, "netCarbsG", "netCarbsG", "netCarbsMaxG");
+  validateMacroTargetRange(input.fatG, input.fatMaxG, "fatG", "fatG", "fatMaxG");
+  if (input.caloriesKcal !== undefined) assertNonNegativeFinite(input.caloriesKcal, "caloriesKcal");
+
+  let existingTargets: GetV3TargetsResponse = [];
+  try {
+    existingTargets = await getV3Targets(session, fetcher);
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+  }
+  const byId = new Map(
+    existingTargets
+      .filter((row): row is typeof row & { id: number } => typeof row.id === "number")
+      .map((row) => [row.id, row] as const),
+  );
+
+  const pickTarget = (candidates: number[], fallbackId: number) => {
+    for (const candidate of candidates) {
+      const found = byId.get(candidate);
+      if (found) return { id: candidate, row: found };
+    }
+    return { id: fallbackId, row: undefined };
+  };
+
+  const applyNutrientTarget = async (
+    candidates: number[],
+    fallbackId: number,
+    min: number,
+    explicitMax: number | null | undefined,
+  ) => {
+    const { id, row } = pickTarget(candidates, fallbackId);
+    const max =
+      explicitMax !== undefined
+        ? explicitMax
+        : typeof row?.max === "number" && row.max >= min
+          ? row.max
+          : null;
+    await editTarget(
+      session,
+      {
+        cus: true,
+        id,
+        max,
+        min,
+        vis: row?.vis ?? true,
+      },
+      fetcher,
+    );
+  };
+
+  await setPref(session, "targets.macros.percent", "false", fetcher);
+
+  if (input.proteinG !== undefined) {
+    await applyNutrientTarget([-203, NUTRIENT_IDS.protein], NUTRIENT_IDS.protein, input.proteinG, input.proteinMaxG);
+    await setPref(session, "targets.fixed.protein", String(input.proteinG), fetcher);
+    if (input.proteinMaxG !== undefined) {
+      await setPref(
+        session,
+        "targets.fixed.protein.max",
+        input.proteinMaxG === null ? "" : String(input.proteinMaxG),
+        fetcher,
+      );
+    }
+  }
+
+  if (input.netCarbsG !== undefined) {
+    await applyNutrientTarget([NUTRIENT_IDS.netCarbs], NUTRIENT_IDS.netCarbs, input.netCarbsG, input.netCarbsMaxG);
+    await setPref(session, "targets.fixed.net.carbs", String(input.netCarbsG), fetcher);
+    if (input.netCarbsMaxG !== undefined) {
+      await setPref(
+        session,
+        "targets.fixed.net.carbs.max",
+        input.netCarbsMaxG === null ? "" : String(input.netCarbsMaxG),
+        fetcher,
+      );
+    }
+  }
+
+  if (input.fatG !== undefined) {
+    await applyNutrientTarget([-204, NUTRIENT_IDS.fat], NUTRIENT_IDS.fat, input.fatG, input.fatMaxG);
+    await setPref(session, "targets.fixed.fats", String(input.fatG), fetcher);
+    if (input.fatMaxG !== undefined) {
+      await setPref(
+        session,
+        "targets.fixed.fats.max",
+        input.fatMaxG === null ? "" : String(input.fatMaxG),
+        fetcher,
+      );
+    }
+  }
+
+  if (input.caloriesKcal !== undefined) {
+    await applyNutrientTarget([NUTRIENT_IDS.energy], NUTRIENT_IDS.energy, input.caloriesKcal, undefined);
+    await setPref(session, "targets.custom.energy.target", String(input.caloriesKcal), fetcher);
+  }
+
+  return getMacroTargets(session, fetcher);
+}
+
+export interface SetMacroSplitInput {
+  caloriesKcal?: number;
+  carbsPercent: number;
+  fatPercent: number;
+  proteinPercent: number;
+}
+
+export async function setMacroSplit(
+  session: CronometerMobileSession,
+  input: SetMacroSplitInput,
+  fetcher: Fetcher = fetch,
+): Promise<MacroTargets> {
+  assertNonNegativeFinite(input.proteinPercent, "proteinPercent");
+  assertNonNegativeFinite(input.carbsPercent, "carbsPercent");
+  assertNonNegativeFinite(input.fatPercent, "fatPercent");
+  if (input.proteinPercent > 100 || input.carbsPercent > 100 || input.fatPercent > 100) {
+    throw new CronometerMobileError("request", "Macro percentages must each be between 0 and 100.");
+  }
+  const total = input.proteinPercent + input.carbsPercent + input.fatPercent;
+  if (Math.abs(total - 100) > 0.01) {
+    throw new CronometerMobileError(
+      "request",
+      `Macro percentages must sum to 100 (got ${Math.round(total * 100) / 100}).`,
+    );
+  }
+  if (input.caloriesKcal !== undefined) {
+    assertNonNegativeFinite(input.caloriesKcal, "caloriesKcal");
+  }
+
+  await setPref(session, "targets.macros.percent", "true", fetcher);
+  await setPref(session, "macroProtein", String(input.proteinPercent), fetcher);
+  await setPref(session, "macroCarbs", String(input.carbsPercent), fetcher);
+  await setPref(session, "macroLipids", String(input.fatPercent), fetcher);
+
+  if (input.caloriesKcal !== undefined) {
+    let existingEnergy: GetV3TargetsResponse[number] | undefined;
+    try {
+      const targets = await getV3Targets(session, fetcher);
+      existingEnergy = targets.find((row) => row.id === NUTRIENT_IDS.energy);
+    } catch (error) {
+      if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+    }
+    await editTarget(
+      session,
+      {
+        cus: true,
+        id: NUTRIENT_IDS.energy,
+        max: typeof existingEnergy?.max === "number" && existingEnergy.max >= input.caloriesKcal
+          ? existingEnergy.max
+          : null,
+        min: input.caloriesKcal,
+        vis: existingEnergy?.vis ?? true,
+      },
+      fetcher,
+    );
+    await setPref(session, "targets.custom.energy.target", String(input.caloriesKcal), fetcher);
+  }
+
+  return getMacroTargets(session, fetcher);
+}
+
+export async function getMacroSchedule(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<GetMacroSchedulesResponse> {
+  return requestV2<GetMacroSchedulesResponse>(
+    session,
+    "/api/v2/get_macro_schedules",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+}
+
+export async function listMacroTemplates(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<GetMacroTargetTemplatesResponse> {
+  return requestV2<GetMacroTargetTemplatesResponse>(
+    session,
+    "/api/v2/get_macro_target_templates",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+}
+
+export interface SetNutrientTargetInput {
+  custom?: boolean;
+  max?: number | null;
+  min: number;
+  nutrientId: number;
+  visible?: boolean;
+}
+
+export async function setNutrientTarget(
+  session: CronometerMobileSession,
+  input: SetNutrientTargetInput,
+  fetcher: Fetcher = fetch,
+): Promise<NutrientTarget> {
+  if (!Number.isInteger(input.nutrientId)) {
+    throw new CronometerMobileError("request", "nutrientId must be an integer.");
+  }
+  assertNonNegativeFinite(input.min, "min");
+  if (input.max !== undefined && input.max !== null) {
+    assertNonNegativeFinite(input.max, "max");
+    if (input.max < input.min) {
+      throw new CronometerMobileError(
+        "request",
+        `max (${input.max}) must be greater than or equal to min (${input.min}).`,
+      );
+    }
+  }
+
+  let existingRow: GetV3TargetsResponse[number] | undefined;
+  try {
+    const rows = await getV3Targets(session, fetcher);
+    existingRow = rows.find((row) => row.id === input.nutrientId);
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+  }
+
+  const max =
+    input.max !== undefined
+      ? input.max
+      : typeof existingRow?.max === "number" && existingRow.max >= input.min
+        ? existingRow.max
+        : null;
+  const visible = input.visible ?? existingRow?.vis ?? true;
+  const custom = input.custom ?? true;
+
+  await editTarget(
+    session,
+    {
+      cus: custom,
+      id: input.nutrientId,
+      max,
+      min: input.min,
+      vis: visible,
+    },
+    fetcher,
+  );
+
+  try {
+    const targets = await getNutrientTargets(session, fetcher);
+    const updated = targets.find((row) => row.nutrient_id === input.nutrientId);
+    if (updated) return updated;
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+  }
+
+  return {
+    custom,
+    maximum: max,
+    minimum: input.min,
+    nutrient_id: input.nutrientId,
+    visible,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Fasting
 // ---------------------------------------------------------------------------
@@ -958,6 +1888,76 @@ export async function getBiometrics(
     { config: { call_version: 1 }, end, metricId, start, unitId },
     fetcher,
   );
+}
+
+export interface AddBiometricOptions {
+  amount: number;
+  date?: string;
+  diaryGroup?: number;
+  metricId: number;
+  unitId: number;
+}
+
+export async function addBiometric(
+  session: CronometerMobileSession,
+  options: AddBiometricOptions,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord> {
+  if (!Number.isFinite(options.amount)) {
+    throw new CronometerMobileError("request", "Biometric amount must be a finite number.");
+  }
+
+  const diaryGroup = options.diaryGroup ?? 0;
+  const biometric = {
+    amount: options.amount,
+    biometricId: null,
+    day: formatDay(options.date, session.timezone),
+    externalId: null,
+    meta: "{}",
+    metricId: options.metricId,
+    order: (diaryGroup << 16) | 1,
+    source: null,
+    type: "Biometric",
+    unitId: options.unitId,
+    userId: session.userId,
+  } satisfies AddBiometricBody["biometric"];
+
+  return requestV2<AddBiometricResponse>(
+    session,
+    "/api/v2/add_biometric",
+    { biometric, config: { call_version: 1 } },
+    fetcher,
+  );
+}
+
+export async function getRecentBiometrics(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord[]> {
+  const data = await requestV2<RecentBiometricListResponse>(
+    session,
+    "/api/v2/recent_biometric_list",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+  return new JsonResponse(data).array("biometrics");
+}
+
+export async function getSleepScore(
+  session: CronometerMobileSession,
+  date?: string,
+  fetcher: Fetcher = fetch,
+): Promise<{ available: boolean; data: GetSleepScoreResponse }> {
+  const data = await requestV2<GetSleepScoreResponse>(
+    session,
+    "/api/v2/get_sleep_score",
+    { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
+    fetcher,
+  );
+  return {
+    available: !("No sleep scores available" in data),
+    data,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1061,6 +2061,263 @@ export async function createCustomFood(
     throw new CronometerMobileError("upstream", "Cronometer did not return a food ID.");
   }
   return { foodId };
+}
+
+const QUANTITY_LED_NAME = /^\s*(\d+(?:\.\d+)?)\s+(\S.*)$/;
+
+async function saveCustomFood(
+  session: CronometerMobileSession,
+  food: JsonRecord,
+  fetcher: Fetcher,
+): Promise<AddFoodResponse> {
+  const data: JsonRecord = { ...food };
+  delete data.messages;
+  const resp = await requestV2<AddFoodResponse>(
+    session,
+    "/api/v2/add_food",
+    { config: { call_version: 1 }, data: data as FoodInput },
+    fetcher,
+  );
+  const returnedId = new JsonResponse(resp).number("id");
+  if (returnedId !== undefined && returnedId !== data.id) {
+    throw new CronometerMobileError(
+      "upstream",
+      `Failed to save custom food ${String(data.id)}: unexpected id ${returnedId}`,
+    );
+  }
+  return resp;
+}
+
+async function getEditableCustomFood(
+  session: CronometerMobileSession,
+  foodId: number,
+  fetcher: Fetcher,
+): Promise<JsonRecord> {
+  if (!Number.isInteger(foodId) || foodId <= 0) {
+    throw new CronometerMobileError("request", "foodId must be a positive integer.");
+  }
+  const existing = await getFood(session, foodId, fetcher);
+  if (typeof existing.id !== "number") {
+    throw new CronometerMobileError("request", `Custom food ${foodId} was not found.`);
+  }
+  if (existing.source !== "Custom") {
+    throw new CronometerMobileError(
+      "request",
+      `Food ${foodId} (${typeof existing.name === "string" ? existing.name : "unknown"}) is not a custom food (source=${String(existing.source)}); only custom foods can be edited or deleted.`,
+    );
+  }
+  if (Array.isArray(existing.ingredients) && existing.ingredients.length > 0) {
+    throw new CronometerMobileError(
+      "request",
+      `Food ${foodId} is a recipe; use delete_recipe for recipes rather than custom food tools.`,
+    );
+  }
+  return existing;
+}
+
+export interface UpdateCustomFoodInput {
+  calories?: number;
+  carbsG?: number;
+  comments?: string | null;
+  extraNutrients?: Record<string, number>;
+  fatG?: number;
+  fiberG?: number;
+  foodId: number;
+  name?: string;
+  proteinG?: number;
+  saturatedFatG?: number;
+  servingGrams?: number;
+  servingName?: string;
+  servingQuantity?: number;
+  sodiumMg?: number;
+  sugarG?: number;
+}
+
+export async function updateCustomFood(
+  session: CronometerMobileSession,
+  input: UpdateCustomFoodInput,
+  fetcher: Fetcher = fetch,
+): Promise<{ foodId: number; name: string }> {
+  const hasAnyUpdate =
+    input.name !== undefined ||
+    input.calories !== undefined ||
+    input.proteinG !== undefined ||
+    input.fatG !== undefined ||
+    input.carbsG !== undefined ||
+    input.fiberG !== undefined ||
+    input.sugarG !== undefined ||
+    input.sodiumMg !== undefined ||
+    input.saturatedFatG !== undefined ||
+    input.extraNutrients !== undefined ||
+    input.servingName !== undefined ||
+    input.servingGrams !== undefined ||
+    input.servingQuantity !== undefined ||
+    input.comments !== undefined;
+
+  if (!hasAnyUpdate) {
+    throw new CronometerMobileError("request", "Provide at least one custom food field to update.");
+  }
+  if (input.name !== undefined && input.name.trim() === "") {
+    throw new CronometerMobileError("request", "Custom food name must not be empty.");
+  }
+  if (input.servingGrams !== undefined && (!Number.isFinite(input.servingGrams) || input.servingGrams <= 0)) {
+    throw new CronometerMobileError("request", "servingGrams must be a positive number.");
+  }
+
+  let servingName = input.servingName;
+  let servingQuantity = input.servingQuantity;
+  if (servingName !== undefined) {
+    const led = QUANTITY_LED_NAME.exec(servingName);
+    if (led && Number(led[1]) > 0) {
+      servingName = led[2];
+      if (servingQuantity === undefined) {
+        servingQuantity = Number(led[1]);
+      }
+    }
+  }
+  if (servingQuantity !== undefined && (!Number.isFinite(servingQuantity) || servingQuantity <= 0)) {
+    throw new CronometerMobileError("request", "servingQuantity must be a positive number.");
+  }
+
+  const extra = input.extraNutrients ?? {};
+  const overlap = Object.keys(extra)
+    .map(Number)
+    .filter((id) => RESERVED_CUSTOM_FOOD_NUTRIENT_IDS.has(id));
+  if (overlap.length > 0) {
+    throw new CronometerMobileError(
+      "request",
+      `extra_nutrients must not reuse IDs already covered by named macro args (${overlap.join(", ")}).`,
+    );
+  }
+  for (const [rawId, amount] of Object.entries(extra)) {
+    const id = Number(rawId);
+    if (!Number.isInteger(id)) {
+      throw new CronometerMobileError("request", "extra_nutrients keys must be integer nutrient IDs.");
+    }
+    if (!Number.isFinite(amount)) {
+      throw new CronometerMobileError("request", `extra_nutrients["${rawId}"] must be a finite number.`);
+    }
+  }
+
+  const existing = await getEditableCustomFood(session, input.foodId, fetcher);
+
+  const existingMeasures = (Array.isArray(existing.measures) ? existing.measures : []).filter(isJsonRecord);
+  let targetIndex = existingMeasures.findIndex((measure) => measure.id === existing.defaultMeasureId);
+  if (targetIndex < 0) {
+    targetIndex = existingMeasures.findIndex(
+      (measure) => measure.type !== "Weight" && measure.id !== 1 && measure.id !== 2,
+    );
+  }
+  if (targetIndex < 0 && existingMeasures.length > 0) targetIndex = 0;
+
+  const targetMeasure = targetIndex >= 0 ? existingMeasures[targetIndex] : undefined;
+  const existingServingGrams =
+    typeof targetMeasure?.value === "number" && targetMeasure.value > 0 ? targetMeasure.value : 100;
+  const servingGrams = input.servingGrams ?? existingServingGrams;
+  const scale = 100 / servingGrams;
+  const round = (value: number): number => Math.round(value * 100) / 100;
+
+  const measures: JsonRecord[] =
+    existingMeasures.length > 0
+      ? existingMeasures.map((measure, index) => {
+          if (index !== targetIndex) return { ...measure };
+          const updatedMeasure: JsonRecord = { ...measure };
+          if (servingName !== undefined) updatedMeasure.name = servingName;
+          if (input.servingGrams !== undefined) updatedMeasure.value = servingGrams;
+          if (input.servingGrams !== undefined || servingQuantity !== undefined) {
+            updatedMeasure.amount = servingQuantity ?? 1;
+            updatedMeasure.type = "Atomic";
+          }
+          return updatedMeasure;
+        })
+      : [
+          {
+            amount: servingQuantity ?? 1,
+            id: 0,
+            name: servingName ?? "1 serving",
+            type: "Atomic",
+            value: servingGrams,
+          },
+        ];
+
+  const nutrientMap = new Map<number, number>();
+  for (const row of Array.isArray(existing.nutrients) ? existing.nutrients.filter(isJsonRecord) : []) {
+    if (typeof row.id === "number" && typeof row.amount === "number") {
+      nutrientMap.set(row.id, row.amount);
+    }
+  }
+
+  const setScaled = (id: number, perServing: number) => {
+    assertNonNegativeFinite(perServing, `Nutrient ${id}`);
+    nutrientMap.set(id, round(perServing * scale));
+  };
+
+  if (input.calories !== undefined) setScaled(NUTRIENT_IDS.energy, input.calories);
+  if (input.proteinG !== undefined) {
+    setScaled(NUTRIENT_IDS.protein, input.proteinG);
+    setScaled(-203, input.proteinG);
+  }
+  if (input.fatG !== undefined) {
+    setScaled(NUTRIENT_IDS.fat, input.fatG);
+    setScaled(-204, input.fatG);
+  }
+  if (input.carbsG !== undefined) {
+    setScaled(NUTRIENT_IDS.carbs, input.carbsG);
+    setScaled(-205, input.carbsG);
+  }
+  if (input.fiberG !== undefined) setScaled(NUTRIENT_IDS.fiber, input.fiberG);
+  if (input.sugarG !== undefined) setScaled(NUTRIENT_IDS.sugar, input.sugarG);
+  if (input.sodiumMg !== undefined) setScaled(NUTRIENT_IDS.sodium, input.sodiumMg);
+  if (input.saturatedFatG !== undefined) setScaled(NUTRIENT_IDS.saturatedFat, input.saturatedFatG);
+
+  if (input.carbsG !== undefined || input.fiberG !== undefined) {
+    const carbsPer100g = nutrientMap.get(NUTRIENT_IDS.carbs) ?? 0;
+    const fiberPer100g = nutrientMap.get(NUTRIENT_IDS.fiber) ?? 0;
+    nutrientMap.set(NUTRIENT_IDS.netCarbs, round(Math.max(0, carbsPer100g - fiberPer100g)));
+  }
+
+  for (const [rawId, amount] of Object.entries(extra)) {
+    nutrientMap.set(Number(rawId), round(amount * scale));
+  }
+
+  const nutrients = [...nutrientMap.entries()].map(([id, amount]) => ({ amount, id }));
+  const oldName = typeof existing.name === "string" ? existing.name : undefined;
+  const name =
+    input.name ?? (oldName && oldName.trim() !== "" ? oldName : `Custom Food ${input.foodId}`);
+
+  const payload: JsonRecord = {
+    ...existing,
+    id: input.foodId,
+    measures,
+    name,
+    nutrients,
+  };
+  if (input.name !== undefined && Array.isArray(existing.translations)) {
+    payload.translations = existing.translations.map((row) =>
+      isJsonRecord(row) && row.name === oldName ? { ...row, name } : row,
+    );
+  }
+  if (input.comments !== undefined) {
+    payload.comments = input.comments;
+  }
+
+  const data = await saveCustomFood(session, payload, fetcher);
+  const foodId = new JsonResponse(data).number("id") ?? input.foodId;
+  return { foodId, name };
+}
+
+export async function deleteCustomFood(
+  session: CronometerMobileSession,
+  foodId: number,
+  fetcher: Fetcher = fetch,
+): Promise<{ foodId: number; name: string; retired: true }> {
+  const existing = await getEditableCustomFood(session, foodId, fetcher);
+  const name =
+    typeof existing.name === "string" && existing.name.trim() !== ""
+      ? existing.name
+      : `Custom Food ${foodId}`;
+  await saveCustomFood(session, { ...existing, retired: true }, fetcher);
+  return { foodId, name, retired: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -1228,4 +2485,273 @@ export async function createRecipe(
     throw new CronometerMobileError("upstream", "Cronometer did not return a recipe ID.");
   }
   return { foodId, ingredientCount: ingredientRows.length, totalGrams };
+}
+
+export interface DeleteRecipeResult {
+  foodId: number;
+  meal: boolean;
+  name: string;
+  permanent: boolean;
+  warning?: string;
+}
+
+export async function deleteRecipe(
+  session: CronometerMobileSession,
+  foodId: number,
+  options: { permanent?: boolean } = {},
+  fetcher: Fetcher = fetch,
+): Promise<DeleteRecipeResult> {
+  if (!Number.isInteger(foodId) || foodId <= 0) {
+    throw new CronometerMobileError("request", "foodId must be a positive integer.");
+  }
+  const permanent = options.permanent ?? false;
+  const food = await getFood(session, foodId, fetcher);
+  if (typeof food.id !== "number") {
+    throw new CronometerMobileError("request", `Recipe ${foodId} was not found.`);
+  }
+  if (food.source !== "Custom" || !Array.isArray(food.ingredients) || food.ingredients.length === 0) {
+    throw new CronometerMobileError(
+      "request",
+      `Food ${foodId} (${typeof food.name === "string" ? food.name : "unknown"}) is not a recipe or meal you created; use delete_custom_food for custom foods.`,
+    );
+  }
+
+  const body: Record<string, unknown> = {
+    config: { call_version: 1 },
+    id: foodId,
+  };
+  if (!permanent) {
+    body.retire = true;
+  }
+
+  const data = await requestV2<DelFoodResponse>(session, "/api/v2/del_food", body, fetcher);
+  if (data.result !== undefined && data.result !== "SUCCESS") {
+    throw new CronometerMobileError("upstream", `Failed to delete recipe ${foodId}: ${JSON.stringify(data)}`);
+  }
+
+  const result: DeleteRecipeResult = {
+    foodId,
+    meal: Boolean(food.meal),
+    name: typeof food.name === "string" && food.name.trim() !== "" ? food.name : `Recipe ${foodId}`,
+    permanent,
+  };
+
+  if (permanent) {
+    try {
+      await requestV2<DeleteRecentFoodsResponse>(
+        session,
+        "/api/v2/delete_recent_foods",
+        { config: { call_version: 2 }, servingFoodIds: [foodId] },
+        fetcher,
+      );
+    } catch (error) {
+      if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+      result.warning =
+        "Recipe was permanently deleted, but its recent-foods entry could not be cleared.";
+    }
+  }
+
+  return result;
+}
+
+export interface ImportedRecipeIngredient {
+  alternate_food_ids: number[];
+  description: string | null;
+  food_id: number;
+  grams: number;
+  measure_id: number | null;
+  raw_text: string | null;
+  serving_size_match: boolean | null;
+}
+
+export interface UnmatchedRecipeIngredient {
+  alternate_food_ids: number[];
+  description: string | null;
+  food_id: number | null;
+  grams: number | null;
+  measure_id: number | null;
+  raw_text: string | null;
+  serving_size_match: boolean | null;
+}
+
+export interface ImportRecipeInput {
+  comments?: string;
+  ingredientsText: string;
+  name?: string;
+  pollIntervalMs?: number;
+  save?: boolean;
+  servingGrams?: number;
+  servingName?: string;
+  timeoutMs?: number;
+}
+
+export interface ImportRecipeResult {
+  food_id?: number;
+  ingredient_count?: number;
+  ingredients: ImportedRecipeIngredient[];
+  recipe_name: string;
+  saved: boolean;
+  total_grams?: number;
+  unmatched: UnmatchedRecipeIngredient[];
+}
+
+function formatAsyncJobError(data: AsyncRecipeImportResponse): string {
+  if (typeof data.message === "string" && data.message.trim() !== "") return data.message;
+  if (Array.isArray(data.messages) && data.messages.length > 0) return JSON.stringify(data.messages);
+  return JSON.stringify(data);
+}
+
+function delayMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function importRecipe(
+  session: CronometerMobileSession,
+  input: ImportRecipeInput,
+  fetcher: Fetcher = fetch,
+): Promise<ImportRecipeResult> {
+  if (!input.ingredientsText || input.ingredientsText.trim() === "") {
+    throw new CronometerMobileError("request", "import_recipe requires at least one ingredient line.");
+  }
+
+  const pollIntervalMs = input.pollIntervalMs ?? 1_000;
+  const timeoutMs = input.timeoutMs ?? 60_000;
+
+  const started = await requestV2<ImportRecipeResponse>(
+    session,
+    "/api/v2/import_recipe",
+    {
+      config: { call_version: 1 },
+      enable_async: true,
+      ingredients: input.ingredientsText,
+      url: "",
+    },
+    fetcher,
+  );
+  if (started.isError) {
+    throw new CronometerMobileError("request", `Failed to start recipe import: ${formatAsyncJobError(started)}`);
+  }
+  const futureId = typeof started.id === "string" ? started.id.trim() : "";
+  if (!futureId) {
+    throw new CronometerMobileError("upstream", "Recipe import returned no job id.");
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  const maxAttempts = pollIntervalMs > 0 ? Number.POSITIVE_INFINITY : 100;
+  let attempts = 0;
+  let current: AsyncRecipeImportResponse = started;
+
+  while (!(current.result && isJsonRecord(current.result))) {
+    if (current.progress === 100) {
+      throw new CronometerMobileError(
+        "upstream",
+        `Recipe import job ${futureId} finished without a result.`,
+      );
+    }
+    if (Date.now() >= deadline || attempts >= maxAttempts) {
+      throw new CronometerMobileError(
+        "upstream",
+        `Recipe import job ${futureId} did not finish within ${Math.round(timeoutMs / 1000)}s (progress=${String(current.progress ?? "unknown")}, message=${String(current.message ?? "")}).`,
+      );
+    }
+    if (pollIntervalMs > 0) {
+      await delayMs(pollIntervalMs);
+    }
+    attempts += 1;
+    current = await requestV2<PollAsyncResultResponse>(
+      session,
+      "/api/v2/poll_async_result",
+      {
+        config: { call_version: 1 },
+        futureId,
+        resultType: "recipe",
+      },
+      fetcher,
+    );
+    if (current.isError) {
+      throw new CronometerMobileError(
+        "request",
+        `Failed to poll recipe import job ${futureId}: ${formatAsyncJobError(current)}`,
+      );
+    }
+  }
+
+  const parsedResult = current.result!;
+  const recipeMeta = isJsonRecord(parsedResult.recipe) ? parsedResult.recipe : {};
+  const recipeName =
+    input.name?.trim() ||
+    (typeof recipeMeta.name === "string" && recipeMeta.name.trim() !== "" ? recipeMeta.name.trim() : "Imported recipe");
+
+  const rawEntries = Array.isArray(parsedResult.entries) ? parsedResult.entries : [];
+  const matched: ImportedRecipeIngredient[] = [];
+  const unmatched: UnmatchedRecipeIngredient[] = [];
+
+  for (const entry of rawEntries) {
+    if (!isJsonRecord(entry)) continue;
+    const ingredient = isJsonRecord(entry.ingredient) ? entry.ingredient : {};
+    const foodId = typeof ingredient.foodId === "number" ? ingredient.foodId : null;
+    const measureId = typeof ingredient.measureId === "number" ? ingredient.measureId : null;
+    const grams = typeof ingredient.grams === "number" ? ingredient.grams : null;
+    const alternateFoodIds = Array.isArray(entry.topKFoodIds)
+      ? entry.topKFoodIds.filter((id): id is number => typeof id === "number")
+      : [];
+
+    const baseRow = {
+      alternate_food_ids: alternateFoodIds,
+      description: typeof entry.description === "string" ? entry.description : null,
+      measure_id: measureId,
+      raw_text: typeof entry.rawIngredientImport === "string" ? entry.rawIngredientImport : null,
+      serving_size_match: typeof entry.servingSizeMatchFound === "boolean" ? entry.servingSizeMatchFound : null,
+    };
+
+    if (foodId !== null && foodId > 0 && grams !== null && grams > 0) {
+      matched.push({ ...baseRow, food_id: foodId, grams });
+    } else {
+      unmatched.push({ ...baseRow, food_id: foodId, grams });
+    }
+  }
+
+  const shouldSave = input.save ?? true;
+  if (!shouldSave) {
+    return {
+      ingredients: matched,
+      recipe_name: recipeName,
+      saved: false,
+      unmatched,
+    };
+  }
+
+  if (matched.length === 0) {
+    const unresolved = unmatched.map((u) => u.raw_text ?? "(unknown)").join(", ");
+    throw new CronometerMobileError(
+      "request",
+      `Recipe import matched no usable ingredients; unresolved lines: [${unresolved}].`,
+    );
+  }
+
+  const created = await createRecipe(
+    session,
+    {
+      comments: input.comments,
+      ingredients: matched.map((m) => ({
+        foodId: m.food_id,
+        grams: m.grams,
+        measureId: m.measure_id ?? undefined,
+      })),
+      name: recipeName,
+      servingGrams: input.servingGrams,
+      servingName: input.servingName,
+    },
+    fetcher,
+  );
+
+  return {
+    food_id: created.foodId,
+    ingredient_count: created.ingredientCount,
+    ingredients: matched,
+    recipe_name: recipeName,
+    saved: true,
+    total_grams: created.totalGrams,
+    unmatched,
+  };
 }

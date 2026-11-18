@@ -1,17 +1,45 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addBiometric,
+  addExercise,
+  addNote,
   addServing,
   authenticateCronometerMobile,
   copyDay,
   createCustomFood,
+  deleteCustomFood,
   deleteEntries,
+  deleteRecipe,
   formatDay,
   formatToday,
+  getAllTimeStats,
   getBiometrics,
+  getCalendarSummary,
   getConsumedNutrients,
   getDiary,
+  getDiaryGroups,
+  getEnergyTrends,
+  getLoggingStreak,
+  getMacroSchedule,
   getMacroTargets,
+  getNutrientTargets,
+  getNutritionReport,
+  getNutritionTrends,
+  getRecentBiometrics,
+  getRecentExercises,
+  getRecentFoods,
+  getSleepScore,
+  getWeightTrends,
+  importRecipe,
+  listCustomFoods,
+  listMacroTemplates,
   mealGroupForHour,
+  searchActivities,
+  setMacroSplit,
+  setMacroTargets,
+  setNutrientTarget,
+  updateCustomFood,
+  updateNote,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
 
@@ -342,13 +370,169 @@ describe("createCustomFood", () => {
   });
 });
 
-describe("getBiometrics", () => {
+describe("searchActivities & addExercise", () => {
+  it("searches activities via find_activity_V2", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        activities: [{ cals: 0.13, id: 1265, legacy: true, name: "Running General" }],
+      }),
+    );
+
+    const activities = await searchActivities(session, "running", fetcher);
+    expect(activities).toEqual([{ cals: 0.13, id: 1265, legacy: true, name: "Running General" }]);
+    expect(fetcher.mock.calls[0][0]).toBe("https://mobile.cronometer.com/api/v2/find_activity_V2");
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).query).toBe("running");
+  });
+
+  it("logs exercise with negative calories when caloriesBurned is supplied", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ id: 321 }));
+
+    const res = await addExercise(
+      session,
+      { activityId: 1265, caloriesBurned: 250, date: "2026-08-20", diaryGroup: 2, minutes: 30 },
+      fetcher,
+    );
+    expect(res).toEqual({ id: 321 });
+
+    const payload = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(payload.exercise).toMatchObject({
+      activityId: 1265,
+      calorieOverride: true,
+      calories: -250,
+      day: "2026-8-20",
+      exerciseId: null,
+      minutes: 30,
+      order: (2 << 16) | 1,
+      type: "Exercise",
+      userId: 42,
+    });
+  });
+
+  it("logs exercise without calorie override when caloriesBurned is omitted", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ id: 322 }));
+
+    await addExercise(session, { activityId: 1265, date: "2026-08-20", minutes: 45 }, fetcher);
+    const payload = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(payload.exercise.calorieOverride).toBe(false);
+    expect(payload.exercise.calories).toBeUndefined();
+  });
+
+  it("rejects non-positive duration or negative caloriesBurned", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      addExercise(session, { activityId: 1, minutes: 0 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    await expect(
+      addExercise(session, { activityId: 1, caloriesBurned: -10, minutes: 20 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+  });
+});
+
+describe("addNote & updateNote (/photoupload)", () => {
+  it("submits multipart FormData to /photoupload with noteId 0 when adding a note", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({ day: "2026-08-20", noteId: 444, order: 1, text: "Felt energized" }),
+    );
+
+    const note = await addNote(
+      session,
+      { date: "2026-08-20", text: "Felt energized" },
+      fetcher,
+    );
+
+    expect(note).toMatchObject({ noteId: 444, text: "Felt energized" });
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe("https://mobile.cronometer.com/photoupload");
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init?.body as FormData;
+    expect(form.get("action")).toBe("diaryImage");
+    expect(form.get("sessionKey")).toBe("mobile-session-key");
+    expect(form.get("noteId")).toBe("0");
+    expect(form.get("day")).toBe("2026-8-20");
+    expect(form.get("order")).toBe("1");
+    expect(form.get("deleteExistingPhoto")).toBe("false");
+    expect(form.get("noteText")).toBe("Felt energized");
+  });
+
+  it("preserves the existing note's diary order when updating without diaryGroup", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ diary: [{ noteId: 444, order: (2 << 16) | 3, type: "Note" }] }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ day: "2026-08-20", noteId: 444, order: (2 << 16) | 3, text: "Updated" }),
+      );
+
+    await updateNote(session, { date: "2026-08-20", noteId: 444, text: "Updated" }, fetcher);
+
+    const form = fetcher.mock.calls[1][1]?.body as FormData;
+    expect(form.get("noteId")).toBe("444");
+    expect(form.get("order")).toBe(String((2 << 16) | 3));
+    expect(form.get("noteText")).toBe("Updated");
+  });
+
+  it("rejects empty note text and maps HTTP 401 to an expired session", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response("", { status: 401 }));
+    await expect(addNote(session, { text: "   " }, fetcher)).rejects.toMatchObject({ reason: "request" });
+    await expect(addNote(session, { text: "ok" }, fetcher)).rejects.toMatchObject({ reason: "session" });
+  });
+});
+
+describe("getBiometrics & addBiometric", () => {
   it("defaults the range to the last 30 days ending today", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ data: [] }));
     await getBiometrics(session, 1, 1, undefined, "2026-08-20", fetcher);
 
     const payload = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
     expect(payload).toMatchObject({ end: "2026-8-20", metricId: 1, start: "2026-7-21", unitId: 1 });
+  });
+
+  it("posts a Biometric payload with stringified JSON meta", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: 901, weightInKG: 75.5 }));
+
+    const result = await addBiometric(
+      session,
+      { amount: 75.5, date: "2026-08-20", metricId: 1, unitId: 1 },
+      fetcher,
+    );
+
+    expect(result).toEqual({ id: 901, weightInKG: 75.5 });
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe("https://mobile.cronometer.com/api/v2/add_biometric");
+    const payload = JSON.parse(String(init?.body));
+    expect(payload.biometric).toEqual({
+      amount: 75.5,
+      biometricId: null,
+      day: "2026-8-20",
+      externalId: null,
+      meta: "{}",
+      metricId: 1,
+      order: 1,
+      source: null,
+      type: "Biometric",
+      unitId: 1,
+      userId: 42,
+    });
+  });
+
+  it("rejects non-finite biometric amounts", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      addBiometric(session, { amount: Number.NaN, metricId: 1, unitId: 1 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
+describe("getRecentBiometrics", () => {
+  it("fetches recent biometric entries", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ biometrics: [{ amount: 75, metricId: 1 }] }));
+    expect(await getRecentBiometrics(session, fetcher)).toEqual([{ amount: 75, metricId: 1 }]);
   });
 });
 
@@ -424,5 +608,713 @@ describe("getMacroTargets", () => {
       includeActivityBurn: null,
     });
     expect(targets.prefs).toEqual({ "targets.macros.percent": "true" });
+  });
+
+  it("updates fixed macro targets via edit_target and set_pref mirror writes", async () => {
+    const prefs = new Map<string, string>();
+    const editCalls: Array<Record<string, unknown>> = [];
+
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/targets")) {
+        return jsonResponse([
+          { custom: true, id: 203, max: 180, min: 150, vis: true },
+          { custom: true, id: -1205, max: null, min: 200, vis: true },
+          { custom: false, id: 204, max: null, min: 60, vis: true },
+          { custom: true, id: 208, max: null, min: 2200, vis: true },
+        ]);
+      }
+      const body = JSON.parse(String(init?.body));
+      if (url.endsWith("/api/v2/edit_target")) {
+        editCalls.push(body);
+        return jsonResponse({ messages: [], result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/set_pref")) {
+        prefs.set(body.key, body.val);
+        return jsonResponse({ messages: [], result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_profile")) {
+        return jsonResponse({
+          prefs: [...prefs.entries()].map(([k, v]) => ({ [k]: v })),
+          result: "SUCCESS",
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await setMacroTargets(
+      session,
+      { caloriesKcal: 2400, fatG: 70, netCarbsG: 250, proteinG: 170, proteinMaxG: 190 },
+      fetcher,
+    );
+
+    expect(editCalls).toEqual([
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: 203, lastSeen: 0, max: 190, min: 170, vis: true },
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: -1205, lastSeen: 0, max: null, min: 250, vis: true },
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: 204, lastSeen: 0, max: null, min: 70, vis: true },
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: 208, lastSeen: 0, max: null, min: 2400, vis: true },
+    ]);
+    expect(updated.mode).toBe("grams");
+    expect(updated.fixedGrams.protein).toEqual({ max: 190, value: 170 });
+    expect(updated.fixedGrams.netCarbs).toEqual({ max: null, value: 250 });
+    expect(updated.fixedGrams.fats).toEqual({ max: null, value: 70 });
+    expect(updated.energy.customTargetKcal).toBe(2400);
+  });
+
+  it("validates macro target inputs before sending upstream requests", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(setMacroTargets(session, {}, fetcher)).rejects.toMatchObject({ reason: "request" });
+    await expect(
+      setMacroTargets(session, { proteinG: 180, proteinMaxG: 150 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    await expect(
+      setMacroTargets(session, { proteinMaxG: 150 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("updates macro percentage split and rejects splits not summing to 100", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      setMacroSplit(session, { carbsPercent: 40, fatPercent: 30, proteinPercent: 20 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    expect(fetcher).not.toHaveBeenCalled();
+
+    const prefs = new Map<string, string>();
+    const splitFetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body));
+      if (url.endsWith("/api/v2/set_pref")) {
+        prefs.set(body.key, body.val);
+        return jsonResponse({ messages: [], result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_profile")) {
+        return jsonResponse({
+          prefs: [...prefs.entries()].map(([k, v]) => ({ [k]: v })),
+          result: "SUCCESS",
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await setMacroSplit(
+      session,
+      { carbsPercent: 40, fatPercent: 30, proteinPercent: 30 },
+      splitFetcher,
+    );
+    expect(updated.mode).toBe("percent");
+    expect(updated.percentSplit).toEqual({ carbs: 40, fat: 30, protein: 30 });
+  });
+
+  it("fetches macro schedules and templates", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ schedules: [{ day: "MON" }] }))
+      .mockResolvedValueOnce(jsonResponse({ templates: [{ name: "Training" }] }));
+    expect((await getMacroSchedule(session, fetcher)).schedules).toEqual([{ day: "MON" }]);
+    expect((await listMacroTemplates(session, fetcher)).templates).toEqual([{ name: "Training" }]);
+  });
+});
+
+describe("getDiaryGroups", () => {
+  it("parses DG01..DG08 and DGnnON diary group preferences with defaults", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        prefs: [
+          { DG03: "Pre-Workout" },
+          { DG06: "Post-Workout" },
+          { DG06ON: "true" },
+          { DG05ON: "false" },
+          { otherPref: "ignored" },
+        ],
+      }),
+    );
+
+    const groups = await getDiaryGroups(session, fetcher);
+    expect(groups.custom_group_prefs).toEqual({
+      DG03: "Pre-Workout",
+      DG05ON: "false",
+      DG06: "Post-Workout",
+      DG06ON: "true",
+    });
+    expect(groups.groups).toHaveLength(8);
+    expect(groups.groups[1]).toEqual({ custom: false, enabled: true, id: 1, name: "Breakfast", pref: "DG02" });
+    expect(groups.groups[2]).toEqual({ custom: true, enabled: true, id: 2, name: "Pre-Workout", pref: "DG03" });
+    expect(groups.groups[4]).toEqual({ custom: true, enabled: false, id: 4, name: "Snacks", pref: "DG05" });
+    expect(groups.groups[5]).toEqual({ custom: true, enabled: true, id: 5, name: "Post-Workout", pref: "DG06" });
+    expect(groups.groups[7]).toEqual({ custom: false, enabled: false, id: 7, name: "Group 8", pref: "DG08" });
+  });
+
+  it("also handles legacy diary-group pref keys", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        prefs: [{ "diary.group.2": "Midday Fuel" }],
+      }),
+    );
+
+    const groups = await getDiaryGroups(session, fetcher);
+    expect(groups.custom_group_prefs).toEqual({ "diary.group.2": "Midday Fuel" });
+    expect(groups.groups.find((g) => g.id === 2)).toEqual({
+      custom: true,
+      enabled: true,
+      id: 2,
+      name: "Midday Fuel",
+      pref: "DG03",
+    });
+  });
+});
+
+describe("getLoggingStreak, getAllTimeStats & getCalendarSummary", () => {
+  it("fetches streak, lifetime counts, and calendar flags", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_streak")) return jsonResponse({ streak: 14 });
+      if (url.endsWith("/api/v2/get_all_time_stats")) {
+        return jsonResponse({ allTimeStats: { biometrics: 12, day: "2026-8-20", exercises: 5, fasts: 3, servings: 250 } });
+      }
+      if (url.endsWith("/api/v2/get_calendar_info")) {
+        return jsonResponse({ calendarInfo: { daysWithData: [{ complete: true, day: "2026-08-20", loggedFood: true }] } });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    expect(await getLoggingStreak(session, "2026-08-20", fetcher)).toEqual({ streak: 14 });
+    expect((await getAllTimeStats(session, "2026-08-20", fetcher)).allTimeStats?.servings).toBe(250);
+    expect((await getCalendarSummary(session, "2026-08-01", "2026-08-20", fetcher)).calendarInfo?.daysWithData).toHaveLength(1);
+  });
+});
+
+describe("getRecentExercises", () => {
+  it("requests recent_exercise_list with resultSetLimit", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ exercises: [{ activityId: 1265, minutes: 30 }] }));
+    expect(await getRecentExercises(session, 5, fetcher)).toEqual([{ activityId: 1265, minutes: 30 }]);
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).resultSetLimit).toBe(5);
+  });
+});
+
+describe("reports and trend charts", () => {
+  it("fetches nutrition reports and chart trends for nutrients, weight, and energy", async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+      calls.push({ body, url });
+      if (url.endsWith("/api/v2/get_report")) return jsonResponse({ nutrients: [{ id: 208, avg: 2100 }] });
+      if (url.endsWith("/api/v2/get_chart_data")) {
+        return jsonResponse({ data: [{ day: "2026-08-20", value: 75.2 }], sources: [] });
+      }
+      if (url.endsWith("/api/v2/get_dashboard_energy_data")) return jsonResponse({ series: [{ day: "2026-08-20", kcal: 2100 }] });
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    expect(await getNutritionReport(session, { endDate: "2026-08-20", startDate: "2026-08-01" }, fetcher)).toHaveProperty("nutrients");
+    expect((await getNutritionTrends(session, 291, { endDate: "2026-08-20", startDate: "2026-08-01" }, fetcher)).data).toHaveLength(1);
+    expect((await getWeightTrends(session, { endDate: "2026-08-20", startDate: "2026-08-01" }, fetcher)).data).toHaveLength(1);
+    expect(await getEnergyTrends(session, 3, fetcher)).toHaveProperty("series");
+
+    const chartNutrientCall = calls.find((c) => c.url.endsWith("/get_chart_data") && c.body.chartDataType === "NUTRIENT");
+    expect(chartNutrientCall?.body).toMatchObject({ nutrientId: 291, metricId: null, start: "2026-8-1", end: "2026-8-20" });
+    const chartWeightCall = calls.find((c) => c.url.endsWith("/get_chart_data") && c.body.chartDataType === "BIOMETRIC");
+    expect(chartWeightCall?.body).toMatchObject({ metricId: 1, nutrientId: null });
+  });
+});
+
+describe("getNutrientTargets & setNutrientTarget", () => {
+  it("reads per-nutrient targets from v3 /targets and enriches them with nutrient definitions", async () => {
+    const targetSession = { ...session, userId: 4201 };
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/4201/targets")) {
+        return jsonResponse([
+          { custom: true, id: 291, max: null, min: 30, vis: true },
+          { custom: false, id: -1205, max: 120, min: 80, vis: true },
+          { custom: false, id: 307, max: 2300, min: 1500, vis: false },
+        ]);
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return jsonResponse({
+          nutrients: [
+            { category: "Carbohydrates", id: 291, name: "Fiber", unit: "g" },
+            { category: "Minerals", id: 307, name: "Sodium", unit: "mg" },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const targets = await getNutrientTargets(targetSession, fetcher);
+    expect(targets).toEqual([
+      {
+        category: "Carbohydrates",
+        custom: true,
+        maximum: null,
+        minimum: 30,
+        nutrient: "Fiber",
+        nutrient_id: 291,
+        unit: "g",
+        visible: true,
+      },
+      {
+        category: "Carbohydrates",
+        custom: false,
+        maximum: 120,
+        minimum: 80,
+        nutrient: "Net Carbs",
+        nutrient_id: -1205,
+        unit: "g",
+        visible: true,
+      },
+      {
+        category: "Minerals",
+        custom: false,
+        maximum: 2300,
+        minimum: 1500,
+        nutrient: "Sodium",
+        nutrient_id: 307,
+        unit: "mg",
+        visible: false,
+      },
+    ]);
+  });
+
+  it("propagates session errors from getNutrientDefinitions in getNutrientTargets", async () => {
+    const targetSession = { ...session, userId: 4202 };
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/4202/targets")) {
+        return jsonResponse([{ custom: true, id: 291, max: null, min: 30, vis: true }]);
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return jsonResponse({ error: "Invalid sessionKey", result: "FAIL" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    await expect(getNutrientTargets(targetSession, fetcher)).rejects.toMatchObject({ reason: "session" });
+  });
+
+  it("sets an individual nutrient target via edit_target preserving visibility", async () => {
+    const targetSession = { ...session, userId: 4210 };
+    let targetState = [{ custom: false, id: 291, max: null as number | null, min: 25, vis: false }];
+    let editBody: Record<string, unknown> | undefined;
+
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/4210/targets")) {
+        return jsonResponse(targetState);
+      }
+      if (url.endsWith("/api/v2/edit_target")) {
+        editBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        targetState = [
+          {
+            custom: Boolean(editBody.cus),
+            id: Number(editBody.id),
+            max: editBody.max as number | null,
+            min: Number(editBody.min),
+            vis: Boolean(editBody.vis),
+          },
+        ];
+        return jsonResponse({ result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return jsonResponse({ nutrients: [{ category: "Carbohydrates", id: 291, name: "Fiber", unit: "g" }] });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await setNutrientTarget(targetSession, { max: 45, min: 30, nutrientId: 291 }, fetcher);
+    expect(editBody).toMatchObject({ cus: true, id: 291, max: 45, min: 30, vis: false });
+    expect(updated).toEqual({
+      category: "Carbohydrates",
+      custom: true,
+      maximum: 45,
+      minimum: 30,
+      nutrient: "Fiber",
+      nutrient_id: 291,
+      unit: "g",
+      visible: false,
+    });
+  });
+
+});
+
+describe("custom & recent food management", () => {
+  it("lists custom foods and recent foods via get_myfoods and get_recent_foods", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ foods: [{ id: 101, name: "Home Granola" }] }))
+      .mockResolvedValueOnce(jsonResponse({ foods: [{ id: 202, name: "Greek Yogurt" }] }));
+
+    const custom = await listCustomFoods(session, fetcher);
+    const recent = await getRecentFoods(session, fetcher);
+
+    expect(custom.foods).toEqual([{ id: 101, name: "Home Granola" }]);
+    expect(recent.foods).toEqual([{ id: 202, name: "Greek Yogurt" }]);
+    expect(fetcher.mock.calls[0][0]).toBe("https://mobile.cronometer.com/api/v2/get_myfoods");
+    expect(fetcher.mock.calls[1][0]).toBe("https://mobile.cronometer.com/api/v2/get_recent_foods");
+  });
+
+  it("updates an existing custom food while preserving untouched nutrients and updating mirrors", async () => {
+    let submitted: Record<string, unknown> | undefined;
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          barcodes: ["012345678905"],
+          category: 0,
+          defaultMeasureId: 10,
+          id: 555,
+          measures: [
+            { amount: 1, id: 10, name: "1 bar", type: "Atomic", value: 50 },
+            { amount: 1, id: 1, name: "g", type: "Weight", value: 1 },
+          ],
+          messages: [{ id: 1, type: "FOOD_CHANGED" }],
+          name: "Old Bar",
+          source: "Custom",
+          translations: [{ name: "Old Bar", translationId: 0 }],
+          nutrients: [
+            { amount: 400, id: 208 },
+            { amount: 40, id: 203 },
+            { amount: 40, id: -203 },
+            { amount: 10, id: 204 },
+            { amount: 10, id: -204 },
+            { amount: 30, id: 205 },
+            { amount: 30, id: -205 },
+            { amount: 10, id: 291 },
+            { amount: 20, id: -1205 },
+            { amount: 50, id: 301 },
+          ],
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        submitted = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ id: 555, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await updateCustomFood(
+      session,
+      { calories: 220, carbsG: 18, name: "New Bar", servingName: "1 bar (50g)" },
+      fetcher,
+    ).catch((e) => e);
+    expect(updated).toMatchObject({ reason: "request" });
+
+    const res = await updateCustomFood(
+      session,
+      { calories: 220, carbsG: 18, foodId: 555, name: "New Bar", servingName: "1 bar (50g)" },
+      fetcher,
+    );
+
+    expect(res).toEqual({ foodId: 555, name: "New Bar" });
+    const data = submitted?.data as Record<string, unknown>;
+    expect(data.id).toBe(555);
+    expect(data.name).toBe("New Bar");
+    expect(data.messages).toBeUndefined();
+    expect(data.barcodes).toEqual(["012345678905"]);
+    expect(data.translations).toEqual([{ name: "New Bar", translationId: 0 }]);
+    expect((data.measures as Array<Record<string, unknown>>)[0]).toMatchObject({
+      amount: 1,
+      id: 10,
+      name: "bar (50g)",
+      type: "Atomic",
+      value: 50,
+    });
+    const nutrients = new Map(
+      (data.nutrients as Array<{ amount: number; id: number }>).map((n) => [n.id, n.amount]),
+    );
+    expect(nutrients.get(208)).toBe(440); // 220 * (100/50)
+    expect(nutrients.get(205)).toBe(36); // 18 * (100/50)
+    expect(nutrients.get(-205)).toBe(36);
+    expect(nutrients.get(-1205)).toBe(26); // 36 carbs - 10 fiber
+    expect(nutrients.get(203)).toBe(40); // untouched protein preserved
+    expect(nutrients.get(301)).toBe(50); // untouched micronutrient preserved
+  });
+
+  it("rejects updating a recipe via updateCustomFood", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        id: 777,
+        ingredients: [{ foodId: 1, grams: 100 }],
+        measures: [],
+        name: "My Recipe",
+        nutrients: [],
+        source: "Custom",
+      }),
+    );
+
+    await expect(updateCustomFood(session, { foodId: 777, name: "Edited" }, fetcher)).rejects.toMatchObject({
+      reason: "request",
+    });
+  });
+
+});
+
+describe("getSleepScore", () => {
+  it("reports available=false when Cronometer returns the no-data marker", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({ "No sleep scores available": "No sleep score found", messages: [] }),
+    );
+    const res = await getSleepScore(session, "2026-08-20", fetcher);
+    expect(res.available).toBe(false);
+  });
+});
+
+describe("deleteCustomFood (retire via add_food)", () => {
+  it("fetches a custom food, sets retired: true, strips messages, and posts to add_food", async () => {
+    let savedBody: Record<string, unknown> | undefined;
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          id: 555,
+          measures: [{ amount: 1, id: 10, name: "bar", type: "Atomic", value: 50 }],
+          messages: [{ id: 1, type: "FOOD_CHANGED" }],
+          name: "Bar",
+          nutrients: [{ amount: 400, id: 208 }],
+          retired: null,
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        savedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ id: 555, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const res = await deleteCustomFood(session, 555, fetcher);
+    expect(res).toEqual({ foodId: 555, name: "Bar", retired: true });
+    const data = savedBody?.data as Record<string, unknown>;
+    expect(data.id).toBe(555);
+    expect(data.retired).toBe(true);
+    expect(data.messages).toBeUndefined();
+  });
+
+  it("rejects database foods and recipes", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: 100, name: "Banana", source: "NCCDB" }))
+      .mockResolvedValueOnce(
+        jsonResponse({ id: 777, ingredients: [{ foodId: 1, grams: 10 }], name: "Recipe", source: "Custom" }),
+      );
+
+    await expect(deleteCustomFood(session, 100, fetcher)).rejects.toMatchObject({ reason: "request" });
+    await expect(deleteCustomFood(session, 777, fetcher)).rejects.toMatchObject({ reason: "request" });
+  });
+});
+
+describe("deleteRecipe (/api/v2/del_food)", () => {
+  it("retires a recipe safely by default (retire: true)", async () => {
+    let delBody: Record<string, unknown> | undefined;
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          id: 888,
+          ingredients: [{ foodId: 1, grams: 100 }],
+          meal: false,
+          name: "Gimbap",
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/del_food")) {
+        delBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const res = await deleteRecipe(session, 888, {}, fetcher);
+    expect(res).toEqual({ foodId: 888, meal: false, name: "Gimbap", permanent: false });
+    expect(delBody).toMatchObject({ id: 888, retire: true });
+  });
+
+  it("permanently deletes a recipe and cleans up recent foods when permanent=true", async () => {
+    const calls: Array<{ body: Record<string, unknown>; url: string }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push({ body, url });
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          id: 889,
+          ingredients: [{ foodId: 1, grams: 50 }],
+          meal: true,
+          name: "Old Meal",
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/del_food")) return jsonResponse({ result: "SUCCESS" });
+      if (url.endsWith("/api/v2/delete_recent_foods")) return jsonResponse({ result: "SUCCESS" });
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const res = await deleteRecipe(session, 889, { permanent: true }, fetcher);
+    expect(res).toEqual({ foodId: 889, meal: true, name: "Old Meal", permanent: true });
+    expect(calls[1].url).toContain("/api/v2/del_food");
+    expect(calls[1].body.retire).toBeUndefined();
+    expect(calls[2].url).toContain("/api/v2/delete_recent_foods");
+    expect(calls[2].body.servingFoodIds).toEqual([889]);
+  });
+
+  it("rejects plain custom foods", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: 555, name: "Bar", source: "Custom" }));
+    await expect(deleteRecipe(session, 555, {}, fetcher)).rejects.toMatchObject({ reason: "request" });
+  });
+});
+
+describe("importRecipe (/api/v2/import_recipe & /api/v2/poll_async_result)", () => {
+  it("polls async job, splits matched/unmatched ingredients, and skips saving when save=false", async () => {
+    const calls: Array<{ body: Record<string, unknown>; url: string }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push({ body, url });
+      if (url.endsWith("/api/v2/import_recipe")) {
+        return jsonResponse({ id: "job-42", message: "Queued", progress: 10 });
+      }
+      if (url.endsWith("/api/v2/poll_async_result")) {
+        return jsonResponse({
+          id: "job-42",
+          progress: 100,
+          result: {
+            entries: [
+              {
+                description: "Chicken breast",
+                ingredient: { foodId: 101, grams: 200, measureId: 1 },
+                rawIngredientImport: "200g chicken",
+                servingSizeMatchFound: true,
+                topKFoodIds: [101, 102],
+              },
+              {
+                description: null,
+                ingredient: {},
+                rawIngredientImport: "a pinch of magic",
+                servingSizeMatchFound: false,
+                topKFoodIds: [],
+              },
+            ],
+            recipe: { name: "Chicken Bowl" },
+          },
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const preview = await importRecipe(
+      session,
+      { ingredientsText: "200g chicken\na pinch of magic", pollIntervalMs: 0, save: false },
+      fetcher,
+    );
+
+    expect(preview).toEqual({
+      ingredients: [
+        {
+          alternate_food_ids: [101, 102],
+          description: "Chicken breast",
+          food_id: 101,
+          grams: 200,
+          measure_id: 1,
+          raw_text: "200g chicken",
+          serving_size_match: true,
+        },
+      ],
+      recipe_name: "Chicken Bowl",
+      saved: false,
+      unmatched: [
+        {
+          alternate_food_ids: [],
+          description: null,
+          food_id: null,
+          grams: null,
+          measure_id: null,
+          raw_text: "a pinch of magic",
+          serving_size_match: false,
+        },
+      ],
+    });
+    expect(calls[0].body).toMatchObject({ enable_async: true, ingredients: "200g chicken\na pinch of magic", url: "" });
+    expect(calls[1].body).toMatchObject({ futureId: "job-42", resultType: "recipe" });
+  });
+
+  it("saves the matched ingredients via createRecipe when save=true", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/import_recipe")) {
+        return jsonResponse({
+          id: "job-99",
+          progress: 100,
+          result: {
+            entries: [
+              {
+                description: "Rice",
+                ingredient: { foodId: 201, grams: 150, measureId: 1 },
+                rawIngredientImport: "150g rice",
+                servingSizeMatchFound: true,
+              },
+            ],
+            recipe: { name: "Steamed Rice" },
+          },
+        });
+      }
+      if (url.endsWith("/api/v2/get_foods")) {
+        return jsonResponse({
+          foods: [
+            {
+              defaultMeasureId: 1,
+              id: 201,
+              measures: [{ id: 1, name: "g", value: 1 }],
+              nutrients: [{ amount: 130, id: 208 }],
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        return jsonResponse({ id: 9001, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const saved = await importRecipe(
+      session,
+      { ingredientsText: "150g rice", name: "My Rice", pollIntervalMs: 0, save: true },
+      fetcher,
+    );
+    expect(saved).toMatchObject({
+      food_id: 9001,
+      ingredient_count: 1,
+      recipe_name: "My Rice",
+      saved: true,
+      total_grams: 150,
+    });
+  });
+
+  it("surfaces clear errors when async job fails or completes without matched ingredients", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: "job-err", isError: true, message: "Parser offline" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: "job-empty",
+          progress: 100,
+          result: {
+            entries: [{ rawIngredientImport: "unknown", servingSizeMatchFound: false }],
+            recipe: {},
+          },
+        }),
+      );
+
+    await expect(
+      importRecipe(session, { ingredientsText: "100g tofu", pollIntervalMs: 0 }, fetcher),
+    ).rejects.toMatchObject({ message: expect.stringContaining("Parser offline"), reason: "request" });
+
+    await expect(
+      importRecipe(session, { ingredientsText: "unknown", pollIntervalMs: 0, save: true }, fetcher),
+    ).rejects.toMatchObject({ message: expect.stringContaining("matched no usable ingredients"), reason: "request" });
   });
 });

@@ -2,14 +2,14 @@
 
 Connect your AI assistant to Cronometer to review your nutrition, log meals, and explore your tracking history in conversation.
 
-Cronometer MCP is an unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives compatible assistants access to your Cronometer account. It supports reading your data and making changes to your food diary, custom foods, and recipes.
+Cronometer MCP is an unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives compatible assistants access to your Cronometer account. It supports reading your data and making changes to your food diary, notes, exercise, biometrics, macro targets, custom foods, and recipes.
 
 ## What you can do
 
-- **Review your nutrition:** see your food diary, calories consumed and remaining, and tracked macro and micronutrient totals.
-- **Log and manage meals:** search Cronometer's food database, add or delete food entries, copy the previous day's entries, and mark days complete or incomplete.
+- **Review your nutrition:** see your food diary, calories consumed and remaining, nutrition adequacy scores, and tracked macro and micronutrient totals.
+- **Log and manage diary entries:** search Cronometer's food and exercise databases, add or delete food entries, log exercises, biometrics, and diary notes, copy the previous day's entries, and mark days complete or incomplete.
 - **Create foods and recipes:** save a custom food from nutrition information or build a recipe from ingredients.
-- **Explore your history:** retrieve macro targets, fasting history and statistics, and biometric trends such as weight or body fat.
+- **Manage targets and history:** retrieve nutrient and macro targets, update macro targets or macro splits, and explore fasting history, statistics, and biometric trends such as weight or body fat.
 - **Retrieve exports:** access daily nutrition summaries, food servings, exercises, biometrics, and notes for a date range.
 
 ## Connect your assistant
@@ -49,7 +49,7 @@ Available answers depend on what you track in Cronometer. Your assistant can use
 
 During sign-in, the MCP server receives your Cronometer credentials and exchanges them with Cronometer for sessions. Your password and one-time code are not stored or included in MCP tokens; upstream sessions are stored in encrypted OAuth grant properties. Use a server operator you trust with your account access.
 
-Data returned by tools becomes available to your assistant and is subject to that client's data handling policies. Write tools can change your Cronometer account, including **deleting existing food entries**, creating custom foods and recipes, copying diary entries, and marking days complete or incomplete. Review your client's tool permissions before allowing changes.
+Data returned by tools becomes available to your assistant and is subject to that client's data handling policies. Write tools can change your Cronometer account, including **deleting existing food entries**, adding or editing diary notes, logging exercise and biometrics, updating macro targets, creating custom foods and recipes, copying diary entries, and marking days complete or incomplete. Review your client's tool permissions before allowing changes.
 
 The sign-in screen requests read and write access. The OAuth scope is still named `cronometer:read` for compatibility with existing clients. Despite that legacy name, it does not enforce read-only access: an authorized connection has access to all the tools listed below. There is currently no read-only connection mode. You can revoke the MCP connection at any time.
 
@@ -60,12 +60,13 @@ If a Cronometer session expires, follow the sign-in prompt from your MCP client,
 | Area | Tools |
 | --- | --- |
 | Connection | `connection_status` |
-| Food diary | `get_food_log`, `add_food_entry`, `remove_food_entry`, `copy_day`, `mark_day_complete` |
-| Nutrition and food search | `get_daily_nutrition`, `search_foods`, `get_food_details` |
-| Custom foods and recipes | `add_custom_food`, `add_recipe` |
-| Targets | `get_macro_targets` |
+| Food diary, stats & notes | `get_food_log`, `get_diary_groups`, `get_calendar_summary`, `get_logging_streak`, `get_all_time_stats`, `add_food_entry`, `remove_food_entry`, `copy_day`, `mark_day_complete`, `add_note`, `update_note` |
+| Nutrition, reports & trends | `get_daily_nutrition`, `get_nutrition_scores`, `get_nutrition_report`, `get_nutrition_trends`, `get_energy_trends`, `get_nutrient_definitions` |
+| Food search, custom foods & recipes | `search_foods`, `get_food_details`, `get_recent_foods`, `list_custom_foods`, `add_custom_food`, `update_custom_food`, `delete_custom_food`, `add_recipe`, `import_recipe`, `delete_recipe` |
+| Targets & schedules | `get_macro_targets`, `get_nutrient_targets`, `set_macro_targets`, `set_macro_split`, `set_nutrient_target`, `get_macro_schedule`, `list_macro_templates` |
+| Exercise | `search_activities`, `get_recent_exercises`, `add_exercise` |
 | Fasting | `get_fasting_history`, `get_fasting_stats` |
-| Biometrics | `list_biometrics`, `get_biometrics` |
+| Biometrics & sleep | `list_biometrics`, `get_biometrics`, `get_recent_biometrics`, `get_weight_trends`, `add_biometric`, `get_sleep_score` |
 | Data exports | `get_cronometer_data` |
 
 ## Limits and troubleshooting
