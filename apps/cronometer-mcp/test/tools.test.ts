@@ -47,8 +47,10 @@ describe("registered tool surface", () => {
       "get_nutrition_scores",
       "get_nutrition_trends",
       "get_recent_exercises",
+      "get_recent_foods",
       "get_weight_trends",
       "list_biometrics",
+      "list_custom_foods",
       "list_macro_templates",
       "mark_day_complete",
       "remove_food_entry",
@@ -57,6 +59,7 @@ describe("registered tool surface", () => {
       "set_macro_split",
       "set_macro_targets",
       "set_nutrient_target",
+      "update_custom_food",
       "update_note",
     ]);
   });
@@ -565,5 +568,43 @@ describe("new MCP tool handlers", () => {
       count: 1,
       templates: [{ id: 1, name: "Cut" }],
     });
+  });
+  it("executes list_custom_foods, get_recent_foods, and update_custom_food", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_myfoods")) {
+        return Response.json({ foods: [{ defaultMeasureId: 10, id: 555, measures: [{ id: 10, name: "1 bar", value: 50 }], name: "Bar" }] });
+      }
+      if (url.endsWith("/api/v2/get_recent_foods")) {
+        return Response.json({ foods: [{ id: 12, name: "Oats" }] });
+      }
+      if (url.endsWith("/api/v2/get_food")) {
+        return Response.json({
+          defaultMeasureId: 10,
+          id: 555,
+          measures: [{ amount: 1, id: 10, name: "1 bar", type: "Atomic", value: 50 }],
+          name: "Bar",
+          nutrients: [{ amount: 400, id: 208 }],
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        return Response.json({ id: 555, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const custom = parseToolJson(await authedClient.callTool({ name: "list_custom_foods", arguments: {} }));
+    expect(custom).toMatchObject({ count: 1, foods: [{ food_id: 555, is_recipe: false, name: "Bar" }] });
+
+    const recent = parseToolJson(await authedClient.callTool({ name: "get_recent_foods", arguments: {} }));
+    expect(recent).toMatchObject({ count: 1, foods: [{ food_id: 12, name: "Oats" }] });
+
+    const updatedFood = parseToolJson(
+      await authedClient.callTool({
+        name: "update_custom_food",
+        arguments: { calories: 220, foodId: 555, name: "Bar v2" },
+      }),
+    );
+    expect(updatedFood).toMatchObject({ food_id: 555, measure_id: 10, name: "Bar v2", status: "success" });
   });
 });

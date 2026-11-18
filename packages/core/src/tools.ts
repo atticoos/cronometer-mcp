@@ -47,6 +47,25 @@ const optionalDateString = z
 
 const ENTRY_DIARY_GROUP_IDS = { uncategorized: 0, breakfast: 1, lunch: 2, dinner: 3, snacks: 4 } as const;
 
+function summarizeFoodListItem(food: Record<string, unknown>): Record<string, unknown> {
+  const measures = (Array.isArray(food.measures) ? food.measures : [])
+    .filter(isRecord)
+    .map((measure) => ({
+      grams: measure.value,
+      measure_id: measure.id,
+      name: measure.name,
+    }));
+  return {
+    ...(food.category !== undefined ? { category: food.category } : {}),
+    ...(food.defaultMeasureId !== undefined ? { default_measure_id: food.defaultMeasureId } : {}),
+    ...(food.id !== undefined ? { food_id: food.id } : {}),
+    is_recipe: Array.isArray(food.ingredients) && food.ingredients.length > 0,
+    ...(measures.length > 0 ? { measures } : {}),
+    ...(food.name !== undefined ? { name: food.name } : {}),
+    ...(food.source !== undefined ? { source: food.source } : {}),
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -932,6 +951,25 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       }),
   );
 
+  server.registerTool(
+    "get_recent_foods",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "List recently logged foods for quicker repeat logging with add_food_entry.",
+      inputSchema: z.object({}),
+    },
+    async () =>
+      withMobileSession(async (session) => {
+        const { foods, raw } = await mobile.getRecentFoods(session);
+        return {
+          count: foods.length,
+          foods: foods.map(summarizeFoodListItem),
+          ...(foods.length === 0 ? { raw } : {}),
+        };
+      }),
+  );
+
   // ---------------------------------------------------------------------------
   // Custom foods & recipes
   // ---------------------------------------------------------------------------
@@ -1004,6 +1042,98 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
           note: food
             ? "Use food_id and measure_id with add_food_entry to log this food."
             : "Food created. Use get_food_details with food_id to look up its serving sizes.",
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_custom_foods",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "List all user-created custom foods and recipes saved in Cronometer. " +
+        "Use returned food_id values with get_food_details, update_custom_food, or add_food_entry.",
+      inputSchema: z.object({}),
+    },
+    async () =>
+      withMobileSession(async (session) => {
+        const { foods, raw } = await mobile.listCustomFoods(session);
+        return {
+          count: foods.length,
+          foods: foods.map(summarizeFoodListItem),
+          ...(foods.length === 0 ? { raw } : {}),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "update_custom_food",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Edit an existing custom food's name, nutrition values, or serving size by food_id. " +
+        "Reads the existing food first so omitted nutrients and measures are preserved. " +
+        "Any nutrition values provided apply to the full serving size.",
+      inputSchema: z.object({
+        foodId: z.number().int().positive().describe("Custom food ID from list_custom_foods or add_custom_food."),
+        name: z.string().min(1).optional().describe("Updated custom food name."),
+        calories: z.number().nonnegative().optional().describe("Updated calories per serving (kcal)."),
+        proteinG: z.number().nonnegative().optional().describe("Updated protein per serving (g)."),
+        fatG: z.number().nonnegative().optional().describe("Updated fat per serving (g)."),
+        carbsG: z.number().nonnegative().optional().describe("Updated carbs per serving (g)."),
+        fiberG: z.number().nonnegative().optional().describe("Updated fiber per serving (g)."),
+        sugarG: z.number().nonnegative().optional().describe("Updated sugar per serving (g)."),
+        sodiumMg: z.number().nonnegative().optional().describe("Updated sodium per serving (mg)."),
+        saturatedFatG: z.number().nonnegative().optional().describe("Updated saturated fat per serving (g)."),
+        extraNutrients: z
+          .record(z.string(), z.number())
+          .optional()
+          .describe("Additional nutrients to add or update, keyed by Cronometer nutrient ID and valued per serving."),
+        servingName: z.string().min(1).optional().describe("Updated primary serving label."),
+        servingGrams: z.number().positive().optional().describe("Updated grams per serving."),
+        comments: z.string().nullable().optional().describe("Optional notes/comments for the custom food."),
+      }),
+    },
+    async ({
+      foodId,
+      name,
+      calories,
+      proteinG,
+      fatG,
+      carbsG,
+      fiberG,
+      sugarG,
+      sodiumMg,
+      saturatedFatG,
+      extraNutrients,
+      servingName,
+      servingGrams,
+      comments,
+    }) =>
+      withMobileSession(async (session) => {
+        const updated = await mobile.updateCustomFood(session, {
+          calories,
+          carbsG,
+          comments,
+          extraNutrients,
+          fatG,
+          fiberG,
+          foodId,
+          name,
+          proteinG,
+          saturatedFatG,
+          servingGrams,
+          servingName,
+          sodiumMg,
+          sugarG,
+        });
+        const food = await mobile.getFood(session, updated.foodId).catch(() => null);
+        return {
+          food_id: updated.foodId,
+          measure_id: food?.defaultMeasureId,
+          name: updated.name,
         };
       }),
   );

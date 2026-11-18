@@ -81,13 +81,16 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
   {
     id: "foods",
     risk: "write",
-    title: "Search and create foods",
-    summary: "Look up foods and save your own foods and recipes",
+    title: "Search and manage custom foods",
+    summary: "Look up foods, list recent or custom foods, and create or update your foods and recipes",
     tools: [
       { name: "search_foods", description: "Search the food database" },
       { name: "get_food_details", description: "View a food's nutrients and servings" },
       { name: "add_custom_food", description: "Save a custom food" },
       { name: "add_recipe", description: "Save a recipe" },
+      { name: "get_recent_foods", description: "List recently logged foods" },
+      { name: "list_custom_foods", description: "List your custom foods and recipes" },
+      { name: "update_custom_food", description: "Edit an existing custom food" },
     ],
   },
   {

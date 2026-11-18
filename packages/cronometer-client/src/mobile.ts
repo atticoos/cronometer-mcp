@@ -25,6 +25,7 @@ import type {
   EditTargetResponse,
   FindActivityV2Response,
   FindFoodResponse,
+  FoodInput,
   GetAllTimeStatsResponse,
   GetBiometricsResponse,
   GetCalendarInfoResponse,
@@ -38,9 +39,11 @@ import type {
   GetMacroSchedulesResponse,
   GetMacroTargetTemplatesResponse,
   GetMetricsResponse,
+  GetMyFoodsResponse,
   GetNutrientsResponse,
   GetNutritionScoresResponse,
   GetProfileResponse,
+  GetRecentFoodsResponse,
   GetReportResponse,
   GetStreakResponse,
   GetV3TargetsResponse,
@@ -420,6 +423,16 @@ function shiftedDay(day: string, deltaDays: number): string {
 // Food search & details
 // ---------------------------------------------------------------------------
 
+function extractRecordArray(record: JsonRecord, candidateKeys: readonly string[]): JsonRecord[] {
+  const response = new JsonResponse(record);
+  for (const key of candidateKeys) {
+    if (Array.isArray(record[key])) {
+      return response.array(key);
+    }
+  }
+  return [];
+}
+
 export async function searchFoods(
   session: CronometerMobileSession,
   query: string,
@@ -460,6 +473,38 @@ async function getFoodsInternal(
     fetcher,
   );
   return new JsonResponse(data).array("foods");
+}
+
+export async function listCustomFoods(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<{ foods: JsonRecord[]; raw: GetMyFoodsResponse }> {
+  const raw = await requestV2<GetMyFoodsResponse>(
+    session,
+    "/api/v2/get_myfoods",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+  return {
+    foods: extractRecordArray(raw, ["foods", "myFoods", "myfoods", "customFoods"]),
+    raw,
+  };
+}
+
+export async function getRecentFoods(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<{ foods: JsonRecord[]; raw: GetRecentFoodsResponse }> {
+  const raw = await requestV2<GetRecentFoodsResponse>(
+    session,
+    "/api/v2/get_recent_foods",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+  return {
+    foods: extractRecordArray(raw, ["foods", "recentFoods", "recent_foods"]),
+    raw,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1893,6 +1938,220 @@ export async function createCustomFood(
     throw new CronometerMobileError("upstream", "Cronometer did not return a food ID.");
   }
   return { foodId };
+}
+
+export interface UpdateCustomFoodInput {
+  calories?: number;
+  carbsG?: number;
+  comments?: string | null;
+  extraNutrients?: Record<string, number>;
+  fatG?: number;
+  fiberG?: number;
+  foodId: number;
+  name?: string;
+  proteinG?: number;
+  saturatedFatG?: number;
+  servingGrams?: number;
+  servingName?: string;
+  sodiumMg?: number;
+  sugarG?: number;
+}
+
+export async function updateCustomFood(
+  session: CronometerMobileSession,
+  input: UpdateCustomFoodInput,
+  fetcher: Fetcher = fetch,
+): Promise<{ foodId: number; name: string }> {
+  if (!Number.isInteger(input.foodId) || input.foodId <= 0) {
+    throw new CronometerMobileError("request", "foodId must be a positive integer.");
+  }
+
+  const hasAnyUpdate =
+    input.name !== undefined ||
+    input.calories !== undefined ||
+    input.proteinG !== undefined ||
+    input.fatG !== undefined ||
+    input.carbsG !== undefined ||
+    input.fiberG !== undefined ||
+    input.sugarG !== undefined ||
+    input.sodiumMg !== undefined ||
+    input.saturatedFatG !== undefined ||
+    input.extraNutrients !== undefined ||
+    input.servingName !== undefined ||
+    input.servingGrams !== undefined ||
+    input.comments !== undefined;
+
+  if (!hasAnyUpdate) {
+    throw new CronometerMobileError("request", "Provide at least one custom food field to update.");
+  }
+  if (input.name !== undefined && input.name.trim() === "") {
+    throw new CronometerMobileError("request", "Custom food name must not be empty.");
+  }
+  if (input.servingGrams !== undefined && (!Number.isFinite(input.servingGrams) || input.servingGrams <= 0)) {
+    throw new CronometerMobileError("request", "servingGrams must be a positive number.");
+  }
+
+  const extra = input.extraNutrients ?? {};
+  const overlap = Object.keys(extra)
+    .map(Number)
+    .filter((id) => RESERVED_CUSTOM_FOOD_NUTRIENT_IDS.has(id));
+  if (overlap.length > 0) {
+    throw new CronometerMobileError(
+      "request",
+      `extra_nutrients must not reuse IDs already covered by named macro args (${overlap.join(", ")}).`,
+    );
+  }
+  for (const [rawId, amount] of Object.entries(extra)) {
+    const id = Number(rawId);
+    if (!Number.isInteger(id)) {
+      throw new CronometerMobileError("request", "extra_nutrients keys must be integer nutrient IDs.");
+    }
+    if (!Number.isFinite(amount)) {
+      throw new CronometerMobileError("request", `extra_nutrients["${rawId}"] must be a finite number.`);
+    }
+  }
+
+  const existing = await getFood(session, input.foodId, fetcher);
+  if (typeof existing.id !== "number") {
+    throw new CronometerMobileError("request", `Custom food ${input.foodId} was not found.`);
+  }
+  if (Array.isArray(existing.ingredients) && existing.ingredients.length > 0) {
+    throw new CronometerMobileError(
+      "request",
+      `Food ${input.foodId} is a recipe; update_custom_food only supports custom foods.`,
+    );
+  }
+
+  const existingMeasures = (Array.isArray(existing.measures) ? existing.measures : []).filter(isJsonRecord);
+  let targetIndex = existingMeasures.findIndex((measure) => measure.id === existing.defaultMeasureId);
+  if (targetIndex < 0) {
+    targetIndex = existingMeasures.findIndex(
+      (measure) => measure.type !== "Weight" && measure.id !== 1 && measure.id !== 2,
+    );
+  }
+  if (targetIndex < 0 && existingMeasures.length > 0) targetIndex = 0;
+
+  const targetMeasure = targetIndex >= 0 ? existingMeasures[targetIndex] : undefined;
+  const existingServingGrams =
+    typeof targetMeasure?.value === "number" && targetMeasure.value > 0 ? targetMeasure.value : 100;
+  const servingGrams = input.servingGrams ?? existingServingGrams;
+  const scale = 100 / servingGrams;
+  const round = (value: number): number => Math.round(value * 100) / 100;
+
+  const measures: FoodInput["measures"] =
+    existingMeasures.length > 0
+      ? existingMeasures.map((measure, index) => ({
+          amount: typeof measure.amount === "number" ? measure.amount : 1,
+          id: typeof measure.id === "number" ? measure.id : 0,
+          name:
+            index === targetIndex && input.servingName !== undefined
+              ? input.servingName
+              : typeof measure.name === "string"
+                ? measure.name
+                : "1 serving",
+          type: typeof measure.type === "string" ? measure.type : "Atomic",
+          value:
+            index === targetIndex
+              ? servingGrams
+              : typeof measure.value === "number"
+                ? measure.value
+                : 1,
+        }))
+      : [
+          {
+            amount: 1,
+            id: 0,
+            name: input.servingName ?? "1 serving",
+            type: "Atomic",
+            value: servingGrams,
+          },
+        ];
+
+  const nutrientMap = new Map<number, number>();
+  for (const row of Array.isArray(existing.nutrients) ? existing.nutrients.filter(isJsonRecord) : []) {
+    if (typeof row.id === "number" && typeof row.amount === "number") {
+      nutrientMap.set(row.id, row.amount);
+    }
+  }
+
+  const setScaled = (id: number, perServing: number) => {
+    assertNonNegativeFinite(perServing, `Nutrient ${id}`);
+    nutrientMap.set(id, round(perServing * scale));
+  };
+
+  if (input.calories !== undefined) setScaled(NUTRIENT_IDS.energy, input.calories);
+  if (input.proteinG !== undefined) {
+    setScaled(NUTRIENT_IDS.protein, input.proteinG);
+    setScaled(-203, input.proteinG);
+  }
+  if (input.fatG !== undefined) {
+    setScaled(NUTRIENT_IDS.fat, input.fatG);
+    setScaled(-204, input.fatG);
+  }
+  if (input.carbsG !== undefined) {
+    setScaled(NUTRIENT_IDS.carbs, input.carbsG);
+    setScaled(-205, input.carbsG);
+  }
+  if (input.fiberG !== undefined) setScaled(NUTRIENT_IDS.fiber, input.fiberG);
+  if (input.sugarG !== undefined) setScaled(NUTRIENT_IDS.sugar, input.sugarG);
+  if (input.sodiumMg !== undefined) setScaled(NUTRIENT_IDS.sodium, input.sodiumMg);
+  if (input.saturatedFatG !== undefined) setScaled(NUTRIENT_IDS.saturatedFat, input.saturatedFatG);
+
+  if (input.carbsG !== undefined || input.fiberG !== undefined) {
+    const carbsPer100g = nutrientMap.get(NUTRIENT_IDS.carbs) ?? 0;
+    const fiberPer100g = nutrientMap.get(NUTRIENT_IDS.fiber) ?? 0;
+    nutrientMap.set(NUTRIENT_IDS.netCarbs, round(Math.max(0, carbsPer100g - fiberPer100g)));
+  }
+
+  for (const [rawId, amount] of Object.entries(extra)) {
+    nutrientMap.set(Number(rawId), round(amount * scale));
+  }
+
+  const nutrients: FoodInput["nutrients"] = [...nutrientMap.entries()].map(([id, amount]) => ({
+    amount,
+    id,
+  }));
+
+  const name =
+    input.name ?? (typeof existing.name === "string" && existing.name.trim() !== "" ? existing.name : `Custom Food ${input.foodId}`);
+
+  const payload = {
+    alternateId: typeof existing.alternateId === "string" ? existing.alternateId : null,
+    category: typeof existing.category === "number" ? existing.category : 0,
+    comments:
+      input.comments !== undefined
+        ? input.comments
+        : typeof existing.comments === "string"
+          ? existing.comments
+          : null,
+    defaultMeasureId: typeof existing.defaultMeasureId === "number" ? existing.defaultMeasureId : 0,
+    foodTags: Array.isArray(existing.foodTags)
+      ? existing.foodTags.filter((tag): tag is string => typeof tag === "string")
+      : [],
+    id: input.foodId,
+    labelType: typeof existing.labelType === "string" ? existing.labelType : "AMERICAN_2016",
+    measures,
+    name,
+    nutrients,
+    owner: isJsonRecord(existing.owner) ? existing.owner : null,
+    properties: isJsonRecord(existing.properties)
+      ? (Object.fromEntries(
+          Object.entries(existing.properties).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+        ) as Record<string, string>)
+      : {},
+    retired: isJsonRecord(existing.retired) ? existing.retired : null,
+    source: typeof existing.source === "string" ? existing.source : null,
+  } satisfies FoodInput;
+
+  const data = await requestV2<AddFoodResponse>(
+    session,
+    "/api/v2/add_food",
+    { config: { call_version: 1 }, data: payload },
+    fetcher,
+  );
+
+  const foodId = new JsonResponse(data).number("id") ?? input.foodId;
+  return { foodId, name };
 }
 
 // ---------------------------------------------------------------------------

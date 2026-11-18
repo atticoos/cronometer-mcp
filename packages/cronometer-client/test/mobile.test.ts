@@ -23,13 +23,16 @@ import {
   getNutritionReport,
   getNutritionTrends,
   getRecentExercises,
+  getRecentFoods,
   getWeightTrends,
+  listCustomFoods,
   listMacroTemplates,
   mealGroupForHour,
   searchActivities,
   setMacroSplit,
   setMacroTargets,
   setNutrientTarget,
+  updateCustomFood,
   updateNote,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
@@ -845,6 +848,108 @@ describe("getNutrientTargets & setNutrientTarget", () => {
       nutrient_id: 291,
       unit: "g",
       visible: false,
+    });
+  });
+
+});
+
+describe("custom & recent food management", () => {
+  it("lists custom foods and recent foods via get_myfoods and get_recent_foods", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ foods: [{ id: 101, name: "Home Granola" }] }))
+      .mockResolvedValueOnce(jsonResponse({ foods: [{ id: 202, name: "Greek Yogurt" }] }));
+
+    const custom = await listCustomFoods(session, fetcher);
+    const recent = await getRecentFoods(session, fetcher);
+
+    expect(custom.foods).toEqual([{ id: 101, name: "Home Granola" }]);
+    expect(recent.foods).toEqual([{ id: 202, name: "Greek Yogurt" }]);
+    expect(fetcher.mock.calls[0][0]).toBe("https://mobile.cronometer.com/api/v2/get_myfoods");
+    expect(fetcher.mock.calls[1][0]).toBe("https://mobile.cronometer.com/api/v2/get_recent_foods");
+  });
+
+  it("updates an existing custom food while preserving untouched nutrients and updating mirrors", async () => {
+    let submitted: Record<string, unknown> | undefined;
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          category: 0,
+          defaultMeasureId: 10,
+          id: 555,
+          measures: [
+            { amount: 1, id: 10, name: "1 bar", type: "Atomic", value: 50 },
+            { amount: 1, id: 1, name: "g", type: "Weight", value: 1 },
+          ],
+          name: "Old Bar",
+          nutrients: [
+            { amount: 400, id: 208 },
+            { amount: 40, id: 203 },
+            { amount: 40, id: -203 },
+            { amount: 10, id: 204 },
+            { amount: 10, id: -204 },
+            { amount: 30, id: 205 },
+            { amount: 30, id: -205 },
+            { amount: 10, id: 291 },
+            { amount: 20, id: -1205 },
+            { amount: 50, id: 301 },
+          ],
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        submitted = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ id: 555, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await updateCustomFood(
+      session,
+      { calories: 220, carbsG: 18, name: "New Bar", servingName: "1 bar (50g)" },
+      fetcher,
+    ).catch((e) => e);
+    expect(updated).toMatchObject({ reason: "request" });
+
+    const res = await updateCustomFood(
+      session,
+      { calories: 220, carbsG: 18, foodId: 555, name: "New Bar", servingName: "1 bar (50g)" },
+      fetcher,
+    );
+
+    expect(res).toEqual({ foodId: 555, name: "New Bar" });
+    const data = submitted?.data as Record<string, unknown>;
+    expect(data.id).toBe(555);
+    expect(data.name).toBe("New Bar");
+    expect((data.measures as Array<Record<string, unknown>>)[0]).toMatchObject({
+      id: 10,
+      name: "1 bar (50g)",
+      value: 50,
+    });
+    const nutrients = new Map(
+      (data.nutrients as Array<{ amount: number; id: number }>).map((n) => [n.id, n.amount]),
+    );
+    expect(nutrients.get(208)).toBe(440); // 220 * (100/50)
+    expect(nutrients.get(205)).toBe(36); // 18 * (100/50)
+    expect(nutrients.get(-205)).toBe(36);
+    expect(nutrients.get(-1205)).toBe(26); // 36 carbs - 10 fiber
+    expect(nutrients.get(203)).toBe(40); // untouched protein preserved
+    expect(nutrients.get(301)).toBe(50); // untouched micronutrient preserved
+  });
+
+  it("rejects updating a recipe via updateCustomFood", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        id: 777,
+        ingredients: [{ foodId: 1, grams: 100 }],
+        measures: [],
+        name: "My Recipe",
+        nutrients: [],
+      }),
+    );
+
+    await expect(updateCustomFood(session, { foodId: 777, name: "Edited" }, fetcher)).rejects.toMatchObject({
+      reason: "request",
     });
   });
 
