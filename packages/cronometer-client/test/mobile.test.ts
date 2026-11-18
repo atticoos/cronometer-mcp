@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addBiometric,
   addExercise,
   addNote,
   addServing,
@@ -22,6 +23,7 @@ import {
   getNutrientTargets,
   getNutritionReport,
   getNutritionTrends,
+  getRecentBiometrics,
   getRecentExercises,
   getRecentFoods,
   getWeightTrends,
@@ -473,13 +475,60 @@ describe("addNote & updateNote (/photoupload)", () => {
   });
 });
 
-describe("getBiometrics", () => {
+describe("getBiometrics & addBiometric", () => {
   it("defaults the range to the last 30 days ending today", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ data: [] }));
     await getBiometrics(session, 1, 1, undefined, "2026-08-20", fetcher);
 
     const payload = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
     expect(payload).toMatchObject({ end: "2026-8-20", metricId: 1, start: "2026-7-21", unitId: 1 });
+  });
+
+  it("posts a Biometric payload with stringified JSON meta", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: 901, weightInKG: 75.5 }));
+
+    const result = await addBiometric(
+      session,
+      { amount: 75.5, date: "2026-08-20", metricId: 1, unitId: 1 },
+      fetcher,
+    );
+
+    expect(result).toEqual({ id: 901, weightInKG: 75.5 });
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe("https://mobile.cronometer.com/api/v2/add_biometric");
+    const payload = JSON.parse(String(init?.body));
+    expect(payload.biometric).toEqual({
+      amount: 75.5,
+      biometricId: null,
+      day: "2026-8-20",
+      externalId: null,
+      meta: "{}",
+      metricId: 1,
+      order: 1,
+      source: null,
+      type: "Biometric",
+      unitId: 1,
+      userId: 42,
+    });
+  });
+
+  it("rejects non-finite biometric amounts", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      addBiometric(session, { amount: Number.NaN, metricId: 1, unitId: 1 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
+describe("getRecentBiometrics", () => {
+  it("fetches recent biometric entries", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ biometrics: [{ amount: 75, metricId: 1 }] }));
+    expect(await getRecentBiometrics(session, fetcher)).toEqual([{ amount: 75, metricId: 1 }]);
   });
 });
 

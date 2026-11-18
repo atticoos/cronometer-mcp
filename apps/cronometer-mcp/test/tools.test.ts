@@ -20,6 +20,7 @@ describe("registered tool surface", () => {
     const names = tools.map((tool) => tool.name).sort();
 
     expect(names).toEqual([
+      "add_biometric",
       "add_custom_food",
       "add_exercise",
       "add_food_entry",
@@ -46,6 +47,7 @@ describe("registered tool surface", () => {
       "get_nutrition_report",
       "get_nutrition_scores",
       "get_nutrition_trends",
+      "get_recent_biometrics",
       "get_recent_exercises",
       "get_recent_foods",
       "get_weight_trends",
@@ -606,5 +608,31 @@ describe("new MCP tool handlers", () => {
       }),
     );
     expect(updatedFood).toMatchObject({ food_id: 555, measure_id: 10, name: "Bar v2", status: "success" });
+  });
+  it("executes add_biometric", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ id: 991 }));
+
+    const result = parseToolJson(
+      await authedClient.callTool({
+        name: "add_biometric",
+        arguments: { amount: 74.5, date: "2026-04-20", metricId: 1, unitId: 1 },
+      }),
+    );
+    expect(result).toMatchObject({
+      amount: 74.5,
+      biometric_id: 991,
+      date: "2026-04-20",
+      metric_id: 1,
+      status: "success",
+      unit_id: 1,
+    });
+  });
+
+  it("executes get_recent_biometrics", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ biometrics: [{ amount: 74, metricId: 1 }] }));
+    expect(parseToolJson(await authedClient.callTool({ name: "get_recent_biometrics", arguments: {} }))).toMatchObject({
+      biometrics: [{ amount: 74, metricId: 1 }],
+      count: 1,
+    });
   });
 });

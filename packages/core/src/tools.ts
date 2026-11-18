@@ -1454,7 +1454,7 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       annotations: READ_ONLY_ANNOTATIONS,
       description:
         "List every biometric metric the account can record (Weight, Body Fat, Heart Rate, Blood Glucose, ...) " +
-        "with their unit options. Use metric_id and unit_id from the results with get_biometrics.",
+        "with their unit options. Use metric_id and unit_id from the results with get_biometrics or add_biometric.",
       inputSchema: z.object({}),
     },
     async () =>
@@ -1497,6 +1497,63 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
           startDate ?? mobile.formatDay(offsetDay(mobile.formatToday(session.timezone), -30), session.timezone),
         unit_id: unitId,
       })),
+  );
+
+  server.registerTool(
+    "add_biometric",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Log a biometric measurement (such as weight or body fat) to the diary. " +
+        "Use list_biometrics first to find metric_id and unit_id.",
+      inputSchema: z.object({
+        metricId: z.number().int().describe("Numeric metric ID from list_biometrics (e.g. 1 for Weight)."),
+        unitId: z.number().int().describe("Numeric unit ID from list_biometrics (e.g. 1 for kg, 2 for lb)."),
+        amount: z.number().describe("Measured value in the specified unit."),
+        date: optionalDateString,
+        diaryGroup: z
+          .enum(["uncategorized", "breakfast", "lunch", "dinner", "snacks"])
+          .default("uncategorized")
+          .describe("Diary section to place the biometric entry in."),
+      }),
+    },
+    async ({ metricId, unitId, amount, date, diaryGroup }) =>
+      withMobileSession(async (session) => {
+        const result = await mobile.addBiometric(session, {
+          amount,
+          date,
+          diaryGroup: ENTRY_DIARY_GROUP_IDS[diaryGroup],
+          metricId,
+          unitId,
+        });
+        return {
+          amount,
+          biometric_id: result.id,
+          date: date ?? mobile.formatToday(session.timezone),
+          metric_id: metricId,
+          result,
+          unit_id: unitId,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_recent_biometrics",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "List recently logged biometric measurements.",
+      inputSchema: z.object({}),
+    },
+    async () =>
+      withMobileSession(async (session) => {
+        const biometrics = await mobile.getRecentBiometrics(session);
+        return {
+          biometrics,
+          count: biometrics.length,
+        };
+      }),
   );
 }
 

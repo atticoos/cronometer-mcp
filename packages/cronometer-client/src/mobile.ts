@@ -16,6 +16,8 @@
 
 import { CronometerAuthenticationError } from "./cronometer";
 import type {
+  AddBiometricBody,
+  AddBiometricResponse,
   AddExerciseBody,
   AddExerciseResponse,
   AddFoodResponse,
@@ -49,6 +51,7 @@ import type {
   GetV3TargetsResponse,
   LoginBody,
   PhotouploadResponse,
+  RecentBiometricListResponse,
   RecentExerciseListResponse,
   ServingInput,
   SetCompleteResponse,
@@ -1835,6 +1838,59 @@ export async function getBiometrics(
     { config: { call_version: 1 }, end, metricId, start, unitId },
     fetcher,
   );
+}
+
+export interface AddBiometricOptions {
+  amount: number;
+  date?: string;
+  diaryGroup?: number;
+  metricId: number;
+  unitId: number;
+}
+
+export async function addBiometric(
+  session: CronometerMobileSession,
+  options: AddBiometricOptions,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord> {
+  if (!Number.isFinite(options.amount)) {
+    throw new CronometerMobileError("request", "Biometric amount must be a finite number.");
+  }
+
+  const diaryGroup = options.diaryGroup ?? 0;
+  const biometric = {
+    amount: options.amount,
+    biometricId: null,
+    day: formatDay(options.date, session.timezone),
+    externalId: null,
+    meta: "{}",
+    metricId: options.metricId,
+    order: (diaryGroup << 16) | 1,
+    source: null,
+    type: "Biometric",
+    unitId: options.unitId,
+    userId: session.userId,
+  } satisfies AddBiometricBody["biometric"];
+
+  return requestV2<AddBiometricResponse>(
+    session,
+    "/api/v2/add_biometric",
+    { biometric, config: { call_version: 1 } },
+    fetcher,
+  );
+}
+
+export async function getRecentBiometrics(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord[]> {
+  const data = await requestV2<RecentBiometricListResponse>(
+    session,
+    "/api/v2/recent_biometric_list",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+  return new JsonResponse(data).array("biometrics");
 }
 
 // ---------------------------------------------------------------------------

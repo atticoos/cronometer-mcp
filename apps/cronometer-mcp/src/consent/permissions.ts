@@ -50,6 +50,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "search_activities", description: "Search exercise and activity types" },
       { name: "get_recent_exercises", description: "Recently logged exercises" },
       { name: "get_weight_trends", description: "Historical weight trend chart series" },
+      { name: "get_recent_biometrics", description: "Recently logged biometric measurements" },
     ],
   },
   {
@@ -76,6 +77,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "add_note", description: "Add a diary note" },
       { name: "update_note", description: "Edit an existing diary note" },
       { name: "add_exercise", description: "Log an exercise entry" },
+      { name: "add_biometric", description: "Log a biometric measurement" },
     ],
   },
   {
