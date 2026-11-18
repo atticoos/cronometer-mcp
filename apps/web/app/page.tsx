@@ -147,10 +147,16 @@ const CAPABILITIES: {
 }[] = [
     {
       icon: UtensilsIcon,
-      title: "Diary & food log",
+      title: "Diary, notes & activity stats",
       tools: [
         { name: "get_food_log", badge: "read" },
+        { name: "get_diary_groups", badge: "read" },
+        { name: "get_calendar_summary", badge: "read" },
+        { name: "get_logging_streak", badge: "read" },
+        { name: "get_all_time_stats", badge: "read" },
         { name: "add_food_entry", badge: "write" },
+        { name: "add_note", badge: "write" },
+        { name: "update_note", badge: "write" },
         { name: "mark_day_complete", badge: "write" },
         { name: "copy_day", badge: "write" },
         { name: "remove_food_entry", badge: "destructive" },
@@ -158,20 +164,34 @@ const CAPABILITIES: {
     },
     {
       icon: SearchIcon,
-      title: "Food database",
+      title: "Food database & custom foods",
       tools: [
         { name: "search_foods", badge: "read" },
         { name: "get_food_details", badge: "read" },
+        { name: "get_recent_foods", badge: "read" },
+        { name: "list_custom_foods", badge: "read" },
         { name: "add_custom_food", badge: "write" },
+        { name: "update_custom_food", badge: "write" },
         { name: "add_recipe", badge: "write" },
       ],
     },
     {
       icon: AppleIcon,
-      title: "Nutrition & macros",
+      title: "Nutrition, reports & targets",
       tools: [
         { name: "get_daily_nutrition", badge: "read" },
+        { name: "get_nutrition_scores", badge: "read" },
+        { name: "get_nutrition_report", badge: "read" },
+        { name: "get_nutrition_trends", badge: "read" },
+        { name: "get_energy_trends", badge: "read" },
+        { name: "get_nutrient_definitions", badge: "read" },
         { name: "get_macro_targets", badge: "read" },
+        { name: "get_nutrient_targets", badge: "read" },
+        { name: "get_macro_schedule", badge: "read" },
+        { name: "list_macro_templates", badge: "read" },
+        { name: "set_macro_targets", badge: "write" },
+        { name: "set_macro_split", badge: "write" },
+        { name: "set_nutrient_target", badge: "write" },
       ],
     },
     {
@@ -184,10 +204,17 @@ const CAPABILITIES: {
     },
     {
       icon: HeartPulseIcon,
-      title: "Biometrics",
+      title: "Biometrics, sleep & exercise",
       tools: [
         { name: "list_biometrics", badge: "read" },
         { name: "get_biometrics", badge: "read" },
+        { name: "get_recent_biometrics", badge: "read" },
+        { name: "get_weight_trends", badge: "read" },
+        { name: "add_biometric", badge: "write" },
+        { name: "get_sleep_score", badge: "read" },
+        { name: "search_activities", badge: "read" },
+        { name: "get_recent_exercises", badge: "read" },
+        { name: "add_exercise", badge: "write" },
       ],
     },
     {
@@ -243,7 +270,7 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Can it change my Cronometer account?",
     answer:
-      "Yes. Write tools cover food entries, custom foods, recipes, day copying, and day completion. Each tool declares whether it is read-only, idempotent, or destructive, so compatible clients can require confirmation before anything mutates.",
+      "Yes. Write tools cover food entries, notes, exercise, biometrics, macro targets, custom foods, recipes, day copying, and day completion. Each tool declares whether it is read-only, idempotent, or destructive, so compatible clients can require confirmation before anything mutates.",
   },
   {
     question: "Is this the “Chronometer MCP” server?",
@@ -704,15 +731,15 @@ function Footer() {
             Privacy policy
           </a>
         </div>
-          <p className="max-w-3xl text-xs leading-relaxed text-zinc-500">
-            Independent, open source, and built to turn nutrition data into useful answers.
-          </p>
-          <p className="max-w-3xl text-xs leading-relaxed text-zinc-600">
-            Unofficial integration — not affiliated with or endorsed by Cronometer.com. The login
-            wire format is independently implemented against Cronometer&apos;s private web endpoints,
-            which may change without notice. Access — read and write — is granted only by you, per
-            client, via OAuth.
-          </p>
+        <p className="max-w-3xl text-xs leading-relaxed text-zinc-500">
+          Independent, open source, and built to turn nutrition data into useful answers.
+        </p>
+        <p className="max-w-3xl text-xs leading-relaxed text-zinc-600">
+          Unofficial integration — not affiliated with or endorsed by Cronometer.com. The login
+          wire format is independently implemented against Cronometer&apos;s private web endpoints,
+          which may change without notice. Access — read and write — is granted only by you, per
+          client, via OAuth.
+        </p>
       </div>
     </footer>
   );
