@@ -624,6 +624,110 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
   );
 
   server.registerTool(
+    "get_nutrition_scores",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Get Cronometer's nutrition adequacy score categories (e.g. All Targets, Vitamins, Minerals, " +
+        "Antioxidants, Electrolytes) and their per-nutrient component amounts and confidence values for a day.",
+      inputSchema: z.object({
+        date: optionalDateString,
+        includeSupplements: z
+          .boolean()
+          .default(true)
+          .describe("Whether to include supplement entries when computing scores."),
+      }),
+    },
+    async ({ date, includeSupplements }) =>
+      withMobileSession(async (session) => {
+        const raw = await mobile.getNutritionScores(session, date, includeSupplements);
+        let definitions: Map<number, Record<string, unknown>>;
+        try {
+          definitions = await mobile.getNutrientDefinitions(session);
+        } catch (error) {
+          if (error instanceof mobile.CronometerMobileError && error.reason === "session") throw error;
+          definitions = new Map();
+        }
+        const scores = (Array.isArray(raw.scores) ? raw.scores : [])
+          .filter(isRecord)
+          .map((category) => ({
+            components: (Array.isArray(category.components) ? category.components : [])
+              .filter(isRecord)
+              .map((component) => {
+                const id = typeof component.nutrientId === "number" ? component.nutrientId : undefined;
+                const meta = id !== undefined ? definitions.get(id) : undefined;
+                return {
+                  amount: component.amount,
+                  confidence: component.confidence,
+                  name: meta?.name,
+                  nutrient_id: component.nutrientId,
+                  type: component.type,
+                  unit: meta?.unit,
+                };
+              }),
+            score: category.score,
+            title: category.title,
+          }));
+        return {
+          date: date ?? mobile.formatToday(session.timezone),
+          include_supplements: includeSupplements,
+          scores,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_nutrient_definitions",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Retrieve Cronometer's nutrient definition catalog (nutrient IDs, names, units, categories, and parent IDs). " +
+        "Use the returned nutrient_id with set_nutrient_target, get_nutrition_trends, or extraNutrients.",
+      inputSchema: z.object({
+        category: z.string().min(1).optional().describe("Optional case-insensitive nutrient category filter."),
+        query: z.string().min(1).optional().describe("Optional case-insensitive nutrient name filter."),
+      }),
+    },
+    async ({ category, query }) =>
+      withMobileSession(async (session) => {
+        const defs = await mobile.getNutrientDefinitions(session);
+        const categoryQuery = category?.trim().toLowerCase();
+        const nameQuery = query?.trim().toLowerCase().replace(/fibre/g, "fiber");
+        const nutrients = [...defs.values()]
+          .map((item) => ({
+            category: item.category,
+            name: item.name,
+            nutrient_id: item.id,
+            parent_id: item.pid,
+            sort_key: item.sortKey,
+            unit: item.unit,
+          }))
+          .filter((item) => {
+            if (categoryQuery) {
+              const itemCat = typeof item.category === "string" ? item.category.toLowerCase() : "";
+              if (!itemCat.includes(categoryQuery)) return false;
+            }
+            if (nameQuery) {
+              const itemName = typeof item.name === "string" ? item.name.toLowerCase().replace(/fibre/g, "fiber") : "";
+              if (!itemName.includes(nameQuery)) return false;
+            }
+            return true;
+          })
+          .sort((a, b) => {
+            const aKey = typeof a.sort_key === "number" ? a.sort_key : Number(a.nutrient_id ?? 0);
+            const bKey = typeof b.sort_key === "number" ? b.sort_key : Number(b.nutrient_id ?? 0);
+            return aKey - bKey;
+          });
+        return {
+          count: nutrients.length,
+          nutrients,
+        };
+      }),
+  );
+
+  server.registerTool(
     "search_foods",
     {
       ...authMetadata,

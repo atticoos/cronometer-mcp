@@ -39,6 +39,8 @@ describe("registered tool surface", () => {
       "get_food_log",
       "get_logging_streak",
       "get_macro_targets",
+      "get_nutrient_definitions",
+      "get_nutrition_scores",
       "get_recent_exercises",
       "list_biometrics",
       "mark_day_complete",
@@ -246,5 +248,92 @@ describe("new MCP tool handlers", () => {
     expect(
       parseToolJson(await authedClient.callTool({ name: "get_recent_exercises", arguments: { limit: 5 } })),
     ).toMatchObject({ count: 1, exercises: [{ id: 9, name: "Run" }], limit: 5 });
+  });
+  it("executes get_nutrition_scores and enriches nutrient names and units", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_diary")) {
+        return Response.json({ diary: [{ servingId: 12, type: "Serving" }] });
+      }
+      if (url.endsWith("/api/v2/get_nutrition_scores")) {
+        return Response.json({
+          scores: [
+            {
+              components: [{ amount: 85, confidence: 1, nutrientId: 100, type: "TARGET" }],
+              score: 85,
+              title: "Vitamins",
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return Response.json({
+          nutrients: [{ id: 100, name: "Vitamin C", unit: "mg" }],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const payload = parseToolJson(
+      await authedClient.callTool({
+        name: "get_nutrition_scores",
+        arguments: { date: "2026-04-20", includeSupplements: false },
+      }),
+    );
+    expect(payload).toMatchObject({
+      date: "2026-04-20",
+      include_supplements: false,
+      scores: [
+        {
+          components: [
+            { amount: 85, confidence: 1, name: "Vitamin C", nutrient_id: 100, type: "TARGET", unit: "mg" },
+          ],
+          score: 85,
+          title: "Vitamins",
+        },
+      ],
+      status: "success",
+    });
+  });
+
+  it("propagates session expiration from get_nutrition_scores nutrient definition lookup", async () => {
+    currentUserId = 43;
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_diary")) {
+        return Response.json({ diary: [] });
+      }
+      if (url.endsWith("/api/v2/get_nutrition_scores")) {
+        return Response.json({ scores: [] });
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return Response.json({ error: "Invalid sessionKey", result: "FAIL" });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await authedClient.callTool({
+      name: "get_nutrition_scores",
+      arguments: { date: "2026-04-20" },
+    });
+    expect(result.isError).toBe(true);
+    expect(result._meta).toEqual({ "mcp/www_authenticate": ['Bearer error="invalid_token"'] });
+  });
+
+  it("executes get_nutrient_definitions with query filtering", async () => {
+    currentUserId = 50;
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        nutrients: [
+          { category: "Carbohydrates", id: 291, name: "Fiber", pid: 205, sortKey: 2, unit: "g" },
+          { category: "Vitamins", id: 401, name: "Vitamin C", pid: 0, sortKey: 1, unit: "mg" },
+        ],
+      }),
+    );
+
+    const defs = parseToolJson(
+      await authedClient.callTool({ name: "get_nutrient_definitions", arguments: { query: "fibre" } }),
+    );
+    expect(defs).toMatchObject({ count: 1, nutrients: [{ name: "Fiber", nutrient_id: 291, unit: "g" }] });
   });
 });

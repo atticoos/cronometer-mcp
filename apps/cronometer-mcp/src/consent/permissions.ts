@@ -27,6 +27,8 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_logging_streak", description: "Consecutive days of food logging" },
       { name: "get_all_time_stats", description: "Lifetime logging counts" },
       { name: "get_calendar_summary", description: "Per-day logging and completion flags across dates" },
+      { name: "get_nutrition_scores", description: "Nutrition adequacy scores for a day" },
+      { name: "get_nutrient_definitions", description: "Catalog of tracked nutrient IDs, names, and units" },
     ],
   },
   {
