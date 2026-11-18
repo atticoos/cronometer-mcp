@@ -503,6 +503,101 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
   );
 
   // ---------------------------------------------------------------------------
+  // Exercises & activities
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "search_activities",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Search Cronometer's exercise and activity database by name. Use the returned activity_id with add_exercise.",
+      inputSchema: z.object({
+        query: z.string().min(1).describe('Activity name or keyword (e.g. "running", "cycling").'),
+      }),
+    },
+    async ({ query }) =>
+      withMobileSession(async (session) => {
+        const activities = await mobile.searchActivities(session, query);
+        return {
+          activities: activities.map((activity) => ({
+            activity_id: activity.id,
+            kcal_per_min_per_kg: activity.cals,
+            legacy: activity.legacy,
+            name: activity.name,
+          })),
+          count: activities.length,
+          query,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "add_exercise",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Log an exercise entry to the diary. Use search_activities to find activity_id.",
+      inputSchema: z.object({
+        activityId: z.number().int().describe("Numeric activity ID from search_activities results."),
+        minutes: z.number().positive().describe("Exercise duration in minutes."),
+        caloriesBurned: z
+          .number()
+          .nonnegative()
+          .optional()
+          .describe("Optional calories burned (kcal, positive number). Overrides Cronometer's automatic burn estimate when provided."),
+        name: z.string().min(1).optional().describe("Optional custom label for the exercise entry."),
+        date: optionalDateString,
+        diaryGroup: z
+          .enum(["uncategorized", "breakfast", "lunch", "dinner", "snacks"])
+          .default("uncategorized")
+          .describe("Diary section to place the exercise in."),
+      }),
+    },
+    async ({ activityId, minutes, caloriesBurned, name, date, diaryGroup }) =>
+      withMobileSession(async (session) => {
+        const result = await mobile.addExercise(session, {
+          activityId,
+          caloriesBurned,
+          date,
+          diaryGroup: ENTRY_DIARY_GROUP_IDS[diaryGroup],
+          minutes,
+          name,
+        });
+        return {
+          activity_id: activityId,
+          calories_burned: caloriesBurned ?? null,
+          date: date ?? mobile.formatToday(session.timezone),
+          exercise_id: result.id,
+          minutes,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_recent_exercises",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "List recently logged exercises for quicker repeat logging with add_exercise.",
+      inputSchema: z.object({
+        limit: z.number().int().positive().max(100).default(10).describe("Maximum number of recent exercises to return."),
+      }),
+    },
+    async ({ limit }) =>
+      withMobileSession(async (session) => {
+        const exercises = await mobile.getRecentExercises(session, limit);
+        return {
+          count: exercises.length,
+          exercises,
+          limit,
+        };
+      }),
+  );
+
+  // ---------------------------------------------------------------------------
   // Nutrition & food database
   // ---------------------------------------------------------------------------
 

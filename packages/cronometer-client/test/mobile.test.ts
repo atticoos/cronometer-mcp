@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addExercise,
   addNote,
   addServing,
   authenticateCronometerMobile,
@@ -16,7 +17,9 @@ import {
   getDiaryGroups,
   getLoggingStreak,
   getMacroTargets,
+  getRecentExercises,
   mealGroupForHour,
+  searchActivities,
   updateNote,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
@@ -348,6 +351,64 @@ describe("createCustomFood", () => {
   });
 });
 
+describe("searchActivities & addExercise", () => {
+  it("searches activities via find_activity_V2", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        activities: [{ cals: 0.13, id: 1265, legacy: true, name: "Running General" }],
+      }),
+    );
+
+    const activities = await searchActivities(session, "running", fetcher);
+    expect(activities).toEqual([{ cals: 0.13, id: 1265, legacy: true, name: "Running General" }]);
+    expect(fetcher.mock.calls[0][0]).toBe("https://mobile.cronometer.com/api/v2/find_activity_V2");
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).query).toBe("running");
+  });
+
+  it("logs exercise with negative calories when caloriesBurned is supplied", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ id: 321 }));
+
+    const res = await addExercise(
+      session,
+      { activityId: 1265, caloriesBurned: 250, date: "2026-08-20", diaryGroup: 2, minutes: 30 },
+      fetcher,
+    );
+    expect(res).toEqual({ id: 321 });
+
+    const payload = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(payload.exercise).toMatchObject({
+      activityId: 1265,
+      calorieOverride: true,
+      calories: -250,
+      day: "2026-8-20",
+      exerciseId: null,
+      minutes: 30,
+      order: (2 << 16) | 1,
+      type: "Exercise",
+      userId: 42,
+    });
+  });
+
+  it("logs exercise without calorie override when caloriesBurned is omitted", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ id: 322 }));
+
+    await addExercise(session, { activityId: 1265, date: "2026-08-20", minutes: 45 }, fetcher);
+    const payload = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(payload.exercise.calorieOverride).toBe(false);
+    expect(payload.exercise.calories).toBeUndefined();
+  });
+
+  it("rejects non-positive duration or negative caloriesBurned", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      addExercise(session, { activityId: 1, minutes: 0 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    await expect(
+      addExercise(session, { activityId: 1, caloriesBurned: -10, minutes: 20 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+  });
+});
+
 describe("addNote & updateNote (/photoupload)", () => {
   it("submits multipart FormData to /photoupload with noteId 0 when adding a note", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
@@ -515,5 +576,15 @@ describe("getLoggingStreak, getAllTimeStats & getCalendarSummary", () => {
     expect(await getLoggingStreak(session, "2026-08-20", fetcher)).toEqual({ streak: 14 });
     expect((await getAllTimeStats(session, "2026-08-20", fetcher)).allTimeStats?.servings).toBe(250);
     expect((await getCalendarSummary(session, "2026-08-01", "2026-08-20", fetcher)).calendarInfo?.daysWithData).toHaveLength(1);
+  });
+});
+
+describe("getRecentExercises", () => {
+  it("requests recent_exercise_list with resultSetLimit", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ exercises: [{ activityId: 1265, minutes: 30 }] }));
+    expect(await getRecentExercises(session, 5, fetcher)).toEqual([{ activityId: 1265, minutes: 30 }]);
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).resultSetLimit).toBe(5);
   });
 });

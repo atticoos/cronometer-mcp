@@ -39,6 +39,8 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_fasting_stats", description: "Fasting stats and streaks" },
       { name: "list_biometrics", description: "Biometric types you can record" },
       { name: "get_biometrics", description: "Biometric readings" },
+      { name: "search_activities", description: "Search exercise and activity types" },
+      { name: "get_recent_exercises", description: "Recently logged exercises" },
     ],
   },
   {
@@ -64,6 +66,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "mark_day_complete", description: "Mark a day complete or incomplete" },
       { name: "add_note", description: "Add a diary note" },
       { name: "update_note", description: "Edit an existing diary note" },
+      { name: "add_exercise", description: "Log an exercise entry" },
     ],
   },
   {

@@ -16,10 +16,13 @@
 
 import { CronometerAuthenticationError } from "./cronometer";
 import type {
+  AddExerciseBody,
+  AddExerciseResponse,
   AddFoodResponse,
   AddServingResponse,
   AuthBlock,
   CopyDiaryResponse,
+  FindActivityV2Response,
   FindFoodResponse,
   GetAllTimeStatsResponse,
   GetBiometricsResponse,
@@ -36,6 +39,7 @@ import type {
   GetStreakResponse,
   LoginBody,
   PhotouploadResponse,
+  RecentExerciseListResponse,
   ServingInput,
   SetCompleteResponse,
 } from "./generated/schemas";
@@ -771,6 +775,89 @@ export async function updateNote(
   }
 
   return saveDiaryNote(session, { ...options, order }, fetcher);
+}
+
+// ---------------------------------------------------------------------------
+// Exercises & activities
+// ---------------------------------------------------------------------------
+
+export async function searchActivities(
+  session: CronometerMobileSession,
+  query: string,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord[]> {
+  const data = await requestV2<FindActivityV2Response>(
+    session,
+    "/api/v2/find_activity_V2",
+    { config: { call_version: 1 }, query },
+    fetcher,
+  );
+  return new JsonResponse(data).array("activities");
+}
+
+export interface AddExerciseOptions {
+  activityId: number;
+  activitySpecId?: number;
+  caloriesBurned?: number;
+  date?: string;
+  diaryGroup?: number;
+  minutes: number;
+  name?: string;
+}
+
+export async function addExercise(
+  session: CronometerMobileSession,
+  options: AddExerciseOptions,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord> {
+  if (!(options.minutes > 0)) {
+    throw new CronometerMobileError("request", "Exercise duration (minutes) must be positive.");
+  }
+  if (options.caloriesBurned !== undefined && options.caloriesBurned < 0) {
+    throw new CronometerMobileError("request", "caloriesBurned must be non-negative.");
+  }
+
+  const diaryGroup = options.diaryGroup ?? 0;
+  const exercise = {
+    activityId: options.activityId,
+    calorieOverride: options.caloriesBurned !== undefined,
+    day: formatDay(options.date, session.timezone),
+    exerciseId: null,
+    externalId: null,
+    meta: null,
+    minutes: options.minutes,
+    name: options.name ?? null,
+    order: (diaryGroup << 16) | 1,
+    source: null,
+    type: "Exercise",
+    userId: session.userId,
+    ...(options.activitySpecId !== undefined ? { activitySpecId: options.activitySpecId } : {}),
+    ...(options.caloriesBurned !== undefined ? { calories: -Math.abs(options.caloriesBurned) } : {}),
+  } satisfies AddExerciseBody["exercise"];
+
+  return requestV2<AddExerciseResponse>(
+    session,
+    "/api/v2/add_exercise",
+    { config: { call_version: 1 }, exercise },
+    fetcher,
+  );
+}
+
+export async function getRecentExercises(
+  session: CronometerMobileSession,
+  resultSetLimit = 10,
+  fetcher: Fetcher = fetch,
+): Promise<JsonRecord[]> {
+  if (!Number.isInteger(resultSetLimit) || resultSetLimit <= 0) {
+    throw new CronometerMobileError("request", "resultSetLimit must be a positive integer.");
+  }
+  const data = await requestV2<RecentExerciseListResponse>(
+    session,
+    "/api/v2/recent_exercise_list",
+    { config: { call_version: 1 }, resultSetLimit },
+    fetcher,
+  );
+  return new JsonResponse(data).array("exercises");
 }
 
 // ---------------------------------------------------------------------------
