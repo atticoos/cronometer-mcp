@@ -39,6 +39,7 @@ describe("registered tool surface", () => {
       "get_food_details",
       "get_food_log",
       "get_logging_streak",
+      "get_macro_schedule",
       "get_macro_targets",
       "get_nutrient_definitions",
       "get_nutrient_targets",
@@ -48,10 +49,13 @@ describe("registered tool surface", () => {
       "get_recent_exercises",
       "get_weight_trends",
       "list_biometrics",
+      "list_macro_templates",
       "mark_day_complete",
       "remove_food_entry",
       "search_activities",
       "search_foods",
+      "set_macro_split",
+      "set_macro_targets",
       "set_nutrient_target",
       "update_note",
     ]);
@@ -473,6 +477,93 @@ describe("new MCP tool handlers", () => {
     expect(targetRes).toMatchObject({
       status: "success",
       target: { maximum: 40, minimum: 30, nutrient: "Fiber", nutrient_id: 291, unit: "g" },
+    });
+  });
+  it("executes set_macro_targets, set_macro_split, and rejects invalid macro split", async () => {
+    const prefsState: Record<string, string> = {
+      "targets.macros.percent": "false",
+    };
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v3/user/42/targets")) {
+        return Response.json([
+          { id: -203, max: null, min: 150, vis: true },
+          { id: -204, max: null, min: 70, vis: true },
+          { id: 205, max: null, min: 220, vis: true },
+          { id: 208, max: null, min: 2200, vis: true },
+        ]);
+      }
+      if (url.endsWith("/api/v2/set_pref")) {
+        const body = JSON.parse(String(init?.body)) as { key: string; val: string };
+        prefsState[body.key] = body.val;
+        return Response.json({ result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/edit_target")) {
+        return Response.json({ result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_profile")) {
+        return Response.json({
+          prefs: Object.entries(prefsState).map(([key, val]) => ({ [key]: val })),
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const targetsRes = parseToolJson(
+      await authedClient.callTool({
+        name: "set_macro_targets",
+        arguments: { caloriesKcal: 2200, fatG: 70, netCarbsG: 220, proteinG: 150 },
+      }),
+    );
+    expect(targetsRes).toMatchObject({
+      status: "success",
+      targets: {
+        energy: { customTargetKcal: 2200 },
+        fixedGrams: {
+          fats: { max: null, value: 70 },
+          netCarbs: { max: null, value: 220 },
+          protein: { max: null, value: 150 },
+        },
+        mode: "grams",
+      },
+    });
+
+    const invalidSplit = await authedClient.callTool({
+      name: "set_macro_split",
+      arguments: { carbsPercent: 40, fatPercent: 30, proteinPercent: 20 },
+    });
+    expect(invalidSplit).toMatchObject({
+      isError: true,
+      content: [{ type: "text", text: expect.stringContaining("100") }],
+    });
+
+    const splitRes = parseToolJson(
+      await authedClient.callTool({
+        name: "set_macro_split",
+        arguments: { carbsPercent: 40, fatPercent: 30, proteinPercent: 30 },
+      }),
+    );
+    expect(splitRes).toMatchObject({
+      status: "success",
+      targets: {
+        mode: "percent",
+        percentSplit: { carbs: 40, fat: 30, protein: 30 },
+      },
+    });
+  });
+
+  it("executes get_macro_schedule and list_macro_templates", async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ schedules: [{ day: "MON" }] }))
+      .mockResolvedValueOnce(Response.json({ templates: [{ id: 1, name: "Cut" }] }));
+    expect(parseToolJson(await authedClient.callTool({ name: "get_macro_schedule", arguments: {} }))).toMatchObject({
+      count: 1,
+      schedules: [{ day: "MON" }],
+    });
+    expect(parseToolJson(await authedClient.callTool({ name: "list_macro_templates", arguments: {} }))).toMatchObject({
+      count: 1,
+      templates: [{ id: 1, name: "Cut" }],
     });
   });
 });

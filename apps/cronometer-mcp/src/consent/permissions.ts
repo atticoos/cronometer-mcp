@@ -33,6 +33,8 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_nutrition_trends", description: "Historical intake trends for an individual nutrient" },
       { name: "get_energy_trends", description: "Historical calorie intake and expenditure trends" },
       { name: "get_nutrient_targets", description: "Configured targets for all tracked nutrients" },
+      { name: "get_macro_schedule", description: "Macro targets scheduled by weekday" },
+      { name: "list_macro_templates", description: "Saved macro target templates" },
     ],
   },
   {
@@ -95,6 +97,8 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     summary: "Set macro targets, percentage macro splits, and individual nutrient targets",
     tools: [
       { name: "set_nutrient_target", description: "Set minimum and maximum targets for a nutrient" },
+      { name: "set_macro_targets", description: "Set fixed gram macro and calorie targets" },
+      { name: "set_macro_split", description: "Set percentage macro split" },
     ],
   },
   {

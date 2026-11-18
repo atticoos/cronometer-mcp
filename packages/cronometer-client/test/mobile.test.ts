@@ -17,14 +17,18 @@ import {
   getDiaryGroups,
   getEnergyTrends,
   getLoggingStreak,
+  getMacroSchedule,
   getMacroTargets,
   getNutrientTargets,
   getNutritionReport,
   getNutritionTrends,
   getRecentExercises,
   getWeightTrends,
+  listMacroTemplates,
   mealGroupForHour,
   searchActivities,
+  setMacroSplit,
+  setMacroTargets,
   setNutrientTarget,
   updateNote,
 } from "../src/mobile";
@@ -548,6 +552,111 @@ describe("getMacroTargets", () => {
       includeActivityBurn: null,
     });
     expect(targets.prefs).toEqual({ "targets.macros.percent": "true" });
+  });
+
+  it("updates fixed macro targets via edit_target and set_pref mirror writes", async () => {
+    const prefs = new Map<string, string>();
+    const editCalls: Array<Record<string, unknown>> = [];
+
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/targets")) {
+        return jsonResponse([
+          { custom: true, id: 203, max: 180, min: 150, vis: true },
+          { custom: true, id: -1205, max: null, min: 200, vis: true },
+          { custom: false, id: 204, max: null, min: 60, vis: true },
+          { custom: true, id: 208, max: null, min: 2200, vis: true },
+        ]);
+      }
+      const body = JSON.parse(String(init?.body));
+      if (url.endsWith("/api/v2/edit_target")) {
+        editCalls.push(body);
+        return jsonResponse({ messages: [], result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/set_pref")) {
+        prefs.set(body.key, body.val);
+        return jsonResponse({ messages: [], result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_profile")) {
+        return jsonResponse({
+          prefs: [...prefs.entries()].map(([k, v]) => ({ [k]: v })),
+          result: "SUCCESS",
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await setMacroTargets(
+      session,
+      { caloriesKcal: 2400, fatG: 70, netCarbsG: 250, proteinG: 170, proteinMaxG: 190 },
+      fetcher,
+    );
+
+    expect(editCalls).toEqual([
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: 203, lastSeen: 0, max: 190, min: 170, vis: true },
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: -1205, lastSeen: 0, max: null, min: 250, vis: true },
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: 204, lastSeen: 0, max: null, min: 70, vis: true },
+      { auth: expect.any(Object), config: { call_version: 1 }, cus: true, id: 208, lastSeen: 0, max: null, min: 2400, vis: true },
+    ]);
+    expect(updated.mode).toBe("grams");
+    expect(updated.fixedGrams.protein).toEqual({ max: 190, value: 170 });
+    expect(updated.fixedGrams.netCarbs).toEqual({ max: null, value: 250 });
+    expect(updated.fixedGrams.fats).toEqual({ max: null, value: 70 });
+    expect(updated.energy.customTargetKcal).toBe(2400);
+  });
+
+  it("validates macro target inputs before sending upstream requests", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(setMacroTargets(session, {}, fetcher)).rejects.toMatchObject({ reason: "request" });
+    await expect(
+      setMacroTargets(session, { proteinG: 180, proteinMaxG: 150 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    await expect(
+      setMacroTargets(session, { proteinMaxG: 150 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("updates macro percentage split and rejects splits not summing to 100", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      setMacroSplit(session, { carbsPercent: 40, fatPercent: 30, proteinPercent: 20 }, fetcher),
+    ).rejects.toMatchObject({ reason: "request" });
+    expect(fetcher).not.toHaveBeenCalled();
+
+    const prefs = new Map<string, string>();
+    const splitFetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body));
+      if (url.endsWith("/api/v2/set_pref")) {
+        prefs.set(body.key, body.val);
+        return jsonResponse({ messages: [], result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_profile")) {
+        return jsonResponse({
+          prefs: [...prefs.entries()].map(([k, v]) => ({ [k]: v })),
+          result: "SUCCESS",
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const updated = await setMacroSplit(
+      session,
+      { carbsPercent: 40, fatPercent: 30, proteinPercent: 30 },
+      splitFetcher,
+    );
+    expect(updated.mode).toBe("percent");
+    expect(updated.percentSplit).toEqual({ carbs: 40, fat: 30, protein: 30 });
+  });
+
+  it("fetches macro schedules and templates", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ schedules: [{ day: "MON" }] }))
+      .mockResolvedValueOnce(jsonResponse({ templates: [{ name: "Training" }] }));
+    expect((await getMacroSchedule(session, fetcher)).schedules).toEqual([{ day: "MON" }]);
+    expect((await listMacroTemplates(session, fetcher)).templates).toEqual([{ name: "Training" }]);
   });
 });
 

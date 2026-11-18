@@ -1134,6 +1134,80 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
   );
 
   server.registerTool(
+    "set_macro_targets",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Set fixed gram macro targets (protein, net carbs, fat, with optional upper range bounds) " +
+        "and/or a custom daily calorie target, and switch targeting mode to fixed grams. " +
+        "Use get_macro_targets to inspect current values first.",
+      inputSchema: z.object({
+        proteinG: z.number().nonnegative().optional().describe("Fixed protein target (or range minimum) in grams."),
+        proteinMaxG: z
+          .number()
+          .nonnegative()
+          .nullable()
+          .optional()
+          .describe("Optional upper bound for protein range in grams. Pass null to clear."),
+        netCarbsG: z.number().nonnegative().optional().describe("Fixed net carbs target (or range minimum) in grams."),
+        netCarbsMaxG: z
+          .number()
+          .nonnegative()
+          .nullable()
+          .optional()
+          .describe("Optional upper bound for net carbs range in grams. Pass null to clear."),
+        fatG: z.number().nonnegative().optional().describe("Fixed fat target (or range minimum) in grams."),
+        fatMaxG: z
+          .number()
+          .nonnegative()
+          .nullable()
+          .optional()
+          .describe("Optional upper bound for fat range in grams. Pass null to clear."),
+        caloriesKcal: z.number().nonnegative().optional().describe("Optional custom daily calorie target (kcal)."),
+      }),
+    },
+    async ({ proteinG, proteinMaxG, netCarbsG, netCarbsMaxG, fatG, fatMaxG, caloriesKcal }) =>
+      withMobileSession(async (session) => ({
+        targets: await mobile.setMacroTargets(session, {
+          caloriesKcal,
+          fatG,
+          fatMaxG,
+          netCarbsG,
+          netCarbsMaxG,
+          proteinG,
+          proteinMaxG,
+        }),
+      })),
+  );
+
+  server.registerTool(
+    "set_macro_split",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Set the percentage-based macro split (protein, carbs, fat percentages summing to 100) " +
+        "and switch targeting mode to percent. Optionally also sets a custom daily calorie target.",
+      inputSchema: z.object({
+        proteinPercent: z.number().min(0).max(100).describe("Protein percentage of calories (0-100)."),
+        carbsPercent: z.number().min(0).max(100).describe("Carbohydrate percentage of calories (0-100)."),
+        fatPercent: z.number().min(0).max(100).describe("Fat percentage of calories (0-100)."),
+        caloriesKcal: z.number().nonnegative().optional().describe("Optional custom daily calorie target (kcal)."),
+      }),
+    },
+    async ({ proteinPercent, carbsPercent, fatPercent, caloriesKcal }) =>
+      withMobileSession(async (session) => ({
+        targets: await mobile.setMacroSplit(session, {
+          caloriesKcal,
+          carbsPercent,
+          fatPercent,
+          proteinPercent,
+        }),
+      })),
+  );
+
+  server.registerTool(
     "set_nutrient_target",
     {
       ...authMetadata,
@@ -1167,6 +1241,44 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
           visible,
         }),
       })),
+  );
+
+  server.registerTool(
+    "get_macro_schedule",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "Retrieve macro target schedules assigned to weekdays (Cronometer Gold feature; empty when none configured).",
+      inputSchema: z.object({}),
+    },
+    async () =>
+      withMobileSession(async (session) => {
+        const res = await mobile.getMacroSchedule(session);
+        const schedules = Array.isArray(res.schedules) ? res.schedules : [];
+        return {
+          count: schedules.length,
+          schedules,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_macro_templates",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "List saved macro target templates stored in Cronometer.",
+      inputSchema: z.object({}),
+    },
+    async () =>
+      withMobileSession(async (session) => {
+        const res = await mobile.listMacroTemplates(session);
+        const templates = Array.isArray(res.templates) ? res.templates : [];
+        return {
+          count: templates.length,
+          templates,
+        };
+      }),
   );
 
   server.registerTool(

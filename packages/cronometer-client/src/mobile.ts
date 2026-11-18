@@ -35,6 +35,8 @@ import type {
   GetFastingWithDateRangeResponse,
   GetFoodResponse,
   GetFoodsResponse,
+  GetMacroSchedulesResponse,
+  GetMacroTargetTemplatesResponse,
   GetMetricsResponse,
   GetNutrientsResponse,
   GetNutritionScoresResponse,
@@ -47,6 +49,7 @@ import type {
   RecentExerciseListResponse,
   ServingInput,
   SetCompleteResponse,
+  SetPrefResponse,
 } from "./generated/schemas";
 
 const MOBILE_BASE_URL = "https://mobile.cronometer.com";
@@ -1393,6 +1396,20 @@ export async function getNutrientTargets(
   return targets;
 }
 
+async function setPref(
+  session: CronometerMobileSession,
+  key: string,
+  val: string,
+  fetcher: Fetcher,
+): Promise<SetPrefResponse> {
+  return requestV2<SetPrefResponse>(
+    session,
+    "/api/v2/set_pref",
+    { config: { call_version: 1 }, key, val },
+    fetcher,
+  );
+}
+
 async function editTarget(
   session: CronometerMobileSession,
   target: { cus: boolean; id: number; max: number | null; min: number; vis: boolean },
@@ -1406,10 +1423,243 @@ async function editTarget(
   );
 }
 
+export interface SetMacroTargetsInput {
+  caloriesKcal?: number;
+  fatG?: number;
+  fatMaxG?: number | null;
+  netCarbsG?: number;
+  netCarbsMaxG?: number | null;
+  proteinG?: number;
+  proteinMaxG?: number | null;
+}
+
 function assertNonNegativeFinite(value: number, label: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new CronometerMobileError("request", `${label} must be a non-negative number.`);
   }
+}
+
+function validateMacroTargetRange(
+  value: number | undefined,
+  max: number | null | undefined,
+  label: string,
+  minArg: string,
+  maxArg: string,
+): void {
+  if (value !== undefined) assertNonNegativeFinite(value, label);
+  if (max !== undefined && max !== null) {
+    assertNonNegativeFinite(max, `${label} max`);
+    if (value === undefined) {
+      throw new CronometerMobileError("request", `${minArg} is required when setting ${maxArg}.`);
+    }
+    if (max < value) {
+      throw new CronometerMobileError("request", `${maxArg} (${max}) must be greater than or equal to ${minArg} (${value}).`);
+    }
+  } else if (max === null && value === undefined) {
+    throw new CronometerMobileError("request", `${minArg} is required when updating ${maxArg}.`);
+  }
+}
+
+export async function setMacroTargets(
+  session: CronometerMobileSession,
+  input: SetMacroTargetsInput,
+  fetcher: Fetcher = fetch,
+): Promise<MacroTargets> {
+  if (
+    input.proteinG === undefined &&
+    input.netCarbsG === undefined &&
+    input.fatG === undefined &&
+    input.caloriesKcal === undefined
+  ) {
+    throw new CronometerMobileError(
+      "request",
+      "Provide at least one target to update (proteinG, netCarbsG, fatG, or caloriesKcal).",
+    );
+  }
+
+  validateMacroTargetRange(input.proteinG, input.proteinMaxG, "proteinG", "proteinG", "proteinMaxG");
+  validateMacroTargetRange(input.netCarbsG, input.netCarbsMaxG, "netCarbsG", "netCarbsG", "netCarbsMaxG");
+  validateMacroTargetRange(input.fatG, input.fatMaxG, "fatG", "fatG", "fatMaxG");
+  if (input.caloriesKcal !== undefined) assertNonNegativeFinite(input.caloriesKcal, "caloriesKcal");
+
+  let existingTargets: GetV3TargetsResponse = [];
+  try {
+    existingTargets = await getV3Targets(session, fetcher);
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+  }
+  const byId = new Map(
+    existingTargets
+      .filter((row): row is typeof row & { id: number } => typeof row.id === "number")
+      .map((row) => [row.id, row] as const),
+  );
+
+  const pickTarget = (candidates: number[], fallbackId: number) => {
+    for (const candidate of candidates) {
+      const found = byId.get(candidate);
+      if (found) return { id: candidate, row: found };
+    }
+    return { id: fallbackId, row: undefined };
+  };
+
+  const applyNutrientTarget = async (
+    candidates: number[],
+    fallbackId: number,
+    min: number,
+    explicitMax: number | null | undefined,
+  ) => {
+    const { id, row } = pickTarget(candidates, fallbackId);
+    const max =
+      explicitMax !== undefined
+        ? explicitMax
+        : typeof row?.max === "number" && row.max >= min
+          ? row.max
+          : null;
+    await editTarget(
+      session,
+      {
+        cus: true,
+        id,
+        max,
+        min,
+        vis: row?.vis ?? true,
+      },
+      fetcher,
+    );
+  };
+
+  await setPref(session, "targets.macros.percent", "false", fetcher);
+
+  if (input.proteinG !== undefined) {
+    await applyNutrientTarget([-203, NUTRIENT_IDS.protein], NUTRIENT_IDS.protein, input.proteinG, input.proteinMaxG);
+    await setPref(session, "targets.fixed.protein", String(input.proteinG), fetcher);
+    if (input.proteinMaxG !== undefined) {
+      await setPref(
+        session,
+        "targets.fixed.protein.max",
+        input.proteinMaxG === null ? "" : String(input.proteinMaxG),
+        fetcher,
+      );
+    }
+  }
+
+  if (input.netCarbsG !== undefined) {
+    await applyNutrientTarget([NUTRIENT_IDS.netCarbs], NUTRIENT_IDS.netCarbs, input.netCarbsG, input.netCarbsMaxG);
+    await setPref(session, "targets.fixed.net.carbs", String(input.netCarbsG), fetcher);
+    if (input.netCarbsMaxG !== undefined) {
+      await setPref(
+        session,
+        "targets.fixed.net.carbs.max",
+        input.netCarbsMaxG === null ? "" : String(input.netCarbsMaxG),
+        fetcher,
+      );
+    }
+  }
+
+  if (input.fatG !== undefined) {
+    await applyNutrientTarget([-204, NUTRIENT_IDS.fat], NUTRIENT_IDS.fat, input.fatG, input.fatMaxG);
+    await setPref(session, "targets.fixed.fats", String(input.fatG), fetcher);
+    if (input.fatMaxG !== undefined) {
+      await setPref(
+        session,
+        "targets.fixed.fats.max",
+        input.fatMaxG === null ? "" : String(input.fatMaxG),
+        fetcher,
+      );
+    }
+  }
+
+  if (input.caloriesKcal !== undefined) {
+    await applyNutrientTarget([NUTRIENT_IDS.energy], NUTRIENT_IDS.energy, input.caloriesKcal, undefined);
+    await setPref(session, "targets.custom.energy.target", String(input.caloriesKcal), fetcher);
+  }
+
+  return getMacroTargets(session, fetcher);
+}
+
+export interface SetMacroSplitInput {
+  caloriesKcal?: number;
+  carbsPercent: number;
+  fatPercent: number;
+  proteinPercent: number;
+}
+
+export async function setMacroSplit(
+  session: CronometerMobileSession,
+  input: SetMacroSplitInput,
+  fetcher: Fetcher = fetch,
+): Promise<MacroTargets> {
+  assertNonNegativeFinite(input.proteinPercent, "proteinPercent");
+  assertNonNegativeFinite(input.carbsPercent, "carbsPercent");
+  assertNonNegativeFinite(input.fatPercent, "fatPercent");
+  if (input.proteinPercent > 100 || input.carbsPercent > 100 || input.fatPercent > 100) {
+    throw new CronometerMobileError("request", "Macro percentages must each be between 0 and 100.");
+  }
+  const total = input.proteinPercent + input.carbsPercent + input.fatPercent;
+  if (Math.abs(total - 100) > 0.01) {
+    throw new CronometerMobileError(
+      "request",
+      `Macro percentages must sum to 100 (got ${Math.round(total * 100) / 100}).`,
+    );
+  }
+  if (input.caloriesKcal !== undefined) {
+    assertNonNegativeFinite(input.caloriesKcal, "caloriesKcal");
+  }
+
+  await setPref(session, "targets.macros.percent", "true", fetcher);
+  await setPref(session, "macroProtein", String(input.proteinPercent), fetcher);
+  await setPref(session, "macroCarbs", String(input.carbsPercent), fetcher);
+  await setPref(session, "macroLipids", String(input.fatPercent), fetcher);
+
+  if (input.caloriesKcal !== undefined) {
+    let existingEnergy: GetV3TargetsResponse[number] | undefined;
+    try {
+      const targets = await getV3Targets(session, fetcher);
+      existingEnergy = targets.find((row) => row.id === NUTRIENT_IDS.energy);
+    } catch (error) {
+      if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+    }
+    await editTarget(
+      session,
+      {
+        cus: true,
+        id: NUTRIENT_IDS.energy,
+        max: typeof existingEnergy?.max === "number" && existingEnergy.max >= input.caloriesKcal
+          ? existingEnergy.max
+          : null,
+        min: input.caloriesKcal,
+        vis: existingEnergy?.vis ?? true,
+      },
+      fetcher,
+    );
+    await setPref(session, "targets.custom.energy.target", String(input.caloriesKcal), fetcher);
+  }
+
+  return getMacroTargets(session, fetcher);
+}
+
+export async function getMacroSchedule(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<GetMacroSchedulesResponse> {
+  return requestV2<GetMacroSchedulesResponse>(
+    session,
+    "/api/v2/get_macro_schedules",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
+}
+
+export async function listMacroTemplates(
+  session: CronometerMobileSession,
+  fetcher: Fetcher = fetch,
+): Promise<GetMacroTargetTemplatesResponse> {
+  return requestV2<GetMacroTargetTemplatesResponse>(
+    session,
+    "/api/v2/get_macro_target_templates",
+    { config: { call_version: 1 } },
+    fetcher,
+  );
 }
 
 export interface SetNutrientTargetInput {
