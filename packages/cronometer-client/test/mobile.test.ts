@@ -714,16 +714,50 @@ describe("getMacroTargets", () => {
 });
 
 describe("getDiaryGroups", () => {
-  it("parses custom diary group preferences from get_profile", async () => {
+  it("parses DG01..DG08 and DGnnON diary group preferences with defaults", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
       jsonResponse({
-        prefs: [{ "diary.group.2": "Midday Fuel" }, { otherPref: "ignored" }],
+        prefs: [
+          { DG03: "Pre-Workout" },
+          { DG06: "Post-Workout" },
+          { DG06ON: "true" },
+          { DG05ON: "false" },
+          { otherPref: "ignored" },
+        ],
+      }),
+    );
+
+    const groups = await getDiaryGroups(session, fetcher);
+    expect(groups.custom_group_prefs).toEqual({
+      DG03: "Pre-Workout",
+      DG05ON: "false",
+      DG06: "Post-Workout",
+      DG06ON: "true",
+    });
+    expect(groups.groups).toHaveLength(8);
+    expect(groups.groups[1]).toEqual({ custom: false, enabled: true, id: 1, name: "Breakfast", pref: "DG02" });
+    expect(groups.groups[2]).toEqual({ custom: true, enabled: true, id: 2, name: "Pre-Workout", pref: "DG03" });
+    expect(groups.groups[4]).toEqual({ custom: true, enabled: false, id: 4, name: "Snacks", pref: "DG05" });
+    expect(groups.groups[5]).toEqual({ custom: true, enabled: true, id: 5, name: "Post-Workout", pref: "DG06" });
+    expect(groups.groups[7]).toEqual({ custom: false, enabled: false, id: 7, name: "Group 8", pref: "DG08" });
+  });
+
+  it("also handles legacy diary-group pref keys", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        prefs: [{ "diary.group.2": "Midday Fuel" }],
       }),
     );
 
     const groups = await getDiaryGroups(session, fetcher);
     expect(groups.custom_group_prefs).toEqual({ "diary.group.2": "Midday Fuel" });
-    expect(groups.groups.find((g) => g.id === 2)).toEqual({ custom: true, id: 2, name: "Midday Fuel" });
+    expect(groups.groups.find((g) => g.id === 2)).toEqual({
+      custom: true,
+      enabled: true,
+      id: 2,
+      name: "Midday Fuel",
+      pref: "DG03",
+    });
   });
 });
 

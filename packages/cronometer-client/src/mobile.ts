@@ -625,16 +625,21 @@ export async function copyDay(
 
 export interface DiaryGroup {
   custom: boolean;
+  enabled: boolean;
   id: number;
   name: string;
+  pref: string;
 }
 
-const DEFAULT_DIARY_GROUPS: readonly { id: number; name: string }[] = [
-  { id: 0, name: "Uncategorized" },
-  { id: 1, name: "Breakfast" },
-  { id: 2, name: "Lunch" },
-  { id: 3, name: "Dinner" },
-  { id: 4, name: "Snacks" },
+const DEFAULT_DIARY_GROUPS: readonly { enabled: boolean; id: number; name: string }[] = [
+  { enabled: true, id: 0, name: "Uncategorized" },
+  { enabled: true, id: 1, name: "Breakfast" },
+  { enabled: true, id: 2, name: "Lunch" },
+  { enabled: true, id: 3, name: "Dinner" },
+  { enabled: true, id: 4, name: "Snacks" },
+  { enabled: false, id: 5, name: "Group 6" },
+  { enabled: false, id: 6, name: "Group 7" },
+  { enabled: false, id: 7, name: "Group 8" },
 ];
 
 export async function getDiaryGroups(
@@ -650,17 +655,42 @@ export async function getDiaryGroups(
 
   const allPrefs = prefMap(new JsonResponse(profile).array("prefs"));
   const customGroupPrefs: Record<string, string> = {};
-  const byId = new Map<number, DiaryGroup>(
-    DEFAULT_DIARY_GROUPS.map((group) => [group.id, { ...group, custom: false }]),
-  );
+  const byId = new Map<number, DiaryGroup>();
+
+  for (const def of DEFAULT_DIARY_GROUPS) {
+    const pref = `DG${String(def.id + 1).padStart(2, "0")}`;
+    const onPref = `${pref}ON`;
+    const rawName = allPrefs[pref];
+    const rawEnabled = allPrefs[onPref];
+    if (rawName !== undefined) customGroupPrefs[pref] = rawName;
+    if (rawEnabled !== undefined) customGroupPrefs[onPref] = rawEnabled;
+
+    const trimmedName = rawName?.trim() ?? "";
+    const name = rawName !== undefined ? (trimmedName !== "" ? trimmedName : `Group ${def.id + 1}`) : def.name;
+    const enabled =
+      rawEnabled !== undefined ? rawEnabled.trim().toLowerCase() === "true" : def.enabled;
+    const custom =
+      (trimmedName !== "" && trimmedName !== def.name) ||
+      (rawEnabled !== undefined && enabled !== def.enabled);
+
+    byId.set(def.id, { custom, enabled, id: def.id, name, pref });
+  }
 
   for (const [key, value] of Object.entries(allPrefs)) {
+    if (/^DG0[1-8](?:ON)?$/i.test(key)) continue;
     if (/(?:diary.*group|diarygroup|meal.*group)/i.test(key)) {
       customGroupPrefs[key] = value;
       const indexed = /(\d+)$/.exec(key);
       if (indexed && value.trim() !== "") {
         const id = Number(indexed[1]);
-        byId.set(id, { custom: true, id, name: value.trim() });
+        const prev = byId.get(id);
+        byId.set(id, {
+          custom: true,
+          enabled: prev?.enabled ?? true,
+          id,
+          name: value.trim(),
+          pref: prev?.pref ?? `DG${String(id + 1).padStart(2, "0")}`,
+        });
       }
     }
   }
@@ -670,7 +700,14 @@ export async function getDiaryGroups(
     if (!Array.isArray(rawList)) continue;
     rawList.forEach((item, index) => {
       if (typeof item === "string" && item.trim() !== "") {
-        byId.set(index, { custom: true, id: index, name: item.trim() });
+        const prev = byId.get(index);
+        byId.set(index, {
+          custom: true,
+          enabled: prev?.enabled ?? true,
+          id: index,
+          name: item.trim(),
+          pref: prev?.pref ?? `DG${String(index + 1).padStart(2, "0")}`,
+        });
       } else if (isJsonRecord(item)) {
         const id =
           typeof item.id === "number"
@@ -680,7 +717,14 @@ export async function getDiaryGroups(
               : index;
         const name = typeof item.name === "string" ? item.name.trim() : undefined;
         if (name) {
-          byId.set(id, { custom: true, id, name });
+          const prev = byId.get(id);
+          byId.set(id, {
+            custom: true,
+            enabled: typeof item.enabled === "boolean" ? item.enabled : (prev?.enabled ?? true),
+            id,
+            name,
+            pref: prev?.pref ?? `DG${String(id + 1).padStart(2, "0")}`,
+          });
         }
       }
     });

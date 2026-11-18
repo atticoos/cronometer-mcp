@@ -177,10 +177,27 @@ describe("new MCP tool handlers", () => {
       status: "success",
     });
   });
-  it("executes get_diary_groups", async () => {
-    fetchMock.mockResolvedValueOnce(Response.json({ prefs: [{ "diary.group.1": "Morning" }] }));
-    expect(parseToolJson(await authedClient.callTool({ name: "get_diary_groups", arguments: {} }))).toMatchObject({
-      custom_group_prefs: { "diary.group.1": "Morning" },
+  it("executes get_diary_groups with DG01..DG08 and DGnnON prefs", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ prefs: [{ DG02: "Morning" }, { DG06: "Late" }, { DG06ON: "true" }] }),
+    );
+    const res = parseToolJson(await authedClient.callTool({ name: "get_diary_groups", arguments: {} }));
+    expect(res).toMatchObject({
+      custom_group_prefs: { DG02: "Morning", DG06: "Late", DG06ON: "true" },
+    });
+    expect((res.groups as Array<Record<string, unknown>>)[1]).toMatchObject({
+      custom: true,
+      enabled: true,
+      id: 1,
+      name: "Morning",
+      pref: "DG02",
+    });
+    expect((res.groups as Array<Record<string, unknown>>)[5]).toMatchObject({
+      custom: true,
+      enabled: true,
+      id: 5,
+      name: "Late",
+      pref: "DG06",
     });
   });
   it("executes get_logging_streak, get_all_time_stats, and get_calendar_summary", async () => {
