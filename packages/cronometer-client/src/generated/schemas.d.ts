@@ -171,14 +171,22 @@ export type ServingInput = {
 */
 export type FoodInput = {
     /**
-     * @description 0 to create
+     * @description 0 to create; existing food ID to update/retire
      * @type integer | undefined
     */
     id?: number;
     name: string;
     category?: number;
     owner?: object | null;
-    retired?: object | null;
+    /**
+     * @description Set true to retire a custom food while keeping diary history
+    */
+    retired?: (boolean | object) | null;
+    meal?: boolean;
+    barcodes?: string[];
+    translations?: {
+        [key: string]: unknown;
+    }[];
     source?: string | null;
     defaultMeasureId?: number;
     comments?: string | null;
@@ -233,6 +241,53 @@ export type FoodInput = {
         [key: string]: string;
     };
     foodTags?: string[];
+};
+
+/**
+ * @description Reference-derived recipe parser entry from import_recipe / poll_async_result.
+ * @type object
+*/
+export type AsyncRecipeImportEntry = {
+    rawIngredientImport?: string;
+    description?: string;
+    servingSizeMatchFound?: boolean;
+    topKFoodIds?: number[];
+    ingredient?: {
+        foodId?: number;
+        measureId?: number;
+        grams?: number;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+};
+
+/**
+ * @description Reference-derived response from /api/v2/import_recipe and /api/v2/poll_async_result.
+ * @type object
+*/
+export type AsyncRecipeImportResponse = {
+    /**
+     * @description Async job futureId
+     * @type string | undefined
+    */
+    id?: string;
+    progress?: number;
+    message?: string;
+    isError?: boolean;
+    /**
+     * @description Server notification messages; observed fields id (int) and type (string, e.g. DATA_CHANGED)
+     * @type array | undefined
+    */
+    messages?: MessagesArray;
+    result?: {
+        recipe?: {
+            name?: string;
+            [key: string]: unknown;
+        };
+        entries?: AsyncRecipeImportEntry[];
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
 };
 
 /**
@@ -1245,6 +1300,164 @@ export type AddFoodResponses = {
  * @description Union of all possible responses
 */
 export type AddFoodResponse = AddFoodStatus200;
+
+export type DelFoodStatus200 = {
+    /**
+     * @example SUCCESS
+     * @example FAIL
+     * @type string | undefined
+    */
+    result?: string;
+    error?: string;
+    /**
+     * @description Server notification messages; observed fields id (int) and type (string, e.g. DATA_CHANGED)
+     * @type array | undefined
+    */
+    messages?: MessagesArray;
+    [key: string]: unknown;
+};
+
+export type DelFoodBody = {
+    /**
+     * @description Recipe or meal food ID
+     * @type integer
+    */
+    id: number;
+    /**
+     * @description True to soft-retire and preserve diary history; omit to permanently delete
+     * @type boolean | undefined
+    */
+    retire?: boolean;
+    config?: CallConfig;
+};
+
+export type DelFoodOptions = {
+    body: DelFoodBody;
+    path?: never;
+    query?: never;
+    headers?: never;
+};
+
+export type DelFoodResponses = {
+    "200": DelFoodStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type DelFoodResponse = DelFoodStatus200;
+
+export type DeleteRecentFoodsStatus200 = {
+    /**
+     * @example SUCCESS
+     * @type string | undefined
+    */
+    result?: string;
+    /**
+     * @description Server notification messages; observed fields id (int) and type (string, e.g. DATA_CHANGED)
+     * @type array | undefined
+    */
+    messages?: MessagesArray;
+    [key: string]: unknown;
+};
+
+export type DeleteRecentFoodsBody = {
+    servingFoodIds: number[];
+    config?: CallConfig;
+};
+
+export type DeleteRecentFoodsOptions = {
+    body: DeleteRecentFoodsBody;
+    path?: never;
+    query?: never;
+    headers?: never;
+};
+
+export type DeleteRecentFoodsResponses = {
+    "200": DeleteRecentFoodsStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type DeleteRecentFoodsResponse = DeleteRecentFoodsStatus200;
+
+/**
+ * @description Reference-derived response from /api/v2/import_recipe and /api/v2/poll_async_result.
+ * @type object
+*/
+export type ImportRecipeStatus200 = AsyncRecipeImportResponse;
+
+export type ImportRecipeBody = {
+    /**
+     * @description Recipe URL, or empty string when parsing ingredients text
+     * @type string
+    */
+    url: string;
+    /**
+     * @description Newline-separated free-text ingredient lines
+     * @type string
+    */
+    ingredients: string;
+    /**
+     * @example true
+     * @type boolean | undefined
+    */
+    enable_async?: boolean;
+    config?: CallConfig;
+};
+
+export type ImportRecipeOptions = {
+    body: ImportRecipeBody;
+    path?: never;
+    query?: never;
+    headers?: never;
+};
+
+export type ImportRecipeResponses = {
+    "200": ImportRecipeStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ImportRecipeResponse = ImportRecipeStatus200;
+
+/**
+ * @description Reference-derived response from /api/v2/import_recipe and /api/v2/poll_async_result.
+ * @type object
+*/
+export type PollAsyncResultStatus200 = AsyncRecipeImportResponse;
+
+export type PollAsyncResultBody = {
+    /**
+     * @description Job ID returned by the async start call
+     * @type string
+    */
+    futureId: string;
+    /**
+     * @example recipe
+     * @type string
+    */
+    resultType: string;
+    config?: CallConfig;
+};
+
+export type PollAsyncResultOptions = {
+    body: PollAsyncResultBody;
+    path?: never;
+    query?: never;
+    headers?: never;
+};
+
+export type PollAsyncResultResponses = {
+    "200": PollAsyncResultStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type PollAsyncResultResponse = PollAsyncResultStatus200;
 
 export type CopyDiaryStatus200 = {
     entriesForDay?: DiaryEntry[];
