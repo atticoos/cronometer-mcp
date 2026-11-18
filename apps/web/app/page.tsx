@@ -172,7 +172,10 @@ const CAPABILITIES: {
         { name: "list_custom_foods", badge: "read" },
         { name: "add_custom_food", badge: "write" },
         { name: "update_custom_food", badge: "write" },
+        { name: "delete_custom_food", badge: "destructive" },
         { name: "add_recipe", badge: "write" },
+        { name: "import_recipe", badge: "write" },
+        { name: "delete_recipe", badge: "destructive" },
       ],
     },
     {

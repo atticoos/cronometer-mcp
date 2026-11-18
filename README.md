@@ -62,7 +62,7 @@ If a Cronometer session expires, follow the sign-in prompt from your MCP client,
 | Connection | `connection_status` |
 | Food diary, stats & notes | `get_food_log`, `get_diary_groups`, `get_calendar_summary`, `get_logging_streak`, `get_all_time_stats`, `add_food_entry`, `remove_food_entry`, `copy_day`, `mark_day_complete`, `add_note`, `update_note` |
 | Nutrition, reports & trends | `get_daily_nutrition`, `get_nutrition_scores`, `get_nutrition_report`, `get_nutrition_trends`, `get_energy_trends`, `get_nutrient_definitions` |
-| Food search, custom foods & recipes | `search_foods`, `get_food_details`, `get_recent_foods`, `list_custom_foods`, `add_custom_food`, `update_custom_food`, `add_recipe` |
+| Food search, custom foods & recipes | `search_foods`, `get_food_details`, `get_recent_foods`, `list_custom_foods`, `add_custom_food`, `update_custom_food`, `delete_custom_food`, `add_recipe`, `import_recipe`, `delete_recipe` |
 | Targets & schedules | `get_macro_targets`, `get_nutrient_targets`, `set_macro_targets`, `set_macro_split`, `set_nutrient_target`, `get_macro_schedule`, `list_macro_templates` |
 | Exercise | `search_activities`, `get_recent_exercises`, `add_exercise` |
 | Fasting | `get_fasting_history`, `get_fasting_stats` |
