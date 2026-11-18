@@ -1093,6 +1093,7 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
           .describe("Additional nutrients to add or update, keyed by Cronometer nutrient ID and valued per serving."),
         servingName: z.string().min(1).optional().describe("Updated primary serving label."),
         servingGrams: z.number().positive().optional().describe("Updated grams per serving."),
+        servingQuantity: z.number().positive().optional().describe("Updated quantity for the primary serving label."),
         comments: z.string().nullable().optional().describe("Optional notes/comments for the custom food."),
       }),
     },
@@ -1110,6 +1111,7 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       extraNutrients,
       servingName,
       servingGrams,
+      servingQuantity,
       comments,
     }) =>
       withMobileSession(async (session) => {
@@ -1126,6 +1128,7 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
           saturatedFatG,
           servingGrams,
           servingName,
+          servingQuantity,
           sodiumMg,
           sugarG,
         });
@@ -1195,6 +1198,30 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
             ? "Use food_id and measure_id with add_food_entry to log this recipe."
             : "Recipe created. Use get_food_details with food_id to look up its serving sizes.",
           total_grams: result.totalGrams,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "delete_custom_food",
+    {
+      ...authMetadata,
+      annotations: DESTRUCTIVE_ANNOTATIONS,
+      description:
+        "Retire (soft-delete) a user-created custom food by food_id. " +
+        "Removes the food from search and list_custom_foods while keeping historical diary entries intact. " +
+        "Only handles plain custom foods; use delete_recipe for recipes.",
+      inputSchema: z.object({
+        foodId: z.number().int().positive().describe("Custom food ID from list_custom_foods or add_custom_food."),
+      }),
+    },
+    async ({ foodId }) =>
+      withMobileSession(async (session) => {
+        const result = await mobile.deleteCustomFood(session, foodId);
+        return {
+          food_id: result.foodId,
+          name: result.name,
+          retired: result.retired,
         };
       }),
   );

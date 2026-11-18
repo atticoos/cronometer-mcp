@@ -2058,6 +2058,58 @@ export async function createCustomFood(
   return { foodId };
 }
 
+const QUANTITY_LED_NAME = /^\s*(\d+(?:\.\d+)?)\s+(\S.*)$/;
+
+async function saveCustomFood(
+  session: CronometerMobileSession,
+  food: JsonRecord,
+  fetcher: Fetcher,
+): Promise<AddFoodResponse> {
+  const data: JsonRecord = { ...food };
+  delete data.messages;
+  const resp = await requestV2<AddFoodResponse>(
+    session,
+    "/api/v2/add_food",
+    { config: { call_version: 1 }, data: data as FoodInput },
+    fetcher,
+  );
+  const returnedId = new JsonResponse(resp).number("id");
+  if (returnedId !== undefined && returnedId !== data.id) {
+    throw new CronometerMobileError(
+      "upstream",
+      `Failed to save custom food ${String(data.id)}: unexpected id ${returnedId}`,
+    );
+  }
+  return resp;
+}
+
+async function getEditableCustomFood(
+  session: CronometerMobileSession,
+  foodId: number,
+  fetcher: Fetcher,
+): Promise<JsonRecord> {
+  if (!Number.isInteger(foodId) || foodId <= 0) {
+    throw new CronometerMobileError("request", "foodId must be a positive integer.");
+  }
+  const existing = await getFood(session, foodId, fetcher);
+  if (typeof existing.id !== "number") {
+    throw new CronometerMobileError("request", `Custom food ${foodId} was not found.`);
+  }
+  if (existing.source !== "Custom") {
+    throw new CronometerMobileError(
+      "request",
+      `Food ${foodId} (${typeof existing.name === "string" ? existing.name : "unknown"}) is not a custom food (source=${String(existing.source)}); only custom foods can be edited or deleted.`,
+    );
+  }
+  if (Array.isArray(existing.ingredients) && existing.ingredients.length > 0) {
+    throw new CronometerMobileError(
+      "request",
+      `Food ${foodId} is a recipe; use delete_recipe for recipes rather than custom food tools.`,
+    );
+  }
+  return existing;
+}
+
 export interface UpdateCustomFoodInput {
   calories?: number;
   carbsG?: number;
@@ -2071,6 +2123,7 @@ export interface UpdateCustomFoodInput {
   saturatedFatG?: number;
   servingGrams?: number;
   servingName?: string;
+  servingQuantity?: number;
   sodiumMg?: number;
   sugarG?: number;
 }
@@ -2080,10 +2133,6 @@ export async function updateCustomFood(
   input: UpdateCustomFoodInput,
   fetcher: Fetcher = fetch,
 ): Promise<{ foodId: number; name: string }> {
-  if (!Number.isInteger(input.foodId) || input.foodId <= 0) {
-    throw new CronometerMobileError("request", "foodId must be a positive integer.");
-  }
-
   const hasAnyUpdate =
     input.name !== undefined ||
     input.calories !== undefined ||
@@ -2097,6 +2146,7 @@ export async function updateCustomFood(
     input.extraNutrients !== undefined ||
     input.servingName !== undefined ||
     input.servingGrams !== undefined ||
+    input.servingQuantity !== undefined ||
     input.comments !== undefined;
 
   if (!hasAnyUpdate) {
@@ -2107,6 +2157,21 @@ export async function updateCustomFood(
   }
   if (input.servingGrams !== undefined && (!Number.isFinite(input.servingGrams) || input.servingGrams <= 0)) {
     throw new CronometerMobileError("request", "servingGrams must be a positive number.");
+  }
+
+  let servingName = input.servingName;
+  let servingQuantity = input.servingQuantity;
+  if (servingName !== undefined) {
+    const led = QUANTITY_LED_NAME.exec(servingName);
+    if (led && Number(led[1]) > 0) {
+      servingName = led[2];
+      if (servingQuantity === undefined) {
+        servingQuantity = Number(led[1]);
+      }
+    }
+  }
+  if (servingQuantity !== undefined && (!Number.isFinite(servingQuantity) || servingQuantity <= 0)) {
+    throw new CronometerMobileError("request", "servingQuantity must be a positive number.");
   }
 
   const extra = input.extraNutrients ?? {};
@@ -2129,16 +2194,7 @@ export async function updateCustomFood(
     }
   }
 
-  const existing = await getFood(session, input.foodId, fetcher);
-  if (typeof existing.id !== "number") {
-    throw new CronometerMobileError("request", `Custom food ${input.foodId} was not found.`);
-  }
-  if (Array.isArray(existing.ingredients) && existing.ingredients.length > 0) {
-    throw new CronometerMobileError(
-      "request",
-      `Food ${input.foodId} is a recipe; update_custom_food only supports custom foods.`,
-    );
-  }
+  const existing = await getEditableCustomFood(session, input.foodId, fetcher);
 
   const existingMeasures = (Array.isArray(existing.measures) ? existing.measures : []).filter(isJsonRecord);
   let targetIndex = existingMeasures.findIndex((measure) => measure.id === existing.defaultMeasureId);
@@ -2156,30 +2212,24 @@ export async function updateCustomFood(
   const scale = 100 / servingGrams;
   const round = (value: number): number => Math.round(value * 100) / 100;
 
-  const measures: FoodInput["measures"] =
+  const measures: JsonRecord[] =
     existingMeasures.length > 0
-      ? existingMeasures.map((measure, index) => ({
-          amount: typeof measure.amount === "number" ? measure.amount : 1,
-          id: typeof measure.id === "number" ? measure.id : 0,
-          name:
-            index === targetIndex && input.servingName !== undefined
-              ? input.servingName
-              : typeof measure.name === "string"
-                ? measure.name
-                : "1 serving",
-          type: typeof measure.type === "string" ? measure.type : "Atomic",
-          value:
-            index === targetIndex
-              ? servingGrams
-              : typeof measure.value === "number"
-                ? measure.value
-                : 1,
-        }))
+      ? existingMeasures.map((measure, index) => {
+          if (index !== targetIndex) return { ...measure };
+          const updatedMeasure: JsonRecord = { ...measure };
+          if (servingName !== undefined) updatedMeasure.name = servingName;
+          if (input.servingGrams !== undefined) updatedMeasure.value = servingGrams;
+          if (input.servingGrams !== undefined || servingQuantity !== undefined) {
+            updatedMeasure.amount = servingQuantity ?? 1;
+            updatedMeasure.type = "Atomic";
+          }
+          return updatedMeasure;
+        })
       : [
           {
-            amount: 1,
+            amount: servingQuantity ?? 1,
             id: 0,
-            name: input.servingName ?? "1 serving",
+            name: servingName ?? "1 serving",
             type: "Atomic",
             value: servingGrams,
           },
@@ -2225,51 +2275,44 @@ export async function updateCustomFood(
     nutrientMap.set(Number(rawId), round(amount * scale));
   }
 
-  const nutrients: FoodInput["nutrients"] = [...nutrientMap.entries()].map(([id, amount]) => ({
-    amount,
-    id,
-  }));
-
+  const nutrients = [...nutrientMap.entries()].map(([id, amount]) => ({ amount, id }));
+  const oldName = typeof existing.name === "string" ? existing.name : undefined;
   const name =
-    input.name ?? (typeof existing.name === "string" && existing.name.trim() !== "" ? existing.name : `Custom Food ${input.foodId}`);
+    input.name ?? (oldName && oldName.trim() !== "" ? oldName : `Custom Food ${input.foodId}`);
 
-  const payload = {
-    alternateId: typeof existing.alternateId === "string" ? existing.alternateId : null,
-    category: typeof existing.category === "number" ? existing.category : 0,
-    comments:
-      input.comments !== undefined
-        ? input.comments
-        : typeof existing.comments === "string"
-          ? existing.comments
-          : null,
-    defaultMeasureId: typeof existing.defaultMeasureId === "number" ? existing.defaultMeasureId : 0,
-    foodTags: Array.isArray(existing.foodTags)
-      ? existing.foodTags.filter((tag): tag is string => typeof tag === "string")
-      : [],
+  const payload: JsonRecord = {
+    ...existing,
     id: input.foodId,
-    labelType: typeof existing.labelType === "string" ? existing.labelType : "AMERICAN_2016",
     measures,
     name,
     nutrients,
-    owner: isJsonRecord(existing.owner) ? existing.owner : null,
-    properties: isJsonRecord(existing.properties)
-      ? (Object.fromEntries(
-          Object.entries(existing.properties).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-        ) as Record<string, string>)
-      : {},
-    retired: isJsonRecord(existing.retired) ? existing.retired : null,
-    source: typeof existing.source === "string" ? existing.source : null,
-  } satisfies FoodInput;
+  };
+  if (input.name !== undefined && Array.isArray(existing.translations)) {
+    payload.translations = existing.translations.map((row) =>
+      isJsonRecord(row) && row.name === oldName ? { ...row, name } : row,
+    );
+  }
+  if (input.comments !== undefined) {
+    payload.comments = input.comments;
+  }
 
-  const data = await requestV2<AddFoodResponse>(
-    session,
-    "/api/v2/add_food",
-    { config: { call_version: 1 }, data: payload },
-    fetcher,
-  );
-
+  const data = await saveCustomFood(session, payload, fetcher);
   const foodId = new JsonResponse(data).number("id") ?? input.foodId;
   return { foodId, name };
+}
+
+export async function deleteCustomFood(
+  session: CronometerMobileSession,
+  foodId: number,
+  fetcher: Fetcher = fetch,
+): Promise<{ foodId: number; name: string; retired: true }> {
+  const existing = await getEditableCustomFood(session, foodId, fetcher);
+  const name =
+    typeof existing.name === "string" && existing.name.trim() !== ""
+      ? existing.name
+      : `Custom Food ${foodId}`;
+  await saveCustomFood(session, { ...existing, retired: true }, fetcher);
+  return { foodId, name, retired: true };
 }
 
 // ---------------------------------------------------------------------------

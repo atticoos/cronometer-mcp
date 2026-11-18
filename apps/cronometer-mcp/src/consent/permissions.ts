@@ -110,8 +110,11 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
   {
     id: "delete",
     risk: "delete",
-    title: "Delete diary entries",
-    summary: "Remove food entries you've logged",
-    tools: [{ name: "remove_food_entry", description: "Remove a food entry" }],
+    title: "Delete entries, foods, and recipes",
+    summary: "Remove logged food entries, retire custom foods, or delete recipes",
+    tools: [
+      { name: "remove_food_entry", description: "Remove a food entry" },
+      { name: "delete_custom_food", description: "Retire a custom food while keeping diary history" },
+    ],
   },
 ];

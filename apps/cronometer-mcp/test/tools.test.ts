@@ -28,6 +28,7 @@ describe("registered tool surface", () => {
       "add_recipe",
       "connection_status",
       "copy_day",
+      "delete_custom_food",
       "get_all_time_stats",
       "get_biometrics",
       "get_calendar_summary",
@@ -605,6 +606,7 @@ describe("new MCP tool handlers", () => {
           measures: [{ amount: 1, id: 10, name: "1 bar", type: "Atomic", value: 50 }],
           name: "Bar",
           nutrients: [{ amount: 400, id: 208 }],
+          source: "Custom",
         });
       }
       if (url.endsWith("/api/v2/add_food")) {
@@ -658,5 +660,28 @@ describe("new MCP tool handlers", () => {
     expect(
       parseToolJson(await authedClient.callTool({ name: "get_sleep_score", arguments: { date: "2026-04-20" } })),
     ).toMatchObject({ available: true, sleep_score: { score: 88 } });
+  });
+  it("executes delete_custom_food", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return Response.json({
+          id: 555,
+          measures: [{ amount: 1, id: 10, name: "bar", type: "Atomic", value: 50 }],
+          name: "Bar",
+          nutrients: [{ amount: 400, id: 208 }],
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        return Response.json({ id: 555, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const retiredFood = parseToolJson(
+      await authedClient.callTool({ name: "delete_custom_food", arguments: { foodId: 555 } }),
+    );
+    expect(retiredFood).toEqual({ food_id: 555, name: "Bar", retired: true, status: "success" });
   });
 });

@@ -7,6 +7,7 @@ import {
   authenticateCronometerMobile,
   copyDay,
   createCustomFood,
+  deleteCustomFood,
   deleteEntries,
   formatDay,
   formatToday,
@@ -959,6 +960,7 @@ describe("custom & recent food management", () => {
       const url = String(input);
       if (url.endsWith("/api/v2/get_food")) {
         return jsonResponse({
+          barcodes: ["012345678905"],
           category: 0,
           defaultMeasureId: 10,
           id: 555,
@@ -966,7 +968,10 @@ describe("custom & recent food management", () => {
             { amount: 1, id: 10, name: "1 bar", type: "Atomic", value: 50 },
             { amount: 1, id: 1, name: "g", type: "Weight", value: 1 },
           ],
+          messages: [{ id: 1, type: "FOOD_CHANGED" }],
           name: "Old Bar",
+          source: "Custom",
+          translations: [{ name: "Old Bar", translationId: 0 }],
           nutrients: [
             { amount: 400, id: 208 },
             { amount: 40, id: 203 },
@@ -1005,9 +1010,14 @@ describe("custom & recent food management", () => {
     const data = submitted?.data as Record<string, unknown>;
     expect(data.id).toBe(555);
     expect(data.name).toBe("New Bar");
+    expect(data.messages).toBeUndefined();
+    expect(data.barcodes).toEqual(["012345678905"]);
+    expect(data.translations).toEqual([{ name: "New Bar", translationId: 0 }]);
     expect((data.measures as Array<Record<string, unknown>>)[0]).toMatchObject({
+      amount: 1,
       id: 10,
-      name: "1 bar (50g)",
+      name: "bar (50g)",
+      type: "Atomic",
       value: 50,
     });
     const nutrients = new Map(
@@ -1029,6 +1039,7 @@ describe("custom & recent food management", () => {
         measures: [],
         name: "My Recipe",
         nutrients: [],
+        source: "Custom",
       }),
     );
 
@@ -1046,5 +1057,49 @@ describe("getSleepScore", () => {
     );
     const res = await getSleepScore(session, "2026-08-20", fetcher);
     expect(res.available).toBe(false);
+  });
+});
+
+describe("deleteCustomFood (retire via add_food)", () => {
+  it("fetches a custom food, sets retired: true, strips messages, and posts to add_food", async () => {
+    let savedBody: Record<string, unknown> | undefined;
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          id: 555,
+          measures: [{ amount: 1, id: 10, name: "bar", type: "Atomic", value: 50 }],
+          messages: [{ id: 1, type: "FOOD_CHANGED" }],
+          name: "Bar",
+          nutrients: [{ amount: 400, id: 208 }],
+          retired: null,
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        savedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ id: 555, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const res = await deleteCustomFood(session, 555, fetcher);
+    expect(res).toEqual({ foodId: 555, name: "Bar", retired: true });
+    const data = savedBody?.data as Record<string, unknown>;
+    expect(data.id).toBe(555);
+    expect(data.retired).toBe(true);
+    expect(data.messages).toBeUndefined();
+  });
+
+  it("rejects database foods and recipes", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: 100, name: "Banana", source: "NCCDB" }))
+      .mockResolvedValueOnce(
+        jsonResponse({ id: 777, ingredients: [{ foodId: 1, grams: 10 }], name: "Recipe", source: "Custom" }),
+      );
+
+    await expect(deleteCustomFood(session, 100, fetcher)).rejects.toMatchObject({ reason: "request" });
+    await expect(deleteCustomFood(session, 777, fetcher)).rejects.toMatchObject({ reason: "request" });
   });
 });
