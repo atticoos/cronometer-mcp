@@ -1227,6 +1227,54 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
   );
 
   server.registerTool(
+    "import_recipe",
+    {
+      ...authMetadata,
+      annotations: WRITE_ANNOTATIONS,
+      description:
+        "Parse a free-text ingredient list using Cronometer's recipe importer and optionally save it as a recipe. " +
+        "Use save=false first to preview matched foods and gram weights before persisting.",
+      inputSchema: z.object({
+        ingredientsText: z
+          .string()
+          .min(1)
+          .describe('Newline-separated ingredient lines, e.g. "200g chicken\n150g rice\n10g sesame oil".'),
+        name: z.string().min(1).optional().describe("Optional recipe name. Defaults to the parsed recipe name."),
+        save: z
+          .boolean()
+          .default(true)
+          .describe("Save the recipe after parsing (default true). Set false to inspect matches without saving."),
+        servingName: z.string().min(1).optional().describe('Serving label when saving (default "Serving").'),
+        servingGrams: z
+          .number()
+          .positive()
+          .optional()
+          .describe("Grams in one serving when saving. Defaults to total batch weight."),
+        comments: z.string().optional().describe("Optional comments/notes attached to the saved recipe."),
+      }),
+    },
+    async ({ ingredientsText, name, save, servingName, servingGrams, comments }) =>
+      withMobileSession(async (session) => {
+        const imported = await mobile.importRecipe(session, {
+          comments,
+          ingredientsText,
+          name,
+          save,
+          servingGrams,
+          servingName,
+        });
+        if (imported.saved && imported.food_id !== undefined) {
+          const food = await mobile.getFood(session, imported.food_id).catch(() => null);
+          return {
+            ...imported,
+            ...(food?.defaultMeasureId !== undefined ? { measure_id: food.defaultMeasureId } : {}),
+          };
+        }
+        return { ...imported };
+      }),
+  );
+
+  server.registerTool(
     "delete_recipe",
     {
       ...authMetadata,

@@ -22,6 +22,7 @@ import type {
   AddExerciseResponse,
   AddFoodResponse,
   AddServingResponse,
+  AsyncRecipeImportResponse,
   AuthBlock,
   CopyDiaryResponse,
   DeleteRecentFoodsResponse,
@@ -52,8 +53,10 @@ import type {
   GetSleepScoreResponse,
   GetStreakResponse,
   GetV3TargetsResponse,
+  ImportRecipeResponse,
   LoginBody,
   PhotouploadResponse,
+  PollAsyncResultResponse,
   RecentBiometricListResponse,
   RecentExerciseListResponse,
   ServingInput,
@@ -2549,4 +2552,206 @@ export async function deleteRecipe(
   }
 
   return result;
+}
+
+export interface ImportedRecipeIngredient {
+  alternate_food_ids: number[];
+  description: string | null;
+  food_id: number;
+  grams: number;
+  measure_id: number | null;
+  raw_text: string | null;
+  serving_size_match: boolean | null;
+}
+
+export interface UnmatchedRecipeIngredient {
+  alternate_food_ids: number[];
+  description: string | null;
+  food_id: number | null;
+  grams: number | null;
+  measure_id: number | null;
+  raw_text: string | null;
+  serving_size_match: boolean | null;
+}
+
+export interface ImportRecipeInput {
+  comments?: string;
+  ingredientsText: string;
+  name?: string;
+  pollIntervalMs?: number;
+  save?: boolean;
+  servingGrams?: number;
+  servingName?: string;
+  timeoutMs?: number;
+}
+
+export interface ImportRecipeResult {
+  food_id?: number;
+  ingredient_count?: number;
+  ingredients: ImportedRecipeIngredient[];
+  recipe_name: string;
+  saved: boolean;
+  total_grams?: number;
+  unmatched: UnmatchedRecipeIngredient[];
+}
+
+function formatAsyncJobError(data: AsyncRecipeImportResponse): string {
+  if (typeof data.message === "string" && data.message.trim() !== "") return data.message;
+  if (Array.isArray(data.messages) && data.messages.length > 0) return JSON.stringify(data.messages);
+  return JSON.stringify(data);
+}
+
+function delayMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function importRecipe(
+  session: CronometerMobileSession,
+  input: ImportRecipeInput,
+  fetcher: Fetcher = fetch,
+): Promise<ImportRecipeResult> {
+  if (!input.ingredientsText || input.ingredientsText.trim() === "") {
+    throw new CronometerMobileError("request", "import_recipe requires at least one ingredient line.");
+  }
+
+  const pollIntervalMs = input.pollIntervalMs ?? 1_000;
+  const timeoutMs = input.timeoutMs ?? 60_000;
+
+  const started = await requestV2<ImportRecipeResponse>(
+    session,
+    "/api/v2/import_recipe",
+    {
+      config: { call_version: 1 },
+      enable_async: true,
+      ingredients: input.ingredientsText,
+      url: "",
+    },
+    fetcher,
+  );
+  if (started.isError) {
+    throw new CronometerMobileError("request", `Failed to start recipe import: ${formatAsyncJobError(started)}`);
+  }
+  const futureId = typeof started.id === "string" ? started.id.trim() : "";
+  if (!futureId) {
+    throw new CronometerMobileError("upstream", "Recipe import returned no job id.");
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  const maxAttempts = pollIntervalMs > 0 ? Number.POSITIVE_INFINITY : 100;
+  let attempts = 0;
+  let current: AsyncRecipeImportResponse = started;
+
+  while (!(current.result && isJsonRecord(current.result))) {
+    if (current.progress === 100) {
+      throw new CronometerMobileError(
+        "upstream",
+        `Recipe import job ${futureId} finished without a result.`,
+      );
+    }
+    if (Date.now() >= deadline || attempts >= maxAttempts) {
+      throw new CronometerMobileError(
+        "upstream",
+        `Recipe import job ${futureId} did not finish within ${Math.round(timeoutMs / 1000)}s (progress=${String(current.progress ?? "unknown")}, message=${String(current.message ?? "")}).`,
+      );
+    }
+    if (pollIntervalMs > 0) {
+      await delayMs(pollIntervalMs);
+    }
+    attempts += 1;
+    current = await requestV2<PollAsyncResultResponse>(
+      session,
+      "/api/v2/poll_async_result",
+      {
+        config: { call_version: 1 },
+        futureId,
+        resultType: "recipe",
+      },
+      fetcher,
+    );
+    if (current.isError) {
+      throw new CronometerMobileError(
+        "request",
+        `Failed to poll recipe import job ${futureId}: ${formatAsyncJobError(current)}`,
+      );
+    }
+  }
+
+  const parsedResult = current.result!;
+  const recipeMeta = isJsonRecord(parsedResult.recipe) ? parsedResult.recipe : {};
+  const recipeName =
+    input.name?.trim() ||
+    (typeof recipeMeta.name === "string" && recipeMeta.name.trim() !== "" ? recipeMeta.name.trim() : "Imported recipe");
+
+  const rawEntries = Array.isArray(parsedResult.entries) ? parsedResult.entries : [];
+  const matched: ImportedRecipeIngredient[] = [];
+  const unmatched: UnmatchedRecipeIngredient[] = [];
+
+  for (const entry of rawEntries) {
+    if (!isJsonRecord(entry)) continue;
+    const ingredient = isJsonRecord(entry.ingredient) ? entry.ingredient : {};
+    const foodId = typeof ingredient.foodId === "number" ? ingredient.foodId : null;
+    const measureId = typeof ingredient.measureId === "number" ? ingredient.measureId : null;
+    const grams = typeof ingredient.grams === "number" ? ingredient.grams : null;
+    const alternateFoodIds = Array.isArray(entry.topKFoodIds)
+      ? entry.topKFoodIds.filter((id): id is number => typeof id === "number")
+      : [];
+
+    const baseRow = {
+      alternate_food_ids: alternateFoodIds,
+      description: typeof entry.description === "string" ? entry.description : null,
+      measure_id: measureId,
+      raw_text: typeof entry.rawIngredientImport === "string" ? entry.rawIngredientImport : null,
+      serving_size_match: typeof entry.servingSizeMatchFound === "boolean" ? entry.servingSizeMatchFound : null,
+    };
+
+    if (foodId !== null && foodId > 0 && grams !== null && grams > 0) {
+      matched.push({ ...baseRow, food_id: foodId, grams });
+    } else {
+      unmatched.push({ ...baseRow, food_id: foodId, grams });
+    }
+  }
+
+  const shouldSave = input.save ?? true;
+  if (!shouldSave) {
+    return {
+      ingredients: matched,
+      recipe_name: recipeName,
+      saved: false,
+      unmatched,
+    };
+  }
+
+  if (matched.length === 0) {
+    const unresolved = unmatched.map((u) => u.raw_text ?? "(unknown)").join(", ");
+    throw new CronometerMobileError(
+      "request",
+      `Recipe import matched no usable ingredients; unresolved lines: [${unresolved}].`,
+    );
+  }
+
+  const created = await createRecipe(
+    session,
+    {
+      comments: input.comments,
+      ingredients: matched.map((m) => ({
+        foodId: m.food_id,
+        grams: m.grams,
+        measureId: m.measure_id ?? undefined,
+      })),
+      name: recipeName,
+      servingGrams: input.servingGrams,
+      servingName: input.servingName,
+    },
+    fetcher,
+  );
+
+  return {
+    food_id: created.foodId,
+    ingredient_count: created.ingredientCount,
+    ingredients: matched,
+    recipe_name: recipeName,
+    saved: true,
+    total_grams: created.totalGrams,
+    unmatched,
+  };
 }

@@ -30,6 +30,7 @@ import {
   getRecentFoods,
   getSleepScore,
   getWeightTrends,
+  importRecipe,
   listCustomFoods,
   listMacroTemplates,
   mealGroupForHour,
@@ -1164,5 +1165,156 @@ describe("deleteRecipe (/api/v2/del_food)", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(jsonResponse({ id: 555, name: "Bar", source: "Custom" }));
     await expect(deleteRecipe(session, 555, {}, fetcher)).rejects.toMatchObject({ reason: "request" });
+  });
+});
+
+describe("importRecipe (/api/v2/import_recipe & /api/v2/poll_async_result)", () => {
+  it("polls async job, splits matched/unmatched ingredients, and skips saving when save=false", async () => {
+    const calls: Array<{ body: Record<string, unknown>; url: string }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push({ body, url });
+      if (url.endsWith("/api/v2/import_recipe")) {
+        return jsonResponse({ id: "job-42", message: "Queued", progress: 10 });
+      }
+      if (url.endsWith("/api/v2/poll_async_result")) {
+        return jsonResponse({
+          id: "job-42",
+          progress: 100,
+          result: {
+            entries: [
+              {
+                description: "Chicken breast",
+                ingredient: { foodId: 101, grams: 200, measureId: 1 },
+                rawIngredientImport: "200g chicken",
+                servingSizeMatchFound: true,
+                topKFoodIds: [101, 102],
+              },
+              {
+                description: null,
+                ingredient: {},
+                rawIngredientImport: "a pinch of magic",
+                servingSizeMatchFound: false,
+                topKFoodIds: [],
+              },
+            ],
+            recipe: { name: "Chicken Bowl" },
+          },
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const preview = await importRecipe(
+      session,
+      { ingredientsText: "200g chicken\na pinch of magic", pollIntervalMs: 0, save: false },
+      fetcher,
+    );
+
+    expect(preview).toEqual({
+      ingredients: [
+        {
+          alternate_food_ids: [101, 102],
+          description: "Chicken breast",
+          food_id: 101,
+          grams: 200,
+          measure_id: 1,
+          raw_text: "200g chicken",
+          serving_size_match: true,
+        },
+      ],
+      recipe_name: "Chicken Bowl",
+      saved: false,
+      unmatched: [
+        {
+          alternate_food_ids: [],
+          description: null,
+          food_id: null,
+          grams: null,
+          measure_id: null,
+          raw_text: "a pinch of magic",
+          serving_size_match: false,
+        },
+      ],
+    });
+    expect(calls[0].body).toMatchObject({ enable_async: true, ingredients: "200g chicken\na pinch of magic", url: "" });
+    expect(calls[1].body).toMatchObject({ futureId: "job-42", resultType: "recipe" });
+  });
+
+  it("saves the matched ingredients via createRecipe when save=true", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/import_recipe")) {
+        return jsonResponse({
+          id: "job-99",
+          progress: 100,
+          result: {
+            entries: [
+              {
+                description: "Rice",
+                ingredient: { foodId: 201, grams: 150, measureId: 1 },
+                rawIngredientImport: "150g rice",
+                servingSizeMatchFound: true,
+              },
+            ],
+            recipe: { name: "Steamed Rice" },
+          },
+        });
+      }
+      if (url.endsWith("/api/v2/get_foods")) {
+        return jsonResponse({
+          foods: [
+            {
+              defaultMeasureId: 1,
+              id: 201,
+              measures: [{ id: 1, name: "g", value: 1 }],
+              nutrients: [{ amount: 130, id: 208 }],
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        return jsonResponse({ id: 9001, result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const saved = await importRecipe(
+      session,
+      { ingredientsText: "150g rice", name: "My Rice", pollIntervalMs: 0, save: true },
+      fetcher,
+    );
+    expect(saved).toMatchObject({
+      food_id: 9001,
+      ingredient_count: 1,
+      recipe_name: "My Rice",
+      saved: true,
+      total_grams: 150,
+    });
+  });
+
+  it("surfaces clear errors when async job fails or completes without matched ingredients", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: "job-err", isError: true, message: "Parser offline" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: "job-empty",
+          progress: 100,
+          result: {
+            entries: [{ rawIngredientImport: "unknown", servingSizeMatchFound: false }],
+            recipe: {},
+          },
+        }),
+      );
+
+    await expect(
+      importRecipe(session, { ingredientsText: "100g tofu", pollIntervalMs: 0 }, fetcher),
+    ).rejects.toMatchObject({ message: expect.stringContaining("Parser offline"), reason: "request" });
+
+    await expect(
+      importRecipe(session, { ingredientsText: "unknown", pollIntervalMs: 0, save: true }, fetcher),
+    ).rejects.toMatchObject({ message: expect.stringContaining("matched no usable ingredients"), reason: "request" });
   });
 });

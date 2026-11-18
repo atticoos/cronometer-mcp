@@ -54,6 +54,7 @@ describe("registered tool surface", () => {
       "get_recent_foods",
       "get_sleep_score",
       "get_weight_trends",
+      "import_recipe",
       "list_biometrics",
       "list_custom_foods",
       "list_macro_templates",
@@ -714,5 +715,55 @@ describe("new MCP tool handlers", () => {
       permanent: false,
       status: "success",
     });
+  });
+  it("executes import_recipe with save=false and save=true", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/import_recipe")) {
+        return Response.json({
+          id: "job-1",
+          progress: 100,
+          result: {
+            entries: [
+              {
+                description: "Chicken",
+                ingredient: { foodId: 101, grams: 200, measureId: 1 },
+                rawIngredientImport: "200g chicken",
+                servingSizeMatchFound: true,
+              },
+            ],
+            recipe: { name: "Imported Gimbap" },
+          },
+        });
+      }
+      if (url.endsWith("/api/v2/get_foods")) {
+        return Response.json({
+          foods: [{ id: 101, measures: [{ id: 1, name: "g", value: 1 }], nutrients: [{ amount: 165, id: 208 }] }],
+        });
+      }
+      if (url.endsWith("/api/v2/add_food")) {
+        return Response.json({ id: 888, result: "SUCCESS" });
+      }
+      if (url.endsWith("/api/v2/get_food")) {
+        return Response.json({ defaultMeasureId: 1, id: 888, name: "Gimbap", source: "Custom" });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const preview = parseToolJson(
+      await authedClient.callTool({
+        name: "import_recipe",
+        arguments: { ingredientsText: "200g chicken", save: false },
+      }),
+    );
+    expect(preview).toMatchObject({ recipe_name: "Imported Gimbap", saved: false, status: "success" });
+
+    const saved = parseToolJson(
+      await authedClient.callTool({
+        name: "import_recipe",
+        arguments: { ingredientsText: "200g chicken", name: "Gimbap", save: true },
+      }),
+    );
+    expect(saved).toMatchObject({ food_id: 888, ingredient_count: 1, measure_id: 1, saved: true, status: "success" });
   });
 });

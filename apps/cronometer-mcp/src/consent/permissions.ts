@@ -94,6 +94,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_recent_foods", description: "List recently logged foods" },
       { name: "list_custom_foods", description: "List your custom foods and recipes" },
       { name: "update_custom_food", description: "Edit an existing custom food" },
+      { name: "import_recipe", description: "Import a recipe from free-text ingredients" },
     ],
   },
   {
