@@ -29,6 +29,9 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_calendar_summary", description: "Per-day logging and completion flags across dates" },
       { name: "get_nutrition_scores", description: "Nutrition adequacy scores for a day" },
       { name: "get_nutrient_definitions", description: "Catalog of tracked nutrient IDs, names, and units" },
+      { name: "get_nutrition_report", description: "Consolidated nutrition report over a date range" },
+      { name: "get_nutrition_trends", description: "Historical intake trends for an individual nutrient" },
+      { name: "get_energy_trends", description: "Historical calorie intake and expenditure trends" },
     ],
   },
   {
@@ -43,6 +46,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_biometrics", description: "Biometric readings" },
       { name: "search_activities", description: "Search exercise and activity types" },
       { name: "get_recent_exercises", description: "Recently logged exercises" },
+      { name: "get_weight_trends", description: "Historical weight trend chart series" },
     ],
   },
   {

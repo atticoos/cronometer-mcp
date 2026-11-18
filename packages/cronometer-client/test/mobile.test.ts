@@ -15,9 +15,13 @@ import {
   getConsumedNutrients,
   getDiary,
   getDiaryGroups,
+  getEnergyTrends,
   getLoggingStreak,
   getMacroTargets,
+  getNutritionReport,
+  getNutritionTrends,
   getRecentExercises,
+  getWeightTrends,
   mealGroupForHour,
   searchActivities,
   updateNote,
@@ -586,5 +590,32 @@ describe("getRecentExercises", () => {
       .mockResolvedValueOnce(jsonResponse({ exercises: [{ activityId: 1265, minutes: 30 }] }));
     expect(await getRecentExercises(session, 5, fetcher)).toEqual([{ activityId: 1265, minutes: 30 }]);
     expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).resultSetLimit).toBe(5);
+  });
+});
+
+describe("reports and trend charts", () => {
+  it("fetches nutrition reports and chart trends for nutrients, weight, and energy", async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+      calls.push({ body, url });
+      if (url.endsWith("/api/v2/get_report")) return jsonResponse({ nutrients: [{ id: 208, avg: 2100 }] });
+      if (url.endsWith("/api/v2/get_chart_data")) {
+        return jsonResponse({ data: [{ day: "2026-08-20", value: 75.2 }], sources: [] });
+      }
+      if (url.endsWith("/api/v2/get_dashboard_energy_data")) return jsonResponse({ series: [{ day: "2026-08-20", kcal: 2100 }] });
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    expect(await getNutritionReport(session, { endDate: "2026-08-20", startDate: "2026-08-01" }, fetcher)).toHaveProperty("nutrients");
+    expect((await getNutritionTrends(session, 291, { endDate: "2026-08-20", startDate: "2026-08-01" }, fetcher)).data).toHaveLength(1);
+    expect((await getWeightTrends(session, { endDate: "2026-08-20", startDate: "2026-08-01" }, fetcher)).data).toHaveLength(1);
+    expect(await getEnergyTrends(session, 3, fetcher)).toHaveProperty("series");
+
+    const chartNutrientCall = calls.find((c) => c.url.endsWith("/get_chart_data") && c.body.chartDataType === "NUTRIENT");
+    expect(chartNutrientCall?.body).toMatchObject({ nutrientId: 291, metricId: null, start: "2026-8-1", end: "2026-8-20" });
+    const chartWeightCall = calls.find((c) => c.url.endsWith("/get_chart_data") && c.body.chartDataType === "BIOMETRIC");
+    expect(chartWeightCall?.body).toMatchObject({ metricId: 1, nutrientId: null });
   });
 });

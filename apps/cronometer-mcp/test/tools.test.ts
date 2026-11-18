@@ -33,6 +33,7 @@ describe("registered tool surface", () => {
       "get_cronometer_data",
       "get_daily_nutrition",
       "get_diary_groups",
+      "get_energy_trends",
       "get_fasting_history",
       "get_fasting_stats",
       "get_food_details",
@@ -40,8 +41,11 @@ describe("registered tool surface", () => {
       "get_logging_streak",
       "get_macro_targets",
       "get_nutrient_definitions",
+      "get_nutrition_report",
       "get_nutrition_scores",
+      "get_nutrition_trends",
       "get_recent_exercises",
+      "get_weight_trends",
       "list_biometrics",
       "mark_day_complete",
       "remove_food_entry",
@@ -335,5 +339,49 @@ describe("new MCP tool handlers", () => {
       await authedClient.callTool({ name: "get_nutrient_definitions", arguments: { query: "fibre" } }),
     );
     expect(defs).toMatchObject({ count: 1, nutrients: [{ name: "Fiber", nutrient_id: 291, unit: "g" }] });
+  });
+  it("executes get_nutrition_report, get_nutrition_trends, get_weight_trends, and get_energy_trends", async () => {
+    currentUserId = 51;
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_report")) return Response.json({ avgCalories: 2150 });
+      if (url.endsWith("/api/v2/get_chart_data")) {
+        return Response.json({ data: [{ day: "2026-04-20", value: 32 }], sources: [{ name: "Scale" }] });
+      }
+      if (url.endsWith("/api/v2/get_nutrients")) {
+        return Response.json({ nutrients: [{ category: "Carbohydrates", id: 291, name: "Fiber", unit: "g" }] });
+      }
+      if (url.endsWith("/api/v2/get_dashboard_energy_data")) return Response.json({ consumed: [2000] });
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    expect(
+      parseToolJson(
+        await authedClient.callTool({
+          name: "get_nutrition_report",
+          arguments: { endDate: "2026-04-20", startDate: "2026-04-01" },
+        }),
+      ),
+    ).toMatchObject({ report: { avgCalories: 2150 } });
+    expect(
+      parseToolJson(
+        await authedClient.callTool({
+          name: "get_nutrition_trends",
+          arguments: { endDate: "2026-04-20", nutrientId: 291, startDate: "2026-04-01" },
+        }),
+      ),
+    ).toMatchObject({ data: [{ day: "2026-04-20", value: 32 }], nutrient: "Fiber", nutrient_id: 291, unit: "g" });
+    expect(
+      parseToolJson(
+        await authedClient.callTool({
+          name: "get_weight_trends",
+          arguments: { endDate: "2026-04-20", startDate: "2026-04-01" },
+        }),
+      ),
+    ).toMatchObject({ data: [{ day: "2026-04-20", value: 32 }], metric_id: 1 });
+    expect(parseToolJson(await authedClient.callTool({ name: "get_energy_trends", arguments: {} }))).toMatchObject({
+      date_range_int: 3,
+      energy_data: { consumed: [2000] },
+    });
   });
 });

@@ -728,6 +728,149 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
   );
 
   server.registerTool(
+    "get_nutrition_report",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "Retrieve a consolidated Cronometer nutrition report over a date range.",
+      inputSchema: z.object({
+        startDate: optionalDateString.describe("Defaults to 30 days ago."),
+        endDate: optionalDateString.describe("Defaults to today."),
+        type: z.string().min(1).default("All").describe('Report filter type (default "All").'),
+        includeSupplements: z.boolean().default(true).describe("Whether to include supplement entries."),
+        allTime: z.boolean().default(false).describe("Whether to compute an all-time report."),
+      }),
+    },
+    async ({ startDate, endDate, type, includeSupplements, allTime }) =>
+      withMobileSession(async (session) => {
+        const end = endDate ?? mobile.formatToday(session.timezone);
+        const start =
+          startDate ?? mobile.formatDay(offsetDay(mobile.formatToday(session.timezone), -30), session.timezone);
+        const report = await mobile.getNutritionReport(session, {
+          allTime,
+          endDate,
+          includeSupplements,
+          startDate,
+          type,
+        });
+        return {
+          all_time: allTime,
+          end_date: end,
+          include_supplements: includeSupplements,
+          report,
+          start_date: start,
+          type,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_nutrition_trends",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Retrieve daily historical intake points for a single nutrient over a date range via get_chart_data. " +
+        "Use get_nutrient_definitions to find nutrient_id (e.g. 291 for Fiber, 203 for Protein).",
+      inputSchema: z.object({
+        nutrientId: z.number().int().describe("Numeric Cronometer nutrient ID from get_nutrient_definitions."),
+        startDate: optionalDateString.describe("Defaults to 30 days ago."),
+        endDate: optionalDateString.describe("Defaults to today."),
+        dayType: z.string().min(1).default("All").describe('Day filter (default "All").'),
+        ignoreEmptyTimestamps: z.boolean().default(true),
+      }),
+    },
+    async ({ nutrientId, startDate, endDate, dayType, ignoreEmptyTimestamps }) =>
+      withMobileSession(async (session) => {
+        const end = endDate ?? mobile.formatToday(session.timezone);
+        const start =
+          startDate ?? mobile.formatDay(offsetDay(mobile.formatToday(session.timezone), -30), session.timezone);
+        const series = await mobile.getNutritionTrends(session, nutrientId, {
+          dayType,
+          endDate,
+          ignoreEmptyTimestamps,
+          startDate,
+        });
+        let definitions: Map<number, Record<string, unknown>> = new Map();
+        try {
+          definitions = await mobile.getNutrientDefinitions(session);
+        } catch (error) {
+          if (error instanceof mobile.CronometerMobileError && error.reason === "session") throw error;
+        }
+        const meta = definitions.get(nutrientId);
+        return {
+          data: series.data ?? [],
+          day_type: dayType,
+          end_date: end,
+          ...(typeof meta?.name === "string" ? { nutrient: meta.name } : {}),
+          nutrient_id: nutrientId,
+          start_date: start,
+          ...(typeof meta?.unit === "string" ? { unit: meta.unit } : {}),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_weight_trends",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Retrieve historical weight (or other biometric) chart series over a date range via get_chart_data.",
+      inputSchema: z.object({
+        metricId: z.number().int().positive().default(1).describe("Biometric metric ID (defaults to 1 for Weight)."),
+        startDate: optionalDateString.describe("Defaults to 30 days ago."),
+        endDate: optionalDateString.describe("Defaults to today."),
+        dayType: z.string().min(1).default("All").describe('Day filter (default "All").'),
+        ignoreEmptyTimestamps: z.boolean().default(true),
+      }),
+    },
+    async ({ metricId, startDate, endDate, dayType, ignoreEmptyTimestamps }) =>
+      withMobileSession(async (session) => {
+        const end = endDate ?? mobile.formatToday(session.timezone);
+        const start =
+          startDate ?? mobile.formatDay(offsetDay(mobile.formatToday(session.timezone), -30), session.timezone);
+        const series = await mobile.getWeightTrends(session, {
+          dayType,
+          endDate,
+          ignoreEmptyTimestamps,
+          metricId,
+          startDate,
+        });
+        return {
+          data: series.data ?? [],
+          day_type: dayType,
+          end_date: end,
+          metric_id: metricId,
+          sources: series.sources ?? [],
+          start_date: start,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_energy_trends",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "Retrieve dashboard calorie intake and expenditure trend data for a date range preset.",
+      inputSchema: z.object({
+        dateRangeInt: z
+          .number()
+          .int()
+          .nonnegative()
+          .default(3)
+          .describe("Cronometer dashboard date range preset enum (3 observed as default)."),
+      }),
+    },
+    async ({ dateRangeInt }) =>
+      withMobileSession(async (session) => ({
+        date_range_int: dateRangeInt,
+        energy_data: await mobile.getEnergyTrends(session, dateRangeInt),
+      })),
+  );
+
+  server.registerTool(
     "search_foods",
     {
       ...authMetadata,

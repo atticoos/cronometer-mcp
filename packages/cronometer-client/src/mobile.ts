@@ -27,6 +27,8 @@ import type {
   GetAllTimeStatsResponse,
   GetBiometricsResponse,
   GetCalendarInfoResponse,
+  GetChartDataResponse,
+  GetDashboardEnergyDataResponse,
   GetDiaryResponse,
   GetFastingStatsResponse,
   GetFastingWithDateRangeResponse,
@@ -36,6 +38,7 @@ import type {
   GetNutrientsResponse,
   GetNutritionScoresResponse,
   GetProfileResponse,
+  GetReportResponse,
   GetStreakResponse,
   LoginBody,
   PhotouploadResponse,
@@ -973,6 +976,122 @@ export async function getConsumedNutrients(
   }
 
   return { macros, nutrients };
+}
+
+export interface GetNutritionReportOptions {
+  allTime?: boolean;
+  endDate?: string;
+  includeSupplements?: boolean;
+  startDate?: string;
+  type?: string;
+}
+
+export async function getNutritionReport(
+  session: CronometerMobileSession,
+  options: GetNutritionReportOptions = {},
+  fetcher: Fetcher = fetch,
+): Promise<GetReportResponse> {
+  const end = formatDay(options.endDate, session.timezone);
+  const start = formatDay(options.startDate ?? shiftedDay(end, -30), session.timezone);
+  return requestV2<GetReportResponse>(
+    session,
+    "/api/v2/get_report",
+    {
+      allTime: options.allTime ?? false,
+      config: { call_version: 1 },
+      end,
+      start,
+      supplements: options.includeSupplements ?? true,
+      type: options.type ?? "All",
+    },
+    fetcher,
+  );
+}
+
+export interface ChartDataOptions {
+  dayType?: string;
+  endDate?: string;
+  ignoreEmptyTimestamps?: boolean;
+  startDate?: string;
+}
+
+/**
+ * Historical nutrient trend series via /api/v2/get_chart_data.
+ * Note: specs/cronometer-mobile.yaml marks chartDataType: "NUTRIENT" as inferred
+ * from the verified "BIOMETRIC" request shape.
+ */
+export async function getNutritionTrends(
+  session: CronometerMobileSession,
+  nutrientId: number,
+  options: ChartDataOptions = {},
+  fetcher: Fetcher = fetch,
+): Promise<GetChartDataResponse> {
+  if (!Number.isInteger(nutrientId)) {
+    throw new CronometerMobileError("request", "nutrientId must be an integer.");
+  }
+  const end = formatDay(options.endDate, session.timezone);
+  const start = formatDay(options.startDate ?? shiftedDay(end, -30), session.timezone);
+  return requestV2<GetChartDataResponse>(
+    session,
+    "/api/v2/get_chart_data",
+    {
+      chartDataType: "NUTRIENT",
+      config: { call_version: 1 },
+      dayType: options.dayType ?? "All",
+      end,
+      ignoreEmptyTimestamps: options.ignoreEmptyTimestamps ?? true,
+      metricId: null,
+      nutrientId,
+      scoreId: null,
+      start,
+    },
+    fetcher,
+  );
+}
+
+export async function getWeightTrends(
+  session: CronometerMobileSession,
+  options: ChartDataOptions & { metricId?: number } = {},
+  fetcher: Fetcher = fetch,
+): Promise<GetChartDataResponse> {
+  const metricId = options.metricId ?? 1;
+  if (!Number.isInteger(metricId) || metricId <= 0) {
+    throw new CronometerMobileError("request", "metricId must be a positive integer.");
+  }
+  const end = formatDay(options.endDate, session.timezone);
+  const start = formatDay(options.startDate ?? shiftedDay(end, -30), session.timezone);
+  return requestV2<GetChartDataResponse>(
+    session,
+    "/api/v2/get_chart_data",
+    {
+      chartDataType: "BIOMETRIC",
+      config: { call_version: 1 },
+      dayType: options.dayType ?? "All",
+      end,
+      ignoreEmptyTimestamps: options.ignoreEmptyTimestamps ?? true,
+      metricId,
+      nutrientId: null,
+      scoreId: null,
+      start,
+    },
+    fetcher,
+  );
+}
+
+export async function getEnergyTrends(
+  session: CronometerMobileSession,
+  dateRangeInt = 3,
+  fetcher: Fetcher = fetch,
+): Promise<GetDashboardEnergyDataResponse> {
+  if (!Number.isInteger(dateRangeInt) || dateRangeInt < 0) {
+    throw new CronometerMobileError("request", "dateRangeInt must be a non-negative integer.");
+  }
+  return requestV2<GetDashboardEnergyDataResponse>(
+    session,
+    "/api/v2/get_dashboard_energy_data",
+    { config: { call_version: 1 }, dateRangeInt },
+    fetcher,
+  );
 }
 
 /**
