@@ -8,10 +8,13 @@ import {
   deleteEntries,
   formatDay,
   formatToday,
+  getAllTimeStats,
   getBiometrics,
+  getCalendarSummary,
   getConsumedNutrients,
   getDiary,
   getDiaryGroups,
+  getLoggingStreak,
   getMacroTargets,
   mealGroupForHour,
   updateNote,
@@ -492,5 +495,25 @@ describe("getDiaryGroups", () => {
     const groups = await getDiaryGroups(session, fetcher);
     expect(groups.custom_group_prefs).toEqual({ "diary.group.2": "Midday Fuel" });
     expect(groups.groups.find((g) => g.id === 2)).toEqual({ custom: true, id: 2, name: "Midday Fuel" });
+  });
+});
+
+describe("getLoggingStreak, getAllTimeStats & getCalendarSummary", () => {
+  it("fetches streak, lifetime counts, and calendar flags", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_streak")) return jsonResponse({ streak: 14 });
+      if (url.endsWith("/api/v2/get_all_time_stats")) {
+        return jsonResponse({ allTimeStats: { biometrics: 12, day: "2026-8-20", exercises: 5, fasts: 3, servings: 250 } });
+      }
+      if (url.endsWith("/api/v2/get_calendar_info")) {
+        return jsonResponse({ calendarInfo: { daysWithData: [{ complete: true, day: "2026-08-20", loggedFood: true }] } });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    expect(await getLoggingStreak(session, "2026-08-20", fetcher)).toEqual({ streak: 14 });
+    expect((await getAllTimeStats(session, "2026-08-20", fetcher)).allTimeStats?.servings).toBe(250);
+    expect((await getCalendarSummary(session, "2026-08-01", "2026-08-20", fetcher)).calendarInfo?.daysWithData).toHaveLength(1);
   });
 });

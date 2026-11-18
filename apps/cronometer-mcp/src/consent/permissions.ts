@@ -24,6 +24,9 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_daily_nutrition", description: "Calories and nutrients for a day" },
       { name: "get_macro_targets", description: "Macro targets" },
       { name: "get_diary_groups", description: "Configured diary meal groups" },
+      { name: "get_logging_streak", description: "Consecutive days of food logging" },
+      { name: "get_all_time_stats", description: "Lifetime logging counts" },
+      { name: "get_calendar_summary", description: "Per-day logging and completion flags across dates" },
     ],
   },
   {

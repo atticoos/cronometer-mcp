@@ -26,7 +26,9 @@ describe("registered tool surface", () => {
       "add_recipe",
       "connection_status",
       "copy_day",
+      "get_all_time_stats",
       "get_biometrics",
+      "get_calendar_summary",
       "get_cronometer_data",
       "get_daily_nutrition",
       "get_diary_groups",
@@ -34,6 +36,7 @@ describe("registered tool surface", () => {
       "get_fasting_stats",
       "get_food_details",
       "get_food_log",
+      "get_logging_streak",
       "get_macro_targets",
       "list_biometrics",
       "mark_day_complete",
@@ -158,5 +161,31 @@ describe("new MCP tool handlers", () => {
     expect(parseToolJson(await authedClient.callTool({ name: "get_diary_groups", arguments: {} }))).toMatchObject({
       custom_group_prefs: { "diary.group.1": "Morning" },
     });
+  });
+  it("executes get_logging_streak, get_all_time_stats, and get_calendar_summary", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_streak")) return Response.json({ streak: 7 });
+      if (url.endsWith("/api/v2/get_all_time_stats")) return Response.json({ allTimeStats: { servings: 100 } });
+      if (url.endsWith("/api/v2/get_calendar_info")) {
+        return Response.json({ calendarInfo: { daysWithData: [{ complete: true, day: "2026-04-20", loggedFood: true }] } });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    expect(
+      parseToolJson(await authedClient.callTool({ name: "get_logging_streak", arguments: { date: "2026-04-20" } })),
+    ).toMatchObject({ streak: { streak: 7 } });
+    expect(
+      parseToolJson(await authedClient.callTool({ name: "get_all_time_stats", arguments: { date: "2026-04-20" } })),
+    ).toMatchObject({ stats: { servings: 100 } });
+    expect(
+      parseToolJson(
+        await authedClient.callTool({
+          name: "get_calendar_summary",
+          arguments: { endDate: "2026-04-20", startDate: "2026-04-01" },
+        }),
+      ),
+    ).toMatchObject({ days_with_data: [{ complete: true, day: "2026-04-20", loggedFood: true }] });
   });
 });

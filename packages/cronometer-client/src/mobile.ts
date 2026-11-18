@@ -21,7 +21,9 @@ import type {
   AuthBlock,
   CopyDiaryResponse,
   FindFoodResponse,
+  GetAllTimeStatsResponse,
   GetBiometricsResponse,
+  GetCalendarInfoResponse,
   GetDiaryResponse,
   GetFastingStatsResponse,
   GetFastingWithDateRangeResponse,
@@ -31,6 +33,7 @@ import type {
   GetNutrientsResponse,
   GetNutritionScoresResponse,
   GetProfileResponse,
+  GetStreakResponse,
   LoginBody,
   PhotouploadResponse,
   ServingInput,
@@ -626,6 +629,48 @@ export async function getDiaryGroups(
     custom_group_prefs: customGroupPrefs,
     groups: [...byId.values()].sort((a, b) => a.id - b.id),
   };
+}
+
+export async function getLoggingStreak(
+  session: CronometerMobileSession,
+  date?: string,
+  fetcher: Fetcher = fetch,
+): Promise<GetStreakResponse> {
+  return requestV2<GetStreakResponse>(
+    session,
+    "/api/v2/get_streak",
+    { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
+    fetcher,
+  );
+}
+
+export async function getAllTimeStats(
+  session: CronometerMobileSession,
+  date?: string,
+  fetcher: Fetcher = fetch,
+): Promise<GetAllTimeStatsResponse> {
+  return requestV2<GetAllTimeStatsResponse>(
+    session,
+    "/api/v2/get_all_time_stats",
+    { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
+    fetcher,
+  );
+}
+
+export async function getCalendarSummary(
+  session: CronometerMobileSession,
+  startDate?: string,
+  endDate?: string,
+  fetcher: Fetcher = fetch,
+): Promise<GetCalendarInfoResponse> {
+  const endDay = formatDay(endDate, session.timezone);
+  const startDay = formatDay(startDate ?? shiftedDay(endDay, -30), session.timezone);
+  return requestV2<GetCalendarInfoResponse>(
+    session,
+    "/api/v2/get_calendar_info",
+    { config: { call_version: 1 }, endDay, startDay },
+    fetcher,
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -441,6 +441,67 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       })),
   );
 
+  server.registerTool(
+    "get_logging_streak",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "Retrieve the user's consecutive food-logging streak as of a given date.",
+      inputSchema: z.object({ date: optionalDateString }),
+    },
+    async ({ date }) =>
+      withMobileSession(async (session) => ({
+        date: date ?? mobile.formatToday(session.timezone),
+        streak: await mobile.getLoggingStreak(session, date),
+      })),
+  );
+
+  server.registerTool(
+    "get_all_time_stats",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "Retrieve lifetime logging counts (servings, exercises, biometrics, and fasts) as of a date.",
+      inputSchema: z.object({ date: optionalDateString }),
+    },
+    async ({ date }) =>
+      withMobileSession(async (session) => {
+        const res = await mobile.getAllTimeStats(session, date);
+        return {
+          date: date ?? mobile.formatToday(session.timezone),
+          stats: res.allTimeStats ?? res,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_calendar_summary",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description:
+        "Retrieve per-day logging flags (food, exercise, biometric, note, and completion status) over a date range " +
+        "to spot days with missing or incomplete diary entries.",
+      inputSchema: z.object({
+        startDate: optionalDateString.describe("Defaults to 30 days ago."),
+        endDate: optionalDateString.describe("Defaults to today."),
+      }),
+    },
+    async ({ startDate, endDate }) =>
+      withMobileSession(async (session) => {
+        const end = endDate ?? mobile.formatToday(session.timezone);
+        const start =
+          startDate ?? mobile.formatDay(offsetDay(mobile.formatToday(session.timezone), -30), session.timezone);
+        const res = await mobile.getCalendarSummary(session, startDate, endDate);
+        return {
+          calendar_info: res.calendarInfo ?? res,
+          days_with_data: res.calendarInfo?.daysWithData ?? [],
+          end_date: end,
+          start_date: start,
+        };
+      }),
+  );
+
   // ---------------------------------------------------------------------------
   // Nutrition & food database
   // ---------------------------------------------------------------------------
