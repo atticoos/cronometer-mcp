@@ -24,6 +24,8 @@ import type {
   AddServingResponse,
   AuthBlock,
   CopyDiaryResponse,
+  DeleteRecentFoodsResponse,
+  DelFoodResponse,
   EditTargetResponse,
   FindActivityV2Response,
   FindFoodResponse,
@@ -2480,4 +2482,71 @@ export async function createRecipe(
     throw new CronometerMobileError("upstream", "Cronometer did not return a recipe ID.");
   }
   return { foodId, ingredientCount: ingredientRows.length, totalGrams };
+}
+
+export interface DeleteRecipeResult {
+  foodId: number;
+  meal: boolean;
+  name: string;
+  permanent: boolean;
+  warning?: string;
+}
+
+export async function deleteRecipe(
+  session: CronometerMobileSession,
+  foodId: number,
+  options: { permanent?: boolean } = {},
+  fetcher: Fetcher = fetch,
+): Promise<DeleteRecipeResult> {
+  if (!Number.isInteger(foodId) || foodId <= 0) {
+    throw new CronometerMobileError("request", "foodId must be a positive integer.");
+  }
+  const permanent = options.permanent ?? false;
+  const food = await getFood(session, foodId, fetcher);
+  if (typeof food.id !== "number") {
+    throw new CronometerMobileError("request", `Recipe ${foodId} was not found.`);
+  }
+  if (food.source !== "Custom" || !Array.isArray(food.ingredients) || food.ingredients.length === 0) {
+    throw new CronometerMobileError(
+      "request",
+      `Food ${foodId} (${typeof food.name === "string" ? food.name : "unknown"}) is not a recipe or meal you created; use delete_custom_food for custom foods.`,
+    );
+  }
+
+  const body: Record<string, unknown> = {
+    config: { call_version: 1 },
+    id: foodId,
+  };
+  if (!permanent) {
+    body.retire = true;
+  }
+
+  const data = await requestV2<DelFoodResponse>(session, "/api/v2/del_food", body, fetcher);
+  if (data.result !== undefined && data.result !== "SUCCESS") {
+    throw new CronometerMobileError("upstream", `Failed to delete recipe ${foodId}: ${JSON.stringify(data)}`);
+  }
+
+  const result: DeleteRecipeResult = {
+    foodId,
+    meal: Boolean(food.meal),
+    name: typeof food.name === "string" && food.name.trim() !== "" ? food.name : `Recipe ${foodId}`,
+    permanent,
+  };
+
+  if (permanent) {
+    try {
+      await requestV2<DeleteRecentFoodsResponse>(
+        session,
+        "/api/v2/delete_recent_foods",
+        { config: { call_version: 2 }, servingFoodIds: [foodId] },
+        fetcher,
+      );
+    } catch (error) {
+      if (error instanceof CronometerMobileError && error.reason === "session") throw error;
+      result.warning =
+        "Recipe was permanently deleted, but its recent-foods entry could not be cleared.";
+    }
+  }
+
+  return result;
 }

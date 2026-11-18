@@ -29,6 +29,7 @@ describe("registered tool surface", () => {
       "connection_status",
       "copy_day",
       "delete_custom_food",
+      "delete_recipe",
       "get_all_time_stats",
       "get_biometrics",
       "get_calendar_summary",
@@ -683,5 +684,35 @@ describe("new MCP tool handlers", () => {
       await authedClient.callTool({ name: "delete_custom_food", arguments: { foodId: 555 } }),
     );
     expect(retiredFood).toEqual({ food_id: 555, name: "Bar", retired: true, status: "success" });
+  });
+  it("executes delete_recipe", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return Response.json({
+          defaultMeasureId: 1,
+          id: 888,
+          ingredients: [{ foodId: 101, grams: 200 }],
+          meal: false,
+          name: "Gimbap",
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/del_food")) {
+        return Response.json({ result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const deletedRecipe = parseToolJson(
+      await authedClient.callTool({ name: "delete_recipe", arguments: { foodId: 888 } }),
+    );
+    expect(deletedRecipe).toEqual({
+      food_id: 888,
+      meal: false,
+      name: "Gimbap",
+      permanent: false,
+      status: "success",
+    });
   });
 });

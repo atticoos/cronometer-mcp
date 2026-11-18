@@ -9,6 +9,7 @@ import {
   createCustomFood,
   deleteCustomFood,
   deleteEntries,
+  deleteRecipe,
   formatDay,
   formatToday,
   getAllTimeStats,
@@ -1101,5 +1102,67 @@ describe("deleteCustomFood (retire via add_food)", () => {
 
     await expect(deleteCustomFood(session, 100, fetcher)).rejects.toMatchObject({ reason: "request" });
     await expect(deleteCustomFood(session, 777, fetcher)).rejects.toMatchObject({ reason: "request" });
+  });
+});
+
+describe("deleteRecipe (/api/v2/del_food)", () => {
+  it("retires a recipe safely by default (retire: true)", async () => {
+    let delBody: Record<string, unknown> | undefined;
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          id: 888,
+          ingredients: [{ foodId: 1, grams: 100 }],
+          meal: false,
+          name: "Gimbap",
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/del_food")) {
+        delBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ result: "SUCCESS" });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const res = await deleteRecipe(session, 888, {}, fetcher);
+    expect(res).toEqual({ foodId: 888, meal: false, name: "Gimbap", permanent: false });
+    expect(delBody).toMatchObject({ id: 888, retire: true });
+  });
+
+  it("permanently deletes a recipe and cleans up recent foods when permanent=true", async () => {
+    const calls: Array<{ body: Record<string, unknown>; url: string }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push({ body, url });
+      if (url.endsWith("/api/v2/get_food")) {
+        return jsonResponse({
+          id: 889,
+          ingredients: [{ foodId: 1, grams: 50 }],
+          meal: true,
+          name: "Old Meal",
+          source: "Custom",
+        });
+      }
+      if (url.endsWith("/api/v2/del_food")) return jsonResponse({ result: "SUCCESS" });
+      if (url.endsWith("/api/v2/delete_recent_foods")) return jsonResponse({ result: "SUCCESS" });
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const res = await deleteRecipe(session, 889, { permanent: true }, fetcher);
+    expect(res).toEqual({ foodId: 889, meal: true, name: "Old Meal", permanent: true });
+    expect(calls[1].url).toContain("/api/v2/del_food");
+    expect(calls[1].body.retire).toBeUndefined();
+    expect(calls[2].url).toContain("/api/v2/delete_recent_foods");
+    expect(calls[2].body.servingFoodIds).toEqual([889]);
+  });
+
+  it("rejects plain custom foods", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: 555, name: "Bar", source: "Custom" }));
+    await expect(deleteRecipe(session, 555, {}, fetcher)).rejects.toMatchObject({ reason: "request" });
   });
 });

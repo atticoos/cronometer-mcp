@@ -115,6 +115,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     tools: [
       { name: "remove_food_entry", description: "Remove a food entry" },
       { name: "delete_custom_food", description: "Retire a custom food while keeping diary history" },
+      { name: "delete_recipe", description: "Retire or delete a saved recipe" },
     ],
   },
 ];

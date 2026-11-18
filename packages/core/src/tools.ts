@@ -1226,6 +1226,36 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       }),
   );
 
+  server.registerTool(
+    "delete_recipe",
+    {
+      ...authMetadata,
+      annotations: DESTRUCTIVE_ANNOTATIONS,
+      description:
+        "Retire or permanently delete a user-created recipe or saved meal by food_id. " +
+        "Defaults to safe retirement (retire=true), which hides the recipe while keeping historical diary entries intact. " +
+        "Setting permanent=true removes the recipe AND all diary entries that used it.",
+      inputSchema: z.object({
+        foodId: z.number().int().positive().describe("Recipe or meal food ID from list_custom_foods, add_recipe, or import_recipe."),
+        permanent: z
+          .boolean()
+          .default(false)
+          .describe("False (default) retires safely keeping diary history; true permanently deletes the recipe and its diary entries."),
+      }),
+    },
+    async ({ foodId, permanent }) =>
+      withMobileSession(async (session) => {
+        const result = await mobile.deleteRecipe(session, foodId, { permanent });
+        return {
+          food_id: result.foodId,
+          meal: result.meal,
+          name: result.name,
+          permanent: result.permanent,
+          ...(result.warning ? { warning: result.warning } : {}),
+        };
+      }),
+  );
+
   // ---------------------------------------------------------------------------
   // Targets, fasting & biometrics
   // ---------------------------------------------------------------------------
