@@ -26,6 +26,7 @@ import {
   getRecentBiometrics,
   getRecentExercises,
   getRecentFoods,
+  getSleepScore,
   getWeightTrends,
   listCustomFoods,
   listMacroTemplates,
@@ -1002,4 +1003,14 @@ describe("custom & recent food management", () => {
     });
   });
 
+});
+
+describe("getSleepScore", () => {
+  it("reports available=false when Cronometer returns the no-data marker", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({ "No sleep scores available": "No sleep score found", messages: [] }),
+    );
+    const res = await getSleepScore(session, "2026-08-20", fetcher);
+    expect(res.available).toBe(false);
+  });
 });

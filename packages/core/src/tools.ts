@@ -1555,6 +1555,25 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
         };
       }),
   );
+
+  server.registerTool(
+    "get_sleep_score",
+    {
+      ...authMetadata,
+      annotations: READ_ONLY_ANNOTATIONS,
+      description: "Retrieve the recorded sleep score for a date when available.",
+      inputSchema: z.object({ date: optionalDateString }),
+    },
+    async ({ date }) =>
+      withMobileSession(async (session) => {
+        const res = await mobile.getSleepScore(session, date);
+        return {
+          available: res.available,
+          date: date ?? mobile.formatToday(session.timezone),
+          sleep_score: res.data,
+        };
+      }),
+  );
 }
 
 function offsetDay(day: string, deltaDays: number): string {

@@ -50,6 +50,7 @@ describe("registered tool surface", () => {
       "get_recent_biometrics",
       "get_recent_exercises",
       "get_recent_foods",
+      "get_sleep_score",
       "get_weight_trends",
       "list_biometrics",
       "list_custom_foods",
@@ -634,5 +635,11 @@ describe("new MCP tool handlers", () => {
       biometrics: [{ amount: 74, metricId: 1 }],
       count: 1,
     });
+  });
+  it("executes get_sleep_score", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ score: 88 }));
+    expect(
+      parseToolJson(await authedClient.callTool({ name: "get_sleep_score", arguments: { date: "2026-04-20" } })),
+    ).toMatchObject({ available: true, sleep_score: { score: 88 } });
   });
 });

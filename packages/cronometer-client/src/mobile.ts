@@ -47,6 +47,7 @@ import type {
   GetProfileResponse,
   GetRecentFoodsResponse,
   GetReportResponse,
+  GetSleepScoreResponse,
   GetStreakResponse,
   GetV3TargetsResponse,
   LoginBody,
@@ -1891,6 +1892,23 @@ export async function getRecentBiometrics(
     fetcher,
   );
   return new JsonResponse(data).array("biometrics");
+}
+
+export async function getSleepScore(
+  session: CronometerMobileSession,
+  date?: string,
+  fetcher: Fetcher = fetch,
+): Promise<{ available: boolean; data: GetSleepScoreResponse }> {
+  const data = await requestV2<GetSleepScoreResponse>(
+    session,
+    "/api/v2/get_sleep_score",
+    { config: { call_version: 1 }, day: formatDay(date, session.timezone) },
+    fetcher,
+  );
+  return {
+    available: !("No sleep scores available" in data),
+    data,
+  };
 }
 
 // ---------------------------------------------------------------------------

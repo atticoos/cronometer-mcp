@@ -41,7 +41,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     id: "health",
     risk: "read",
     title: "View your health data",
-    summary: "Fasting history, weight and other biometrics",
+    summary: "Fasting history, biometrics, weight trends, sleep scores, and exercise catalog",
     tools: [
       { name: "get_fasting_history", description: "Fasting sessions" },
       { name: "get_fasting_stats", description: "Fasting stats and streaks" },
@@ -51,6 +51,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
       { name: "get_recent_exercises", description: "Recently logged exercises" },
       { name: "get_weight_trends", description: "Historical weight trend chart series" },
       { name: "get_recent_biometrics", description: "Recently logged biometric measurements" },
+      { name: "get_sleep_score", description: "Recorded sleep score for a day" },
     ],
   },
   {
