@@ -674,6 +674,26 @@ export async function getConsumedNutrients(
 }
 
 /**
+ * getConsumedNutrients for callers that treat the totals as an extra on top
+ * of data they already have (get_food_log's nutrition_summary). An upstream
+ * failure, such as one bad get_nutrition_scores response, returns null
+ * instead of failing the whole call; session and rejected-request errors
+ * still throw.
+ */
+export async function tryGetConsumedNutrients(
+  session: CronometerMobileSession,
+  date?: string,
+  fetcher: Fetcher = fetch,
+): Promise<ConsumedNutrients | null> {
+  try {
+    return await getConsumedNutrients(session, date, fetcher);
+  } catch (error) {
+    if (error instanceof CronometerMobileError && error.reason === "upstream") return null;
+    throw error;
+  }
+}
+
+/**
  * Merge food metadata into a raw diary payload (best-effort): names, sources,
  * measures, servings, and per-entry scaled nutrients.
  */
