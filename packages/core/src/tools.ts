@@ -231,7 +231,8 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
       description:
         "Get all diary entries for a date, each enriched with food name, source, serving measure/count, " +
         "and that food's per-entry nutrient contribution, plus an energy_summary " +
-        "(target/consumed/remaining kcal) and a nutrition_summary of consumed totals for every tracked nutrient.",
+        "(target/consumed/remaining kcal) and a nutrition_summary of consumed totals for every tracked nutrient " +
+        "(null when Cronometer could not compute it; get_daily_nutrition retries just the totals).",
       inputSchema: z.object({ date: optionalDateString }),
     },
     async ({ date }) =>
@@ -259,7 +260,7 @@ export function registerCronometerTools(server: McpServer, options: CronometerTo
           date: date ?? mobile.formatToday(session.timezone),
           diary,
           energy_summary: energySummary,
-          nutrition_summary: await mobile.getConsumedNutrients(session, date),
+          nutrition_summary: await mobile.tryGetConsumedNutrients(session, date),
         };
       }),
   );
