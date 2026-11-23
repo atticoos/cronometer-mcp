@@ -13,9 +13,9 @@ import { captureException } from "@sentry/cloudflare";
 import { waitUntil } from "cloudflare:workers";
 import { renderConsentPage } from "./consent/ConsentPage";
 import { clientPlatform } from "./client-platform";
-import { authorizationLogPayload, classifySignup, markSignedIn, type SignupStatus } from "./signup-log";
+import { classifySignup, logAuthorization, markSignedIn, type SignupStatus } from "./signup-log";
 import { telemetryUserId } from "./telemetry-user";
-import { createOtlpLogSender, parseOtlpHeaders } from "./tool-call-log";
+import { loggerFromEnv } from "./logger";
 
 const FLOW_PREFIX = "cronometer:auth-flow:";
 const FLOW_TTL_SECONDS = 10 * 60;
@@ -154,7 +154,7 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
     await env.OAUTH_KV.delete(flowKey);
     await markSignedIn(env, subject);
     // The grant already exists here, so telemetry must not fall into the error path below.
-    await logAuthorization(env, signupStatus, flow.clientName, webSession.userId).catch(
+    await recordAuthorization(env, signupStatus, flow.clientName, webSession.userId).catch(
       () => undefined,
     );
 
@@ -221,30 +221,21 @@ function denyAuthorization(oauthRequest: AuthRequest): Response {
 // One log record per completed sign-in lets Grafana count and alert on new
 // users. The browser's user agent says nothing about the assistant, so the
 // platform comes from the OAuth client's registered name instead.
-async function logAuthorization(
+async function recordAuthorization(
   env: AuthEnv,
   status: SignupStatus,
   clientName: string,
   cronometerUserId: string | number,
 ): Promise<void> {
-  const send = createOtlpLogSender(
-    {
-      tracesEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
-      headers: parseOtlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
-      serviceName: env.OTEL_SERVICE_NAME ?? "cronometer-mcp",
-    },
-    waitUntil,
-  );
-  if (!send) return;
   const userId = await telemetryUserId(env.TELEMETRY_USER_ID_SECRET, cronometerUserId).catch(
     () => undefined,
   );
-  send(
-    authorizationLogPayload(
-      { status, platform: clientPlatform(clientName), userId, timeMs: Date.now() },
-      env.OTEL_SERVICE_NAME ?? "cronometer-mcp",
-    ),
-  );
+  logAuthorization(loggerFromEnv(env, waitUntil), {
+    status,
+    platform: clientPlatform(clientName),
+    userId,
+    timeMs: Date.now(),
+  });
 }
 
 function loginPage(options: {

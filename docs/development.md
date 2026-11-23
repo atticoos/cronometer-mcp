@@ -85,13 +85,36 @@ across the rotation. Without the secret, spans carry no user identifier. Query i
 in Tempo with, for example,
 `{ span.mcp.tool.name != nil } | count_over_time() by (span.enduser.pseudo.id)`.
 
-The same endpoint and headers also ship one OTLP log record per tool call to the sibling
+### Structured logs
+
+The same endpoint and headers also ship structured log records to the sibling
 `/v1/logs` URL, which Grafana Cloud stores in Loki under `service_name="cronometer-mcp"`.
-Each record carries `mcp_tool_name`, `mcp_tool_outcome`, `mcp_tool_duration_ms`, and
-`mcp_tool_arg_keys`, `mcp_client_platform` (and `enduser_pseudo_id` when the secret above is set) as
-structured metadata, plus the trace and span IDs of the tool span.
-Use these logs for usage reports: unlike Tempo metrics queries, which are capped at 25 hours,
-one LogQL query covers any range up to Loki's 30-day limit.
+Emit them only through the logger in `apps/cronometer-mcp/src/logger.ts`
+(`loggerFromEnv(env, waitUntil)`); ESLint rejects `console` in the Worker's `src/`.
+Every record has the same shape:
+
+| Loki field | Source |
+| --- | --- |
+| `event_name` | Event name, such as `mcp.tool.call` or `oauth.authorization` |
+| `severity_text` / `severity_number` | `DEBUG` 5, `INFO` 9, `WARN` 13, `ERROR` 17 |
+| line | Short human-readable message (defaults to the event name) |
+| `trace_id`, `span_id` | The active span, so a log line links to its Tempo trace |
+| every other field | The event's attributes, dots replaced by underscores |
+
+Events and their attributes are declared in `apps/cronometer-mcp/src/log-events.ts`, and
+the logger's types only accept what is declared there. To add an event, add it to that
+file first, keep values bounded (no usernames, emails, Cronometer user IDs, tokens,
+argument values, health data or error messages), identify users only with
+`enduser.pseudo.id`, and update `/privacy` if it records something new. Renaming an
+event or attribute breaks Grafana queries: the "Cronometer MCP Usage" dashboard reads
+`mcp.tool.call`, and the "New Cronometer MCP user" alert reads `oauth.authorization`
+with `oauth_signup_status="new"`. Update them in step.
+
+Each `mcp.tool.call` record carries `mcp_tool_name`, `mcp_tool_outcome`, `mcp_tool_duration_ms`,
+`mcp_tool_error_kind` (failures only), `mcp_tool_arg_keys`, `mcp_client_platform`,
+`user_agent_original` (and `enduser_pseudo_id` when the secret above is set), plus the trace
+and span IDs of the tool span. Use these logs for usage reports: unlike Tempo metrics queries,
+which are capped at 25 hours, one LogQL query covers any range up to Loki's 30-day limit.
 
 ```logql
 sum by (mcp_tool_name, mcp_tool_outcome) (

@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { redactSpanAttributes } from "../src/observability";
 import {
-  authorizationLogPayload,
+  logAuthorization,
+  type AuthorizationRecord,
   classifySignup,
   markSignedIn,
   SIGNUP_PREFIX,
   SIGNUP_TTL_SECONDS,
 } from "../src/signup-log";
+import { createLogger, otlpLogsPayload, type LogRecord } from "../src/logger";
 
 function provider(grants: number) {
   return {
@@ -70,13 +72,18 @@ describe("classifySignup and markSignedIn", () => {
   });
 });
 
-describe("authorizationLogPayload", () => {
+function payloadFor(r: AuthorizationRecord) {
+  const records: LogRecord[] = [];
+  logAuthorization(createLogger((entry) => records.push(entry)), r);
+  return otlpLogsPayload(records, "cronometer-mcp").resourceLogs[0].scopeLogs[0].logRecords[0];
+}
+
+describe("logAuthorization", () => {
+  // The "New Cronometer MCP user" Grafana alert matches these names.
   it("encodes the sign-in as one OTLP log record", () => {
-    const log = authorizationLogPayload(
-      { status: "new", platform: "claude", userId: "abc123", timeMs: 1_794_064_553_000 },
-      "cronometer-mcp",
-    ).resourceLogs[0].scopeLogs[0].logRecords[0];
+    const log = payloadFor({ status: "new", platform: "claude", userId: "abc123", timeMs: 1_794_064_553_000 });
     expect(log.eventName).toBe("oauth.authorization");
+    expect(log.severityText).toBe("INFO");
     expect(log.timeUnixNano).toBe("1794064553000000000");
     expect(log.body).toEqual({ stringValue: "oauth.authorization new" });
     expect(log.attributes).toEqual([
@@ -87,10 +94,7 @@ describe("authorizationLogPayload", () => {
   });
 
   it("omits the pseudonymous ID when the telemetry secret is not set", () => {
-    const log = authorizationLogPayload(
-      { status: "returning", platform: "chatgpt", timeMs: 0 },
-      "svc",
-    ).resourceLogs[0].scopeLogs[0].logRecords[0];
+    const log = payloadFor({ status: "returning", platform: "chatgpt", timeMs: 0 });
     expect(log.attributes.map(({ key }) => key)).not.toContain("enduser.pseudo.id");
   });
 });

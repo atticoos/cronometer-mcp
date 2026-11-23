@@ -1,5 +1,6 @@
 import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import type { ClientPlatform } from "./client-platform";
+import type { Logger } from "./logger";
 
 /** KV prefix for the "this account has connected before" marker. */
 export const SIGNUP_PREFIX = "signup:";
@@ -56,38 +57,20 @@ export async function markSignedIn(env: Pick<SignupEnv, "OAUTH_KV">, subject: st
   }
 }
 
-function stringAttribute(key: string, value: string) {
-  return { key, value: { stringValue: value } };
-}
-
-/** One OTLP/JSON log record per completed sign-in, stored in Loki beside tool-call logs. */
-export function authorizationLogPayload(record: AuthorizationRecord, serviceName: string) {
-  const attributes = [
-    stringAttribute("oauth.signup.status", record.status),
-    stringAttribute("mcp.client.platform", record.platform),
-  ];
-  if (record.userId) attributes.push(stringAttribute("enduser.pseudo.id", record.userId));
-
-  return {
-    resourceLogs: [
-      {
-        resource: { attributes: [stringAttribute("service.name", serviceName)] },
-        scopeLogs: [
-          {
-            scope: { name: "cronometer-mcp" },
-            logRecords: [
-              {
-                timeUnixNano: `${BigInt(Math.round(record.timeMs)) * 1_000_000n}`,
-                severityNumber: 9,
-                severityText: "INFO",
-                eventName: "oauth.authorization",
-                body: { stringValue: `oauth.authorization ${record.status}` },
-                attributes,
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  };
+/**
+ * Logs one `oauth.authorization` event per completed sign-in, beside tool-call
+ * events in Loki. The "New Cronometer MCP user" Grafana alert matches
+ * `event_name="oauth.authorization"` and `oauth_signup_status="new"`, so keep
+ * those names stable or update the alert in step.
+ */
+export function logAuthorization(logger: Logger, record: AuthorizationRecord): void {
+  logger.info(
+    "oauth.authorization",
+    {
+      "oauth.signup.status": record.status,
+      "mcp.client.platform": record.platform,
+      "enduser.pseudo.id": record.userId,
+    },
+    { message: `oauth.authorization ${record.status}`, timeMs: record.timeMs },
+  );
 }

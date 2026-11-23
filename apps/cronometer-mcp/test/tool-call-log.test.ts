@@ -6,7 +6,8 @@ import { InMemoryTransport, McpServer, type Server } from "@modelcontextprotocol
 import { z } from "zod";
 
 import { instrumentToolRegistration, type ToolCallRecord } from "../src/observability";
-import { createToolCallLogSink, logsEndpoint, toolCallLogPayload } from "../src/tool-call-log";
+import { createLogger, otlpLogsPayload, type LogRecord } from "../src/logger";
+import { logToolCall } from "../src/tool-call-log";
 
 const record: ToolCallRecord = {
   tool: "search_foods",
@@ -21,101 +22,45 @@ const record: ToolCallRecord = {
   spanId: "b7ad6b7169203331",
 };
 
-describe("logsEndpoint", () => {
-  it("derives the logs URL from the trace URL", () => {
-    expect(logsEndpoint("https://otlp.example.net/otlp/v1/traces")).toBe(
-      "https://otlp.example.net/otlp/v1/logs",
-    );
-    expect(logsEndpoint("https://otlp.example.net/otlp/v1/traces/")).toBe(
-      "https://otlp.example.net/otlp/v1/logs",
-    );
-  });
+// The OTLP payload a tool call produces. Dashboards in Grafana read these exact
+// names from Loki, so a change here needs the dashboards updated in step.
+function payloadFor(r: ToolCallRecord) {
+  const records: LogRecord[] = [];
+  logToolCall(createLogger((entry) => records.push(entry)), r);
+  return otlpLogsPayload(records, "cronometer-mcp").resourceLogs[0].scopeLogs[0].logRecords[0];
+}
 
-  it("is undefined when tracing is unconfigured or the URL is not a trace URL", () => {
-    expect(logsEndpoint(undefined)).toBeUndefined();
-    expect(logsEndpoint("https://otlp.example.net/otlp")).toBeUndefined();
-  });
-});
-
-describe("toolCallLogPayload", () => {
-  it("encodes the call as one OTLP log record", () => {
-    const payload = toolCallLogPayload(record, "cronometer-mcp");
-    const resourceLog = payload.resourceLogs[0];
-    expect(resourceLog.resource.attributes).toEqual([
-      { key: "service.name", value: { stringValue: "cronometer-mcp" } },
-    ]);
-    const log = resourceLog.scopeLogs[0].logRecords[0];
-    expect(log.timeUnixNano).toBe("1794064553000000000");
-    expect(log.eventName).toBe("mcp.tool.call");
-    expect(log.severityText).toBe("INFO");
-    expect(log.traceId).toBe(record.traceId);
-    expect(log.spanId).toBe(record.spanId);
-    expect(log.attributes).toEqual([
-      { key: "mcp.tool.name", value: { stringValue: "search_foods" } },
-      { key: "mcp.tool.outcome", value: { stringValue: "success" } },
-      { key: "mcp.tool.duration_ms", value: { intValue: "42" } },
-      { key: "mcp.tool.arg_keys", value: { stringValue: "query" } },
-      { key: "enduser.pseudo.id", value: { stringValue: "5f2b9c0e1a7d4e3f8b6a0c9d2e1f4a7b" } },
-      { key: "mcp.client.platform", value: { stringValue: "claude" } },
-      { key: "user_agent.original", value: { stringValue: "Claude-User" } },
-    ]);
+describe("logToolCall", () => {
+  it("encodes the call as one OTLP log record with the dashboard schema", () => {
+    expect(payloadFor(record)).toEqual({
+      timeUnixNano: "1794064553000000000",
+      severityNumber: 9,
+      severityText: "INFO",
+      eventName: "mcp.tool.call",
+      body: { stringValue: "mcp.tool.call search_foods success" },
+      attributes: [
+        { key: "mcp.tool.name", value: { stringValue: "search_foods" } },
+        { key: "mcp.tool.outcome", value: { stringValue: "success" } },
+        { key: "mcp.tool.duration_ms", value: { intValue: "42" } },
+        { key: "mcp.tool.arg_keys", value: { stringValue: "query" } },
+        { key: "enduser.pseudo.id", value: { stringValue: "5f2b9c0e1a7d4e3f8b6a0c9d2e1f4a7b" } },
+        { key: "mcp.client.platform", value: { stringValue: "claude" } },
+        { key: "user_agent.original", value: { stringValue: "Claude-User" } },
+      ],
+      traceId: record.traceId,
+      spanId: record.spanId,
+    });
   });
 
   it("marks failed calls as warnings", () => {
-    const log = toolCallLogPayload({ ...record, outcome: "thrown_error" }, "svc").resourceLogs[0]
-      .scopeLogs[0].logRecords[0];
+    const log = payloadFor({ ...record, outcome: "thrown_error" });
     expect(log.severityText).toBe("WARN");
+    expect(log.severityNumber).toBe(13);
   });
 
   it("records why a returned error failed", () => {
-    const log = toolCallLogPayload({ ...record, outcome: "returned_error", errorKind: "auth" }, "svc")
-      .resourceLogs[0].scopeLogs[0].logRecords[0];
+    const log = payloadFor({ ...record, outcome: "returned_error", errorKind: "auth" });
     expect(log.attributes).toContainEqual({ key: "mcp.tool.error_kind", value: { stringValue: "auth" } });
-  });
-});
-
-describe("createToolCallLogSink", () => {
-  it("is undefined when OTLP export is not configured", () => {
-    expect(createToolCallLogSink({ headers: {}, serviceName: "svc" }, () => {})).toBeUndefined();
-  });
-
-  it("posts the record to the logs endpoint with the OTLP headers", async () => {
-    const requests: Request[] = [];
-    const scheduled: Promise<unknown>[] = [];
-    const sink = createToolCallLogSink(
-      {
-        tracesEndpoint: "https://otlp.example.net/otlp/v1/traces",
-        headers: { Authorization: "Basic abc" },
-        serviceName: "cronometer-mcp",
-      },
-      (promise) => scheduled.push(promise),
-      async (input, init) => {
-        requests.push(new Request(input, init));
-        return new Response(null, { status: 200 });
-      },
-    );
-    sink?.(record);
-    await Promise.all(scheduled);
-
-    expect(requests).toHaveLength(1);
-    expect(requests[0].url).toBe("https://otlp.example.net/otlp/v1/logs");
-    expect(requests[0].headers.get("Authorization")).toBe("Basic abc");
-    expect(requests[0].headers.get("Content-Type")).toBe("application/json");
-    const body = await requests[0].json();
-    expect(body).toEqual(toolCallLogPayload(record, "cronometer-mcp"));
-  });
-
-  it("swallows delivery failures", async () => {
-    const scheduled: Promise<unknown>[] = [];
-    const sink = createToolCallLogSink(
-      { tracesEndpoint: "https://otlp.example.net/v1/traces", headers: {}, serviceName: "svc" },
-      (promise) => scheduled.push(promise),
-      async () => {
-        throw new Error("network down");
-      },
-    );
-    sink?.(record);
-    await expect(Promise.all(scheduled)).resolves.toBeDefined();
   });
 });
 

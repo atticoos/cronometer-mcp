@@ -20,9 +20,11 @@ import {
   holdTraceUntilBodyDone,
   instrumentToolRegistration,
   RedactingSpanProcessor,
+  type ToolCallRecord,
 } from "./observability";
 import { sentryOptions } from "./sentry";
-import { createToolCallLogSink, parseOtlpHeaders } from "./tool-call-log";
+import { loggerFromEnv, parseOtlpHeaders } from "./logger";
+import { logToolCall } from "./tool-call-log";
 import { env as workerEnv, waitUntil } from "cloudflare:workers";
 import { telemetryUserId } from "./telemetry-user";
 import { clientPlatform, clientUserAgent } from "./client-platform";
@@ -67,15 +69,8 @@ export function createServer(
 // One OTLP log record per tool call lands in Loki, where usage reports are a
 // single LogQL query over any range instead of day-by-day Tempo scans.
 function toolCallLogSink() {
-  const env = workerEnv as Partial<Env>;
-  return createToolCallLogSink(
-    {
-      tracesEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
-      headers: parseOtlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
-      serviceName: env.OTEL_SERVICE_NAME ?? "cronometer-mcp",
-    },
-    waitUntil,
-  );
+  const logger = loggerFromEnv(workerEnv as Partial<Env>, waitUntil);
+  return (record: ToolCallRecord) => logToolCall(logger, record);
 }
 
 const mcpHandler = {

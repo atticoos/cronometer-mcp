@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import SiteHeader from "../components/site-header";
 import { githubUrl, privacyPath, productionUrl, siteName } from "../site";
 
-const EFFECTIVE_DATE = "November 17, 2026";
+const EFFECTIVE_DATE = "November 23, 2026";
 const issuesUrl = `${githubUrl}/issues`;
 const linkClass = "text-emerald-300 underline decoration-emerald-300/40 underline-offset-4 hover:decoration-emerald-300";
 
@@ -170,7 +170,8 @@ export default function PrivacyPage() {
               <li>
                 <strong>Sign-in events.</strong> Each completed sign-in is recorded in Grafana Cloud as a usage log
                 entry saying whether it was the account&apos;s first sign-in, the kind of assistant app it came from
-                (read from the app&apos;s registered name), and the pseudonymous user ID described above. It never
+                (read from the app&apos;s registered name), the pseudonymous user ID described above, and the ID of
+                that request&apos;s trace so the two can be viewed together. It never
                 includes your username, email, or password.
               </li>
               <li>

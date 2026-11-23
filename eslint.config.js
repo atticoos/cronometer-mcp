@@ -23,6 +23,12 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
+    // Worker logs go through src/logger.ts so every record follows the schema in
+    // src/log-events.ts. console output would bypass it (and the privacy review).
+    files: ["apps/cronometer-mcp/src/**/*.{ts,tsx}"],
+    rules: { "no-console": "error" },
+  },
+  {
     files: ["apps/web/app/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
     rules: reactHooks.configs["recommended-legacy"].rules,
