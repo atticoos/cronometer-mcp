@@ -1,8 +1,8 @@
-# Cronometer MCP
+# Cronometer MCP Server
 
-Connect your AI assistant to Cronometer to review your nutrition, log meals, and explore your tracking history in conversation.
+Connect Cronometer to ChatGPT, Claude, and other AI assistants to review your nutrition, log meals, and explore your tracking history in conversation.
 
-Cronometer MCP is an unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives compatible assistants access to your Cronometer account. It supports reading your data and making changes to your food diary, custom foods, and recipes.
+Cronometer MCP is an unofficial, hosted [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives compatible assistants access to your Cronometer account through OAuth sign-in, with nothing to install. It supports reading your data and making changes to your food diary, custom foods, and recipes. Website and setup guides: [cronometer-mcp.dev](https://cronometer-mcp.dev).
 
 ## What you can do
 
