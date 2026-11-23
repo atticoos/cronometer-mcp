@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
 import {
   addServing,
@@ -12,6 +14,7 @@ import {
   getDiary,
   getMacroTargets,
   mealGroupForHour,
+  searchFoods,
 } from "../src/mobile";
 import { CronometerMobileError } from "../src/mobile";
 
@@ -152,6 +155,95 @@ describe("requestV2 auth handling", () => {
     await expect(getDiary(session, undefined, fetcher)).rejects.toMatchObject({
       reason: "upstream",
     });
+  });
+});
+
+describe("requestV2 timeouts", () => {
+  const timeout = () => new DOMException("The operation timed out.", "TimeoutError");
+
+  it("retries a read-only request once when it times out", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(timeout())
+      .mockResolvedValueOnce(jsonResponse({ foods: [{ id: 1, name: "Apple" }] }));
+
+    await expect(searchFoods(session, "apple", fetcher)).resolves.toEqual([{ id: 1, name: "Apple" }]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).query).toBe("apple");
+  });
+
+  it("retries when the response body stalls past the attempt timeout", async () => {
+    const stalledBody = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(timeout());
+        },
+      }),
+      { status: 200 },
+    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(stalledBody)
+      .mockResolvedValueOnce(jsonResponse({ foods: [] }));
+
+    await expect(searchFoods(session, "apple", fetcher)).resolves.toEqual([]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries when a real fetch's body read is cut off by its timeout signal", async () => {
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests += 1;
+      response.writeHead(200, { "Content-Type": "application/json" });
+      if (requests === 1) {
+        response.write('{"foods": [');
+        return; // headers sent, body stalls
+      }
+      response.end(JSON.stringify({ foods: [{ id: 7 }] }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    // Real fetch to the local server, with the attempt timeout shortened to keep the test fast.
+    const fetcher: typeof fetch = (_url, init) =>
+      fetch(`http://127.0.0.1:${port}/`, { ...init, signal: AbortSignal.timeout(200) });
+
+    try {
+      await expect(searchFoods(session, "apple", fetcher)).resolves.toEqual([{ id: 7 }]);
+      expect(requests).toBe(2);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("does not retry a malformed body", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response("<html>", { status: 200 }));
+
+    await expect(searchFoods(session, "apple", fetcher)).rejects.toMatchObject({ reason: "upstream" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after a second timeout", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(timeout()).mockRejectedValueOnce(timeout());
+
+    await expect(searchFoods(session, "apple", fetcher)).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry other failures", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    await expect(searchFoods(session, "apple", fetcher)).rejects.toThrow("fetch failed");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("never retries a write", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(timeout());
+
+    await expect(copyDay(session, "2026-08-20", "2026-08-19", fetcher)).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
 
