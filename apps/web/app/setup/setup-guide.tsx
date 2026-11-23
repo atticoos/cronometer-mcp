@@ -70,8 +70,9 @@ export function SignInStep() {
   return (
     <>
       On the Cronometer MCP authorization page, review the requested access and enter your
-      Cronometer username or email, password, and current one-time code if enabled. Select{" "}
-      <strong>Sign in and allow</strong> to return to your client. The connector can read
+      Cronometer email or username and password. If you use two-factor authentication, select{" "}
+      <strong>I use two-factor authentication</strong> and enter your current one-time code.
+      Select <strong>Allow access</strong> to return to your client. The connector can read
       and change diary data once authorized. Enter your credentials in the authorization
       form on <code className="break-all">mcp.cronometer-mcp.dev</code>.
     </>
@@ -133,16 +134,18 @@ export default function SetupGuide({
             {steps}
           </ol>
           <figure className="space-y-2">
-            <Image
-              src="/setup/cronometer-sign-in.webp"
-              alt="Cronometer MCP authorization form showing the requested permissions, login fields, and Sign in and allow button"
-              width={1120}
-              height={1600}
-              unoptimized
-              className="h-auto w-full max-w-md rounded-xl"
-            />
+            <a href={`/setup/${client}-consent.webp`} target="_blank" rel="noreferrer" className="block">
+              <Image
+                src={`/setup/${client}-consent.webp`}
+                alt={`Cronometer MCP authorization page showing ${name} requesting access, the grouped permissions, the Cronometer sign-in form, and the Allow access button`}
+                width={2072}
+                height={1614}
+                unoptimized
+                className="h-auto w-full rounded-xl"
+              />
+            </a>
             <figcaption className="text-sm text-zinc-400">
-              The Cronometer MCP sign-in screen that opens during authorization.
+              The Cronometer MCP authorization page that opens when you connect {name}.
             </figcaption>
           </figure>
         </GuideSection>
