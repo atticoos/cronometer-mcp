@@ -8,6 +8,7 @@ import {
   authenticateCronometer,
   CronometerAuthenticationError,
   authenticateCronometerMobile,
+  upstreamHttpFailure,
 } from "@cronometer-mcp/cronometer-client";
 import { captureException } from "@sentry/cloudflare";
 import { waitUntil } from "cloudflare:workers";
@@ -167,7 +168,9 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
     });
   } catch (error) {
     if (!(error instanceof CronometerAuthenticationError) || error.reason === "session") {
-      captureException(error, { tags: { "cronometer.operation": "authorize" } });
+      captureException(error, {
+        tags: { "cronometer.operation": "authorize", ...upstreamFailureTags(error) },
+      });
     }
     const attempts = flow.attempts + 1;
     await env.OAUTH_KV.put(flowKey, JSON.stringify({ ...flow, attempts }), {
@@ -277,6 +280,16 @@ function htmlError(message: string, status: number): Response {
     `<!doctype html><meta charset="utf-8"><title>Authorization error</title><p>${escapeHtml(message)}</p>`,
     { headers, status },
   );
+}
+
+// beforeSend scrubs every message, so the status Cronometer answered with
+// survives only as a tag. It tells an outage (5xx), a rate limit (429) or an
+// egress block (403) apart without the credentials in the request.
+function upstreamFailureTags(error: unknown): Record<string, string> {
+  const failure = upstreamHttpFailure(error);
+  return failure
+    ? { "cronometer.upstream_status": String(failure.status), "cronometer.upstream_step": failure.step }
+    : {};
 }
 
 function authenticationErrorMessage(error: unknown): string {

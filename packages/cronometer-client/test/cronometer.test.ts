@@ -5,6 +5,7 @@ import {
   parseCronometerCsv,
   validateExportDateRange,
 } from "../src/cronometer";
+import { upstreamHttpFailure } from "../src/mobile";
 
 function response(body: string, setCookies: string[] = [], contentType = "text/plain"): Response {
   const headers = new Headers({ "Content-Type": contentType });
@@ -13,6 +14,16 @@ function response(body: string, setCookies: string[] = [], contentType = "text/p
 }
 
 describe("authenticateCronometer", () => {
+  it("reports which sign-in step got a non-2xx status", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response("", { status: 503 }));
+
+    const error = await authenticateCronometer("e@x.com", "p", "", fetcher).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ message: "Cronometer returned HTTP 503 while loading the login page" });
+    expect(upstreamHttpFailure(error)).toEqual({ status: 503, step: "login_page" });
+    expect(upstreamHttpFailure(new Error("other"))).toBeUndefined();
+  });
+
   it("carries upstream cookies and returns the authenticated session", async () => {
     const fetcher = vi
       .fn<typeof fetch>()

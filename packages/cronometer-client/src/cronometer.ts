@@ -103,7 +103,7 @@ export async function authenticateCronometer(
     redirect: "manual",
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
-  assertUpstreamOk(loginPage, "loading the login page");
+  assertUpstreamOk(loginPage, "login_page");
   jar.update(loginPage.headers);
   const loginHtml = await readLimitedText(loginPage);
   const antiCsrf = extractAntiCsrf(loginHtml);
@@ -125,7 +125,7 @@ export async function authenticateCronometer(
     redirect: "manual",
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
-  assertUpstreamOk(loginResponse, "submitting credentials");
+  assertUpstreamOk(loginResponse, "credentials");
   jar.update(loginResponse.headers);
 
   const loginResult = parseLoginResponse(await readLimitedText(loginResponse));
@@ -156,7 +156,7 @@ export async function authenticateCronometer(
     redirect: "manual",
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
-  assertUpstreamOk(gwtResponse, "authenticating the Cronometer session");
+  assertUpstreamOk(gwtResponse, "session_handshake");
   jar.update(gwtResponse.headers);
   const gwtBody = await readLimitedText(gwtResponse);
   const userId = /OK\[(\d+),/.exec(gwtBody)?.[1];
@@ -308,9 +308,28 @@ function browserHeaders(): Record<string, string> {
   };
 }
 
-function assertUpstreamOk(response: Response, action: string): void {
+/** Cronometer answered a sign-in step with a non-2xx HTTP status. */
+export type CronometerWebLoginStep = "login_page" | "credentials" | "session_handshake";
+
+const WEB_LOGIN_STEP_ACTIONS: Record<CronometerWebLoginStep, string> = {
+  credentials: "submitting credentials",
+  login_page: "loading the login page",
+  session_handshake: "authenticating the Cronometer session",
+};
+
+export class CronometerUpstreamHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly step: CronometerWebLoginStep,
+  ) {
+    super(`Cronometer returned HTTP ${status} while ${WEB_LOGIN_STEP_ACTIONS[step]}`);
+    this.name = "CronometerUpstreamHttpError";
+  }
+}
+
+function assertUpstreamOk(response: Response, step: CronometerWebLoginStep): void {
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`Cronometer returned HTTP ${response.status} while ${action}`);
+    throw new CronometerUpstreamHttpError(response.status, step);
   }
 }
 

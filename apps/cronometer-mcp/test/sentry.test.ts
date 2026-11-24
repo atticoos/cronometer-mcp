@@ -13,7 +13,11 @@ it("sends stack locations and tool tags while excluding sensitive data", async (
     setUser({ email: "private-data@example.com" });
     addBreadcrumb({ message: "private-data breadcrumb" });
     captureException(new Error("private-data exception"), {
-      tags: { "mcp.tool.name": "get_food_log" },
+      tags: {
+        "cronometer.upstream_status": "503",
+        "cronometer.upstream_step": "login_page",
+        "mcp.tool.name": "get_food_log",
+      },
     });
     return new Response(body);
   };
@@ -43,5 +47,7 @@ it("sends stack locations and tool tags while excluding sensitive data", async (
   expect(envelope).not.toContain("private-data");
   const event = JSON.parse(envelope.split("\n")[2]);
   expect(event.tags["mcp.tool.name"]).toBe("get_food_log");
+  expect(event.tags["cronometer.upstream_status"]).toBe("503");
+  expect(event.tags["cronometer.upstream_step"]).toBe("login_page");
   expect(event.exception.values[0].stacktrace.frames.length).toBeGreaterThan(0);
 });

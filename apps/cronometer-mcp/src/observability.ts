@@ -3,6 +3,7 @@ import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace
 import type { McpServer } from "@modelcontextprotocol/server";
 import { captureException, withScope } from "@sentry/cloudflare";
 import { TOOL_ERROR_KIND, type ToolErrorKind } from "@cronometer-mcp/core";
+import { upstreamHttpFailure } from "@cronometer-mcp/cronometer-client";
 
 type ToolResult = { isError?: boolean; [TOOL_ERROR_KIND]?: ToolErrorKind } & Record<string, unknown>;
 type ToolHandler = (
@@ -130,7 +131,16 @@ export function instrumentToolRegistration(
           report(outcome, errorKind);
           return result;
         } catch (error) {
-          captureException(error, { tags: { "mcp.tool.name": name } });
+          const upstream = upstreamHttpFailure(error);
+          captureException(error, {
+            tags: {
+              "mcp.tool.name": name,
+              ...(upstream && {
+                "cronometer.upstream_status": String(upstream.status),
+                "cronometer.upstream_step": upstream.step,
+              }),
+            },
+          });
           span.setAttribute("mcp.tool.outcome", "thrown_error");
           span.recordException(error as Error);
           span.setStatus({

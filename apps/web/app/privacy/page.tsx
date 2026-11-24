@@ -176,7 +176,8 @@ export default function PrivacyPage() {
               <li>
                 <strong>Error reports.</strong> Unexpected errors are sent to Sentry. Before anything leaves the
                 service, each report is reduced to the error type, a generic message, a stack trace of our code, and
-                the name of the tool or step that failed. Messages, request data, headers, cookies, user information,
+                the name of the tool or step that failed, plus the HTTP status code Cronometer answered with when
+                it refused a request. Messages, request data, headers, cookies, user information,
                 and breadcrumbs are removed because they could contain credentials or health data.
               </li>
             </List>
