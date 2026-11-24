@@ -17,6 +17,16 @@ type RegisterTool = (
   handler?: ToolHandler,
 ) => unknown;
 
+// beforeSend scrubs every message, so the status Cronometer answered with
+// survives only as a tag. It tells an outage (5xx), a rate limit (429) or an
+// egress block (403) apart without the credentials in the request.
+export function upstreamFailureTags(error: unknown): Record<string, string> {
+  const failure = upstreamHttpFailure(error);
+  return failure
+    ? { "cronometer.upstream_status": String(failure.status), "cronometer.upstream_step": failure.step }
+    : {};
+}
+
 export type ToolOutcome = "success" | "returned_error" | "thrown_error";
 
 /** A finished tool call, as handed to an `onToolCall` sink. */
@@ -131,16 +141,7 @@ export function instrumentToolRegistration(
           report(outcome, errorKind);
           return result;
         } catch (error) {
-          const upstream = upstreamHttpFailure(error);
-          captureException(error, {
-            tags: {
-              "mcp.tool.name": name,
-              ...(upstream && {
-                "cronometer.upstream_status": String(upstream.status),
-                "cronometer.upstream_step": upstream.step,
-              }),
-            },
-          });
+          captureException(error, { tags: { "mcp.tool.name": name, ...upstreamFailureTags(error) } });
           span.setAttribute("mcp.tool.outcome", "thrown_error");
           span.recordException(error as Error);
           span.setStatus({

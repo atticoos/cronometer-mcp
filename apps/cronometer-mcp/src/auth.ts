@@ -8,12 +8,12 @@ import {
   authenticateCronometer,
   CronometerAuthenticationError,
   authenticateCronometerMobile,
-  upstreamHttpFailure,
 } from "@cronometer-mcp/cronometer-client";
 import { captureException } from "@sentry/cloudflare";
 import { waitUntil } from "cloudflare:workers";
 import { renderConsentPage } from "./consent/ConsentPage";
 import { clientPlatform } from "./client-platform";
+import { upstreamFailureTags } from "./observability";
 import { authorizationLogPayload, classifySignup, markSignedIn, type SignupStatus } from "./signup-log";
 import { telemetryUserId } from "./telemetry-user";
 import { createOtlpLogSender, parseOtlpHeaders } from "./tool-call-log";
@@ -280,16 +280,6 @@ function htmlError(message: string, status: number): Response {
     `<!doctype html><meta charset="utf-8"><title>Authorization error</title><p>${escapeHtml(message)}</p>`,
     { headers, status },
   );
-}
-
-// beforeSend scrubs every message, so the status Cronometer answered with
-// survives only as a tag. It tells an outage (5xx), a rate limit (429) or an
-// egress block (403) apart without the credentials in the request.
-function upstreamFailureTags(error: unknown): Record<string, string> {
-  const failure = upstreamHttpFailure(error);
-  return failure
-    ? { "cronometer.upstream_status": String(failure.status), "cronometer.upstream_step": failure.step }
-    : {};
 }
 
 function authenticationErrorMessage(error: unknown): string {

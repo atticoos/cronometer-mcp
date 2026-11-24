@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import SiteHeader from "../components/site-header";
 import { githubUrl, privacyPath, productionUrl, siteName } from "../site";
 
-const EFFECTIVE_DATE = "November 17, 2026";
+const EFFECTIVE_DATE = "November 24, 2026";
 const issuesUrl = `${githubUrl}/issues`;
 const linkClass = "text-emerald-300 underline decoration-emerald-300/40 underline-offset-4 hover:decoration-emerald-300";
 
