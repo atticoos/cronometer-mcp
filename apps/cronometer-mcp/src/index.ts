@@ -21,6 +21,7 @@ import {
   instrumentToolRegistration,
   RedactingSpanProcessor,
 } from "./observability";
+import { retryKvReads } from "./kv-retry";
 import { sentryOptions } from "./sentry";
 import { createToolCallLogSink, parseOtlpHeaders } from "./tool-call-log";
 import { env as workerEnv, waitUntil } from "cloudflare:workers";
@@ -134,9 +135,10 @@ const sentryWorker = withSentry(sentryOptions, { fetch: fetchWithOAuth });
 export default instrument(
   {
     fetch(request: Request, env: RuntimeEnv, ctx: ExecutionContext) {
+      const runtimeEnv = { ...env, OAUTH_KV: retryKvReads(env.OAUTH_KV) };
       return env.SENTRY_DSN
-        ? sentryWorker.fetch(request, env, ctx)
-        : fetchWithOAuth(request, env, ctx);
+        ? sentryWorker.fetch(request, runtimeEnv, ctx)
+        : fetchWithOAuth(request, runtimeEnv, ctx);
     },
   },
   (env) => ({
