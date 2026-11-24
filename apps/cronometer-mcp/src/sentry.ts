@@ -28,6 +28,8 @@ export function sentryOptions(env: Env): CloudflareOptions {
         tags: {
           "mcp.tool.name": event.tags?.["mcp.tool.name"],
           "cronometer.operation": event.tags?.["cronometer.operation"],
+          "cronometer.upstream_status": event.tags?.["cronometer.upstream_status"],
+          "cronometer.upstream_step": event.tags?.["cronometer.upstream_step"],
         },
         exception: {
           values: event.exception?.values?.map(({ mechanism, stacktrace }) => ({

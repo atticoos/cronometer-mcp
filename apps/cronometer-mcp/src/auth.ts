@@ -13,6 +13,7 @@ import { captureException } from "@sentry/cloudflare";
 import { waitUntil } from "cloudflare:workers";
 import { renderConsentPage } from "./consent/ConsentPage";
 import { clientPlatform } from "./client-platform";
+import { upstreamFailureTags } from "./observability";
 import { authorizationLogPayload, classifySignup, markSignedIn, type SignupStatus } from "./signup-log";
 import { telemetryUserId } from "./telemetry-user";
 import { createOtlpLogSender, parseOtlpHeaders } from "./tool-call-log";
@@ -167,7 +168,9 @@ async function finishAuthorization(request: Request, env: AuthEnv): Promise<Resp
     });
   } catch (error) {
     if (!(error instanceof CronometerAuthenticationError) || error.reason === "session") {
-      captureException(error, { tags: { "cronometer.operation": "authorize" } });
+      captureException(error, {
+        tags: { "cronometer.operation": "authorize", ...upstreamFailureTags(error) },
+      });
     }
     const attempts = flow.attempts + 1;
     await env.OAUTH_KV.put(flowKey, JSON.stringify({ ...flow, attempts }), {

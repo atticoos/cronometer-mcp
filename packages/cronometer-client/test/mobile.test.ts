@@ -13,7 +13,7 @@ import {
   getMacroTargets,
   mealGroupForHour,
 } from "../src/mobile";
-import { CronometerMobileError } from "../src/mobile";
+import { CronometerMobileError, upstreamHttpFailure } from "../src/mobile";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -86,6 +86,16 @@ describe("authenticateCronometerMobile", () => {
     await expect(
       authenticateCronometerMobile("person@example.com", "password", "", fetcher),
     ).rejects.toMatchObject({ reason: "second_factor" });
+  });
+
+  it("keeps the HTTP status when the login endpoint answers non-2xx", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response("busy", { status: 429 }));
+
+    const error = await authenticateCronometerMobile("e@x.com", "p", "", fetcher).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(CronometerMobileError);
+    expect(error).toMatchObject({ reason: "upstream", status: 429 });
+    expect(upstreamHttpFailure(error)).toEqual({ status: 429, step: "mobile_login" });
   });
 
   it("drops unusable timezones instead of failing login", async () => {

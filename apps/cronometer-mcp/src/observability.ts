@@ -3,6 +3,7 @@ import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace
 import type { McpServer } from "@modelcontextprotocol/server";
 import { captureException, withScope } from "@sentry/cloudflare";
 import { TOOL_ERROR_KIND, type ToolErrorKind } from "@cronometer-mcp/core";
+import { upstreamHttpFailure } from "@cronometer-mcp/cronometer-client";
 
 type ToolResult = { isError?: boolean; [TOOL_ERROR_KIND]?: ToolErrorKind } & Record<string, unknown>;
 type ToolHandler = (
@@ -15,6 +16,16 @@ type RegisterTool = (
   config: Record<string, unknown>,
   handler?: ToolHandler,
 ) => unknown;
+
+// beforeSend scrubs every message, so the status Cronometer answered with
+// survives only as a tag. It tells an outage (5xx), a rate limit (429) or an
+// egress block (403) apart without the credentials in the request.
+export function upstreamFailureTags(error: unknown): Record<string, string> {
+  const failure = upstreamHttpFailure(error);
+  return failure
+    ? { "cronometer.upstream_status": String(failure.status), "cronometer.upstream_step": failure.step }
+    : {};
+}
 
 export type ToolOutcome = "success" | "returned_error" | "thrown_error";
 
@@ -130,7 +141,7 @@ export function instrumentToolRegistration(
           report(outcome, errorKind);
           return result;
         } catch (error) {
-          captureException(error, { tags: { "mcp.tool.name": name } });
+          captureException(error, { tags: { "mcp.tool.name": name, ...upstreamFailureTags(error) } });
           span.setAttribute("mcp.tool.outcome", "thrown_error");
           span.recordException(error as Error);
           span.setStatus({

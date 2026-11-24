@@ -20,6 +20,7 @@ import {
   holdTraceUntilBodyDone,
   instrumentToolRegistration,
   RedactingSpanProcessor,
+  upstreamFailureTags,
 } from "./observability";
 import { sentryOptions } from "./sentry";
 import { createToolCallLogSink, parseOtlpHeaders } from "./tool-call-log";
@@ -53,7 +54,7 @@ export function createServer(
 
   registerCronometerTools(server, {
     onError: (error, operation) => {
-      captureException(error, { tags: { "cronometer.operation": operation } });
+      captureException(error, { tags: { "cronometer.operation": operation, ...upstreamFailureTags(error) } });
     },
     getAuthContext,
     oauth: {

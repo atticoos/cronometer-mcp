@@ -14,7 +14,7 @@
  * instruction instead of triggering an automatic re-login.
  */
 
-import { CronometerAuthenticationError } from "./cronometer";
+import { CronometerAuthenticationError, CronometerUpstreamHttpError } from "./cronometer";
 import type {
   AuthBlock,
   AddFoodResponse,
@@ -101,10 +101,35 @@ export interface CronometerMobileSession {
 export type CronometerMobileFailure = "request" | "session" | "upstream";
 
 export class CronometerMobileError extends Error {
-  constructor(readonly reason: CronometerMobileFailure, message?: string) {
+  constructor(
+    readonly reason: CronometerMobileFailure,
+    message?: string,
+    /** Cronometer's HTTP status when it answered with a non-2xx response. */
+    readonly status?: number,
+    /** The mobile endpoint, or "mobile_login", that returned that status. */
+    readonly step?: string,
+  ) {
     super(message ?? `Cronometer mobile request failed during ${reason}`);
     this.name = "CronometerMobileError";
   }
+}
+
+export interface CronometerUpstreamFailure {
+  status: number;
+  step: string;
+}
+
+/**
+ * The HTTP status, and the step that got it, behind a Cronometer upstream
+ * failure. Neither carries credentials or health data, so both are safe to
+ * attach to scrubbed error reports.
+ */
+export function upstreamHttpFailure(error: unknown): CronometerUpstreamFailure | undefined {
+  if (error instanceof CronometerUpstreamHttpError) return { status: error.status, step: error.step };
+  if (error instanceof CronometerMobileError && error.status !== undefined) {
+    return { status: error.status, step: error.step ?? "mobile" };
+  }
+  return undefined;
 }
 
 type Fetcher = typeof fetch;
@@ -153,7 +178,7 @@ export async function authenticateCronometerMobile(
   } satisfies LoginBody;
 
   const response = await postJson("/api/v2/login", payload, fetcher);
-  const data = await readJsonResponse(response, "login");
+  const data = await readJsonResponse(response, "login", "mobile_login");
 
   if (data.get("result") !== "SUCCESS" && !data.has("sessionKey")) {
     throw new CronometerAuthenticationError(
@@ -218,7 +243,7 @@ async function requestV2<T extends JsonRecord = JsonRecord>(
     throw new CronometerMobileError("session");
   }
 
-  const data = await readJsonResponse(response, endpoint);
+  const data = await readJsonResponse(response, endpoint, endpoint);
   const result = data.get("result");
   if (result === "FAIL" || result === "FAILURE") {
     const message = data.string("error")?.trim() ?? "";
@@ -303,9 +328,9 @@ class JsonResponse {
   }
 }
 
-async function readJsonResponse(response: Response, action: string): Promise<JsonResponse> {
+async function readJsonResponse(response: Response, action: string, step: string): Promise<JsonResponse> {
   if (!response.ok) {
-    throw new CronometerMobileError("upstream", `${action} returned HTTP ${response.status}`);
+    throw new CronometerMobileError("upstream", `${action} returned HTTP ${response.status}`, response.status, step);
   }
   let parsed: unknown;
   try {

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import SiteHeader from "../components/site-header";
 import { githubUrl, privacyPath, productionUrl, siteName } from "../site";
 
-const EFFECTIVE_DATE = "November 17, 2026";
+const EFFECTIVE_DATE = "November 24, 2026";
 const issuesUrl = `${githubUrl}/issues`;
 const linkClass = "text-emerald-300 underline decoration-emerald-300/40 underline-offset-4 hover:decoration-emerald-300";
 
@@ -176,7 +176,8 @@ export default function PrivacyPage() {
               <li>
                 <strong>Error reports.</strong> Unexpected errors are sent to Sentry. Before anything leaves the
                 service, each report is reduced to the error type, a generic message, a stack trace of our code, and
-                the name of the tool or step that failed. Messages, request data, headers, cookies, user information,
+                the name of the tool or step that failed, plus the HTTP status code Cronometer answered with when
+                it refused a request. Messages, request data, headers, cookies, user information,
                 and breadcrumbs are removed because they could contain credentials or health data.
               </li>
             </List>
